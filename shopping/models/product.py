@@ -1,0 +1,243 @@
+from django.db import models
+from django.utils.text import slugify
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.conf import settings
+
+
+class Category(models.Model):
+    """상품 카테고리 (예: 의류, 전자제품, 식품 등)"""
+
+    name = models.CharField(max_length=100, unique=True, verbose_name="카테고리명")
+
+    slug = models.SlugField(
+        max_length=100, unique=True, help_text="URL에 사용될 짦은 이름 (자동생성됨)"
+    )
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="children",
+        verbose_name="상위 카테고리",
+    )
+    description = models.TextField(blank=True, verbose_name="카테고리 설명")
+    is_active = models.BooleanField(default=True, verbose_name="활성화 여부")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    is_active = models.BooleanField(default=True, verbose_name="활성화")
+
+    class Meta:
+        verbose_name = "카테고리"
+        verbose_name_plural = "카테고리"
+        ordering = ["name"]  # 이름순 정렬
+
+    def __str__(self):
+        # admin이나 shell에서 보여질 이름
+        if self.parent:
+            return f"{self.parent.name} > {self.name}"
+        return self.name
+
+    def save(self, *args, **kwargs):
+        # slug 자동 생성 (한글 지원)
+        if not self.slug:
+            self.slug = slugify(self.name, allow_unicode=True)
+        super().save(*args, **kwargs)
+
+
+class Product(models.Model):
+    """상품 기본 정보"""
+
+    # 기본 정보
+    name = models.CharField(
+        max_length=200, verbose_name="상품명", db_index=True  # 검색 속도 향상
+    )
+    slug = models.SlugField(
+        max_length=200, unique=True, help_text="URL용 이름 (자동생성)"
+    )
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.PROTECT,
+        related_name="products",
+        verbose_name="카테고리",
+    )
+
+    # 상품 설명
+    description = models.TextField(
+        verbose_name="상품 설명", help_text="상품의 자세한 설명을 입력하세요."
+    )
+    short_description = models.CharField(
+        max_length=300,
+        blank=True,
+        verbose_name="간단 설명",
+        help_text="목록에서 보여질 짧은 설명",
+    )
+
+    # 가격 정보
+    price = models.DecimalField(
+        max_digits=10,  # 최대 10자리
+        decimal_places=0,
+        validators=[MinValueValidator(0)],
+        verbose_name="판매가",
+    )
+    compare_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=0,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        verbose_name="할인 전 가격",
+        help_text="할인 전 가격 (선택사항)",
+    )
+
+    # 재고 관리
+    stock = models.PositiveIntegerField(default=0, verbose_name="재고 수량")
+    is_available = models.BooleanField(default=True, verbose_name="판매 가능 여부")
+
+    # 상품 옵션
+    sku = models.CharField(
+        max_length=50,
+        unique=True,
+        verbose_name="재고관리코드(SKU)",
+        help_text="상품 고유 관리 번호",
+    )
+
+    # 추가 정보
+    brand = models.CharField(max_length=100, blank=True, verbose_name="브랜드")
+    tags = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name="태그",
+        help_text="쉼표로 구분하여 입력 (예: 신상품, 베스트 , 세일)",
+    )
+
+    # 판매자 정보
+    seller = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="products",
+        verbose_name="판매자",
+        null=True,
+        blank=True,
+    )
+
+    # 통계 정보
+    view_count = models.PositiveIntegerField(default=0, verbose_name="조회수")
+    sold_count = models.PositiveIntegerField(default=0, verbose_name="판매량")
+
+    # 시간 정보
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # 상품 활성화 상태 추가
+    is_active = models.BooleanField(
+        default=True, verbose_name="판매중", help_text="체크 해제시 상품이 숨겨집니다."
+    )
+
+    class Meta:
+        verbose_name = "상품"
+        verbose_name_plural = "상품"
+        ordering = ["-created_at"]  # 최신순 정렬
+        indexes = [
+            models.Index(fields=["name", "category"]),  # 복합 인덱스
+            models.Index(fields=["price"]),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name, allow_unicode=True)
+        super().save(*args, **kwargs)
+
+    @property
+    def is_on_sale(self):
+        """할인 중인지 확인"""
+        return self.compare_price and self.compare_price > self.price
+
+    @property
+    def discount_percentage(self):
+        """할인율 계산"""
+        if self.is_on_sale:
+            return int((1 - self.price / self.compare_price) * 100)
+        return 0
+
+    @property
+    def is_in_stock(self):
+        """재고 있는지 확인"""
+        return self.stock > 0 and self.is_available
+
+    def can_purchase(self, quantity):
+        """구매 가능한지 확인"""
+        return self.is_in_stock and self.stock >= quantity
+
+    def decrease_stock(self, quantity):
+        """재고 차감"""
+        if self.can_purchase(quantity):
+            self.stock -= quantity
+            self.sold_count += quantity
+            self.save()
+            return True
+        return False
+
+
+class ProductImage(models.Model):
+    """상품 이미지 (여러개 가능)"""
+
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="images", verbose_name="상품"
+    )
+    image = models.ImageField(upload_to="product/%Y/%m/%d", verbose_name="이미지")
+    alt_text = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name="대체 텍스트",
+        help_text="이미지 설명 (SEO용)",
+    )
+    is_primary = models.BooleanField(default=False, verbose_name="대표 이미지")
+    order = models.PositiveIntegerField(default=0, verbose_name="표시 순서")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "상품 이미지"
+        verbose_name_plural = "상품 이미지"
+        ordering = ["order", "created_at"]
+
+    def __str__(self):
+        return f"{self.product.name} - 이미지 {self.order}"
+
+    def save(self, *args, **kwargs):
+        # 대표 이미지는 1개만
+        if self.is_primary:
+            ProductImage.objects.filter(product=self.product, is_primary=True).exclude(
+                pk=self.pk
+            ).update(is_primary=False)
+        super().save(*args, **kwargs)
+
+
+class ProductReview(models.Model):
+    """상품 리뷰 (선택사항)"""
+
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="reviews", verbose_name="상품"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name="작성자"
+    )
+    rating = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)], verbose_name="평점"
+    )
+    comment = models.TextField(verbose_name="리뷰 내용")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "상품 리뷰"
+        verbose_name_plural = "상품 리뷰"
+        ordering = ["-created_at"]
+        # 한 상품에 한 사용자는 하나의 리뷰만 가능
+        unique_together = ["product", "user"]
+
+    def __str__(self):
+        return f"{self.product.name} - {self.user.username}의 리뷰"

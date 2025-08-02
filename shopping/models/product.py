@@ -159,9 +159,8 @@ class Product(models.Model):
     @property
     def discount_percentage(self):
         """할인율 계산"""
-        if self.discount_price and self.price > 0:
-            percentage = ((self.price - self.discount_price) / self.price) * 100
-            return int(percentage)
+        if self.is_on_sale:
+            return int((1 - self.price / self.compare_price) * 100)
         return 0
 
     @property

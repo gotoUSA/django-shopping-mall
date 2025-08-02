@@ -1,16 +1,15 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-# ViewSet들을 나중에 import할 예정
-# from .views import ProductViewSet, OrderViewSet, etc...
+# ViewSet import
+from shopping.views.product_views import ProductViewSet, CategoryViewSet
 
 # DRF의 라우터 생성
 router = DefaultRouter()
 
-# 나중에 ViewSet들을 등록할 예정
-# router.register(r'products', ProductViewSet, basename='product')
-# router.register(r'orders', OrderViewSet, basename='order')
-# router.register(r'categories', CategoryViewSet, basename='category')
+# ViewSet 등록
+router.register(r"products", ProductViewSet, basename="product")
+router.register(r"categories", CategoryViewSet, basename="category")
 
 # URL 패턴 정의
 urlpatterns = [
@@ -21,4 +20,32 @@ urlpatterns = [
     # path('cart/', CartView.as_view(), name='cart'),  # 장바구니 (나중에 추가)
 ]
 
-# 현재는 빈 urlpatterns이지만, 에러를 방지하기 위해 기본 구조를 만들어둠
+"""
+생성되는 URL 패턴:
+
+상품(Product) 관련:
+- GET    /api/products/              - 상품 목록
+- POST   /api/products/              - 상품 생성
+- GET    /api/products/{id}/         - 상품 상세
+- PUT    /api/products/{id}/         - 상품 전체 수정
+- PATCH  /api/products/{id}/         - 상품 부분 수정
+- DELETE /api/products/{id}/         - 상품 삭제
+- GET    /api/products/{id}/reviews/ - 상품 리뷰 목록
+- POST   /api/products/{id}/add_review/ - 리뷰 작성
+- GET    /api/products/popular/      - 인기 상품
+- GET    /api/products/best_rating/  - 평점 높은 상품
+- GET    /api/products/low_stock/    - 재고 부족 상품
+
+카테고리(Category) 관련:
+- GET    /api/categories/            - 카테고리 목록
+- GET    /api/categories/{id}/       - 카테고리 상세
+- GET    /api/categories/tree/       - 카테고리 트리 구조
+- GET    /api/categories/{id}/products/ - 카테고리별 상품
+
+검색 및 필터링 예시:
+- /api/products/?search=노트북
+- /api/products/?category=1&min_price=10000&max_price=50000
+- /api/products/?ordering=-price
+- /api/products/?in_stock=true
+- /api/products/?seller=3
+"""

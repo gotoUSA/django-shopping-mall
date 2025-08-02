@@ -21,11 +21,16 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
+    # 관리자 페이지
     path("admin/", admin.site.urls),
-    path("api/", include("shopping.urls")),  # shop 앱의 URL
+    # shopping 앱 URLs 포함
+    path("api/", include("shopping.urls")),
+    # DRF 인증 URLs (로그인/로그아웃 페이지)
+    path("api-auth/", include("rest_framework.urls")),
 ]
 
 # 개발 환경에서 미디어 파일 서빙
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

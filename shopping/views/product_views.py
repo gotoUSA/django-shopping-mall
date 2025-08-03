@@ -11,11 +11,13 @@ from shopping.models.product import Product, Category, ProductImage, ProductRevi
 from shopping.models.user import User
 
 # Serializer import
-from shopping.serializers.product_serializers import (
+from shopping.serializers import (
     ProductCreateUpdateSerializer,
     ProductListSerializer,
     ProductDetailSerializer,
     ProductReviewSerializer,
+    CategorySerializer,
+    CategoryTreeSerializer,
 )
 
 
@@ -89,17 +91,12 @@ class ProductViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         """
         액션에 따라 다른 Serializer 사용
-        - list: ProductListSerializer (목록용 - 간단한 정보)
-        - retrieve: ProductDetailSerializer (상세용 - 모든 정보)
-        - create/update: ProductCreateUpdateSerializer (생성/수정용)
+        - tree 액션: CategoryTreeSerializer
+        - 기본: CategorySerializer
         """
-        if self.action == "list":
-            return ProductListSerializer
-        elif self.action == "retrieve":
-            return ProductDetailSerializer
-        elif self.action in ["create", "update", "partial_update"]:
-            return ProductCreateUpdateSerializer
-        return ProductListSerializer
+        if self.action == "tree":
+            return CategoryTreeSerializer
+        return CategorySerializer
 
     def get_queryset(self):
         """

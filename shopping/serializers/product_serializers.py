@@ -160,7 +160,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
 
 
 class ProductReviewSerializer(serializers.ModelSerializer):
-    """상품 리뷰 Serializer"""
+    """상품 리뷰"""
 
     user_display_name = serializers.SerializerMethodField()
     created_at_formatted = serializers.DateTimeField(

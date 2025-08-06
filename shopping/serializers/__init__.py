@@ -28,13 +28,15 @@ from .category_serializers import (
     SimpleCategorySerializer,
 )
 
-# Cart 관련 Serializers (아직 구현 전)
-# from .cart_serializers import (
-#     CartSerializer,
-#     CartItemSerializer,
-#     CartItemCreateSerializer,
-#     CartItemUpdateSerializer,
-# )
+# Cart 관련 Serializers
+from .cart_serializers import (
+    CartSerializer,
+    CartItemSerializer,
+    CartItemCreateSerializer,
+    CartItemUpdateSerializer,
+    SimpleCartSerializer,
+    CartClearSerializer,
+)
 
 # Order 관련 Serializers (아직 구현 전)
 # from .order_serializers import (
@@ -65,11 +67,13 @@ __all__ = [
     "CategoryTreeSerializer",
     "CategoryCreateUpdateSerializer",
     "SimpleCategorySerializer",
-    # Cart (추후 추가)
-    # 'CartSerializer',
-    # 'CartItemSerializer',
-    # 'CartItemCreateSerializer',
-    # 'CartItemUpdateSerializer',
+    # Cart
+    "CartSerializer",
+    "CartItemSerializer",
+    "CartItemCreateSerializer",
+    "CartItemUpdateSerializer",
+    "SimpleCartSerializer",
+    "CartClearSerializer",
     # Order (추후 추가)
     # 'OrderSerializer',
     # 'OrderItemSerializer',

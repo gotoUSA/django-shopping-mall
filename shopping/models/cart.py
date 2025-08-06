@@ -20,7 +20,7 @@ class Cart(models.Model):
     )
 
     # 세션 키 (비회원 장바구니를 위함)
-    sesstion_key = models.CharField(
+    session_key = models.CharField(
         max_length=255,
         null=True,
         blank=True,

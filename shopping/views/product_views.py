@@ -336,7 +336,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     """
 
     queryset = Category.objects.all()
-    permission_classes = [permissions.AllowAny]  # 누구나 조호 ㅣ가능
+    permission_classes = [permissions.AllowAny]  # 누구나 조회 가능
 
     def get_serializer_class(self):
         """
@@ -350,7 +350,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
             """카테고리 기본 Serializer"""
 
             parent_id = serializers.IntegerField(
-                source="parent.id", read_only=True, allouw_null=True
+                source="parent.id", read_only=True, allow_null=True
             )
             parent_name = serializers.CharField(source="parent.name", read_only=True)
             product_count = serializers.IntegerField(read_only=True)

@@ -150,7 +150,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProductImage
-        fields = ["id", "image", "image_url", "alt_text", "display_order", "is_primary"]
+        fields = ["id", "image", "image_url", "alt_text", "order", "is_primary"]
 
     def get_image_url(self, obj):
         request = self.context.get("request")
@@ -204,7 +204,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     seller_product_count = serializers.SerializerMethodField()
 
     # 관련 데이터
-    iamges = ProductImageSerializer(many=True, read_only=True)
+    images = ProductImageSerializer(many=True, read_only=True)
     recent_reviews = serializers.SerializerMethodField()
 
     # 계산 필드

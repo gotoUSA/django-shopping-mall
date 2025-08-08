@@ -2,6 +2,8 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
 from django.db.models import Count, Avg
+from mptt.admin import DraggableMPTTAdmin
+
 from .models import (
     Product,
     Category,
@@ -15,34 +17,78 @@ from .models import (
 )
 
 
+# User Admin
+@admin.register(User)
+class UserAdmin(admin.ModelAdmin):
+    """
+    사용자 관리자 페이지 설정
+    """
+
+    list_display = ["username", "email", "phone_number", "date_joined", "is_active"]
+    list_filter = ["is_active", "is_staff", "date_joined"]
+    search_fields = ["username", "email", "phone_number"]
+    date_hierarchy = "date_joined"
+    ordering = ["-date_joined"]
+
+
 # Category Admin
 @admin.register(Category)
-class CategoryAdmin(admin.ModelAdmin):
+class CategoryAdmin(DraggableMPTTAdmin):
     """
-    카테고리 관리
-    - 계층 구조 표시
-    - 상품 개수 확인
+    카테고리 관리자 페이지 설정
+    MPTT 드래그 앤 드롭 기능 포함
     """
 
-    list_display = ["name", "parent", "product_count", "is_active"]
-    list_filter = ["is_active", "parent"]
-    search_fields = ["name"]
-    prepopulated_fields = {"slug": ("name",)}  # name 입력시 slug 자동 생성
+    # MPTT 관련 설정
+    mptt_level_indent = 20  # 계층별 들여쓰기 픽셀
 
-    def product_count(self, obj):
-        """해당 카테고리의 상품 개수"""
+    # DraggableMPTTAdmin의 기본 설정
+    list_display = [
+        "tree_actions",  # MPTT가 제공하는 트리 액션 버튼
+        "indented_title",  # 들여쓰기된 제목
+        "related_products_count",
+        "related_products_cumulative_count",
+    ]
+
+    list_display_links = ["indented_title"]  # 클릭 가능한 필드
+
+    # 필터
+    list_filter = [
+        "is_active",
+    ]
+
+    # 검색
+    search_fields = ["name", "slug"]
+
+    # name 입력시 slug 자동 생성
+    prepopulated_fields = {"slug": ("name",)}
+
+    # 읽기 전용 필드
+    readonly_fields = ["created_at", "updated_at"]
+
+    def related_products_count(self, obj):
+        """현재 카테고리의 제품 수"""
         return obj.products.count()
 
-    product_count.short_description = "상품 수"
+    related_products_count.short_description = "직접 제품 수"
+
+    def related_products_cumulative_count(self, obj):
+        """현재 카테고리와 하위 카테고리의 모든 제품 수"""
+        return Product.objects.filter(
+            category__in=obj.get_descendants(include_self=True)
+        ).count()
+
+    related_products_cumulative_count.short_description = "전체 제품 수"
 
 
 # Product 관련 Inline
 class ProductImageInline(admin.TabularInline):
-    """상품 편집 페이지에서 이미지를 함께 관리"""
+    """제품 이미지 인라인 (제품 수정 페이지에서 함께 편집)"""
 
     model = ProductImage
     extra = 1
-    fields = ["image", "alt_text", "is_primary"]
+    fields = ["image", "alt_text", "order", "is_primary"]
+    ordering = ["order"]
 
 
 class ProductReviewInline(admin.TabularInline):
@@ -66,44 +112,40 @@ class ProductAdmin(admin.ModelAdmin):
     list_display = [
         "name",
         "category",
+        "seller",
         "price",
+        "formatted_price",  # 가격 포맷팅
         "stock",
         "is_active",
-        "average_rating",
         "created_at",
     ]
 
     list_filter = ["category", "is_active", "created_at"]
-    search_fields = ["name", "description"]
+    search_fields = ["name", "description", "sku"]
     prepopulated_fields = {"slug": ("name",)}
+    date_hierarchy = "created_at"
+    ordering = ["-created_at"]
 
     # 상세 페이지 필드 구성
     fieldsets = (
-        ("기본 정보", {"fields": ("name", "slug", "category", "description")}),
-        ("가격 및 재고", {"fields": ("price", "stock")}),
-        ("상태", {"fields": ("is_active",)}),
+        ("기본 정보", {"fields": ("name", "slug", "category", "sku", "seller")}),
+        ("가격 및 재고", {"fields": ("price", "stock_quantity")}),
+        ("상세 정보", {"fields": ("description", "is_active")}),
+        (
+            "시간 정보",
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
     )
 
     # 인라인으로 이미지와 리뷰 표시
     inlines = [ProductImageInline, ProductReviewInline]
 
-    # 목록에서 바로 수정 가능
-    list_editable = ["price", "stock", "is_active"]
-
-    def price_display(self, obj):
+    def formatted_price(self, obj):
         """가격을 원화 형식으로 표시"""
         return f"₩{obj.price:,.0f}"
 
-    price_display.short_description = "가격"
-
-    def average_rating(self, obj):
-        """평균 평점 표시"""
-        avg = obj.reviews.aggregate(Avg("rating"))["rating__avg"]
-        if avg:
-            return f"⭐ {avg:.1f}"
-        return "-"
-
-    average_rating.short_description = "평균 평점"
+    formatted_price.short_description = "가격"
+    formatted_price.admin_order_field = "price"  # 정렬 가능하게
 
 
 # ProductReview Admin
@@ -115,16 +157,11 @@ class ProductReviewAdmin(admin.ModelAdmin):
     - 평점별 필터링
     """
 
-    list_display = ["product", "user", "rating_stars", "comment_preview", "created_at"]
+    list_display = ["product", "user", "rating", "comment_preview", "created_at"]
     list_filter = ["rating", "created_at"]
     search_fields = ["product__name", "user__username", "comment"]
-    readonly_fields = ["user", "product", "created_at"]
-
-    def rating_stars(self, obj):
-        """평점을 별로 표시"""
-        return "⭐" * obj.rating
-
-    rating_stars.short_description = "평점"
+    date_hierarchy = "created_at"
+    ordering = ["-created_at"]
 
     def comment_preview(self, obj):
         """댓글 미리보기 (50자)"""
@@ -141,42 +178,29 @@ class OrderItemInline(admin.TabularInline):
 
     model = OrderItem
     extra = 0
-    readonly_fields = ("product_name", "price", "get_subtotal_display")
-    fields = ("product", "product_name", "quantity", "price", "get_subtotal_display")
-
-    def get_subtotal_display(self, obj):
-        """소계를 보기 좋게 표시"""
-        if obj.id:
-            return f"₩{obj.get_subtotal():,.0f}"
-        return "-"
-
-    get_subtotal_display.short_discription = "소계"
+    readonly_fields = ["product", "quantity", "price"]
+    can_delete = False
 
 
 # Order admin
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     """
-    주문 관리
-    - 주문 상태 관리
-    - 배송 정보 확인
-    - 주문 상품 함께 관리
+    주문 관리자 페이지 설정
     """
 
     list_display = [
         "id",
         "user",
         "status",
-        "status_colored",
-        "total_amount_display",
-        "shipping_name",
+        "formatted_total_amount",
         "created_at",
     ]
 
-    list_filter = ["status", "payment_method", "created_at"]
-    search_fields = ["user__username", "user__email", "shipping_name", "shipping_phone"]
-    list_editable = ["status"]
+    list_filter = ["status", "created_at"]
+    search_fields = ["order_number", "user__username", "user__email"]
     date_hierarchy = "created_at"
+    ordering = ["-created_at"]
 
     fieldsets = (
         (
@@ -198,124 +222,44 @@ class OrderAdmin(admin.ModelAdmin):
         ("결제 정보", {"fields": ("payment_method",), "classes": ("collapse",)}),
     )
 
-    readonly_fields = ("created_at", "updated_at", "total_amount")
     inlines = [OrderItemInline]
 
-    def total_amount_display(self, obj):
+    # 상태별 액션
+    actions = ["mark_as_paid", "mark_as_shipped", "mark_as_delivered"]
+
+    def formatted_total_amount(self, obj):
         """금액을 원화 형식으로 표시"""
         return f"₩{obj.total_amount:,.0f}"
 
-    total_amount_display.short_description = "총 금액"
+    formatted_total_amount.short_description = "총 금액"
+    formatted_total_amount.admin_order_field = "total_amount"
 
-    def status_colored(self, obj):
-        """주문 상태를 색상으로 구분"""
-        colors = {
-            "pending": "#FFA500",
-            "paid": "#008000",
-            "preparing": "#0000FF",
-            "shipped": "#800080",
-            "delivered": "#006400",
-            "cancelled": "#FF0000",
-            "refunded": "#8B0000",
-        }
-
-        color = colors.get(obj.status, "#000000")
-        return format_html(
-            '<span style="color: {}; font-weight: bold;">{}</span>',
-            color,
-            obj.get_status_display(),
+    def mark_as_paid(self, request, queryset):
+        """선택된 주문을 결제완료로 변경"""
+        queryset.update(status="paid")
+        self.message_user(
+            request, f"{queryset.count()}개 주문이 결제완료로 변경되었습니다."
         )
 
-    status_colored.short_discription = "주문 상태"
+    mark_as_paid.short_description = "선택된 주문을 결제완료로 변경"
 
-    actions = ["make_paid", "make_shipped"]
+    def mark_as_shipped(self, request, queryset):
+        """선택된 주문을 배송중으로 변경"""
+        queryset.update(status="shipped")
+        self.message_user(
+            request, f"{queryset.count()}개 주문이 배송중으로 변경되었습니다."
+        )
 
-    def make_paid(self, request, queryset):
-        """선택한 주문들을 '결제완료'로 변경"""
-        updated = queryset.update(status="paid")
-        self.message_user(request, f"{updated}개의 주문이 결제완료로 변경되었습니다.")
+    mark_as_shipped.short_description = "선택된 주문을 배송중으로 변경"
 
-    make_paid.short_description = "선택한 주문을 결제완료로 변경"
+    def mark_as_delivered(self, request, queryset):
+        """선택된 주문을 배송완료로 변경"""
+        queryset.update(status="delivered")
+        self.message_user(
+            request, f"{queryset.count()}개 주문이 배송완료로 변경되었습니다."
+        )
 
-    def make_shipped(self, request, queryset):
-        """선택한 주문들을 '배송중'으로 변경"""
-        updated = queryset.update(status="shipped")
-        self.message_user(request, f"{updated}개의 주문이 배송중으로 변경되었습니다.")
-
-    make_shipped.short_description = "선택한 주문을 배송중으로 변경"
-
-
-# UserAdmin 설정
-class UserAdmin(BaseUserAdmin):
-    """커스텀 User 모델을 위한 Admin 설정"""
-
-    # 목록 표시 필드
-    list_display = [
-        "username",
-        "email",
-        "get_full_name",
-        "phone_number",
-        "membership_level",
-        "points",
-        "is_active",
-        "is_staff",
-    ]
-
-    # 목록 필터
-    list_filter = [
-        "membership_level",
-        "is_staff",
-        "is_superuser",
-        "is_active",
-        "is_email_verified",
-        "is_phone_verified",
-    ]
-
-    # 검색 필드
-    search_fields = [
-        "username",
-        "email",
-        "first_name",
-        "last_name",
-        "phone_number",
-        "address",
-    ]
-
-    # 정렬
-    ordering = ["-date_joined"]
-
-    # 상세 페이지 필드 그룹
-    fieldsets = BaseUserAdmin.fieldsets + (
-        ("추가 정보", {"fields": ("phone_number", "birth_date")}),
-        ("주소 정보", {"fields": ("postal_code", "address", "address_detail")}),
-        (
-            "회원 정보",
-            {
-                "fields": (
-                    "membership_level",
-                    "points",
-                    "is_email_verified",
-                    "is_phone_verified",
-                )
-            },
-        ),
-        ("마케팅 동의", {"fields": ("agree_marketing_email", "agree_marketing_sms")}),
-    )
-
-    # 새 사용자 추가시 필드
-    add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ("추가 정보", {"fields": ("email", "phone_number", "birth_date")}),
-    )
-
-
-# User 모델 등록
-admin.site.register(User, UserAdmin)
-
-
-# Admin 사이트 설정
-admin.site.site_header = "쇼핑몰 관리"
-admin.site.site_title = "쇼핑몰 관리"
-admin.site.index_title = "쇼핑몰 관리 홈"
+    mark_as_delivered.short_description = "선택된 주문을 배송완료로 변경"
 
 
 # CartItem Inline
@@ -334,56 +278,53 @@ class CartItemInline(admin.TabularInline):
 
 # Cart Admin 설정 추가
 class CartAdmin(admin.ModelAdmin):
+    """
+    장바구니 관리자 페이지 설정
+    """
+
     list_display = [
         "id",
         "user",
-        "get_total_amount",
-        "get_total_quantity",
-        "is_active",
+        "session_key",
+        "item_count",
         "created_at",
-        "updated_at",
     ]
-    list_filter = ["is_active", "created_at"]
-    search_fields = ["user__username", "user__email"]
-    readonly_fields = [
-        "created_at",
-        "updated_at",
-        "get_total_amount",
-        "get_total_quantity",
-    ]
-    inlines = [CartItemInline]
+    list_filter = ["created_at"]
+    search_fields = ["user__username", "session_key"]
+    date_hierarchy = "created_at"
+    ordering = ["-created_at"]
 
-    fieldsets = (
-        ("기본 정보", {"fields": ("user", "is_active")}),
-        ("요약 정보", {"fields": ("get_total_amount", "get_total_quantity")}),
-        (
-            "시간 정보",
-            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
-        ),
-    )
+    def item_count(self, obj):
+        """장바구니 아이템 수"""
+        return obj.items.count()
 
-    def get_total_amount(self, obj):
-        """총 금액 표시"""
-        return format_html("<strong>₩{}</strong>", f"{obj.total_amount:,.0f}")
+    item_count.short_description = "아이템 수"
 
-    get_total_amount.short_description = "총 금액"
 
-    def get_total_quantity(self, obj):
-        """총 수량 표시"""
-        return f"{obj.total_quantity}개"
+# CartItem Admin
+@admin.register(CartItem)
+class CartItemAdmin(admin.ModelAdmin):
+    """
+    장바구니 아이템 관리자 페이지 설정
+    """
 
-    get_total_quantity.short_description = "총 수량"
+    list_display = ["cart", "product", "quantity", "formatted_subtotal"]
+    list_filter = ["cart__created_at"]
+    search_fields = ["cart__user__username", "product__name"]
 
-    actions = ["clear_cart_items"]
+    def formatted_subtotal(self, obj):
+        """소계 원화 형식"""
+        subtotal = obj.product.price * obj.quantity
+        return f"₩{subtotal:,.0f}"
 
-    def clear_cart_items(self, request, queryset):
-        """선택한 장바구니 비우기"""
-        for cart in queryset:
-            cart.clear()
-        self.message_user(request, f"{queryset.count()}개의 장바구니를 비웠습니다.")
-
-    clear_cart_items.short_description = "선택한 장바구니 비우기"
+    formatted_subtotal.short_description = "소계"
 
 
 # 모델 등록 (맨 아래에 추가)
 admin.site.register(Cart, CartAdmin)
+
+
+# Admin 사이트 설정
+admin.site.site_header = "쇼핑몰 관리자"
+admin.site.site_title = "쇼핑몰 Admin"
+admin.site.index_title = "쇼핑몰 관리"

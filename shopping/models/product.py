@@ -2,17 +2,23 @@ from django.db import models
 from django.utils.text import slugify
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.conf import settings
+from mptt.models import MPTTModel, TreeForeignKey
 
 
-class Category(models.Model):
-    """상품 카테고리 (예: 의류, 전자제품, 식품 등)"""
+class Category(MPTTModel):
+    """
+    상품 카테고리 (MPTT를 사용한 계층구조)
+
+    MPTT(Modified Preorder Tree Traversal)를 사용하여
+    효율적인 계층 구조 쿼리를 지원합니다.
+    """
 
     name = models.CharField(max_length=100, unique=True, verbose_name="카테고리명")
 
     slug = models.SlugField(
         max_length=100, unique=True, help_text="URL에 사용될 짦은 이름 (자동생성됨)"
     )
-    parent = models.ForeignKey(
+    parent = TreeForeignKey(
         "self",
         on_delete=models.SET_NULL,
         null=True,
@@ -27,15 +33,24 @@ class Category(models.Model):
 
     is_active = models.BooleanField(default=True, verbose_name="활성화")
 
-    class Meta:
+    class MPTTMeta:
+        """MPTT 설정"""
+
+        # 정렬 기준 필드 지정
+        order_insertion_by = ["name"]
+
+    class Mega:
         verbose_name = "카테고리"
         verbose_name_plural = "카테고리"
-        ordering = ["name"]  # 이름순 정렬
+        ordering = ["name"]  # 기본 정렬
 
     def __str__(self):
-        # admin이나 shell에서 보여질 이름
-        if self.parent:
-            return f"{self.parent.name} > {self.name}"
+        # 계층 구조를 보여주는 문자열 표현
+        # get_ancestors()는 MPTT가 제공하는 메서드
+        ancestors = self.get_ancestors(include_self=False)
+        if ancestors:
+            ancestors_names = " > ".join([a.name for a in ancestors])
+            return f"{ancestors_names} > {self.name}"
         return self.name
 
     def save(self, *args, **kwargs):
@@ -43,6 +58,31 @@ class Category(models.Model):
         if not self.slug:
             self.slug = slugify(self.name, allow_unicode=True)
         super().save(*args, **kwargs)
+
+    def get_full_path(self):
+        """
+        최상위부터 현재 카테고리까지의 전체 경로 반환
+        예: "전자제품 > 컴퓨터 > 노트북
+        """
+        ancestors = self.get_ancestors(include_self=True)
+        return " > ".join([cat.name for cat in ancestors])
+
+    def get_all_products(self):
+        """
+        현재 카테고리와 모든 하위 카테고리의 상품을 반환
+        """
+        categories = self.get_descendants(include_self=True)
+        return Product.objects.filter(category__in=categories, is_active=True)
+
+    @property
+    def product_count(self):
+        """현재 카테고리의 활성 상품 수"""
+        return self.products.filter(is_acitve=True).count()
+
+    @property
+    def total_product_count(self):
+        """하위 카테고리를 포함한 전체 상품 수"""
+        return self.get_all_products().count()
 
 
 class Product(models.Model):

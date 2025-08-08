@@ -101,7 +101,7 @@ class CartItem(models.Model):
 
     # 상품 참조
     product = models.ForeignKey(
-        "product", on_delete=models.CASCADE, verbose_name="상품"
+        "Product", on_delete=models.CASCADE, verbose_name="상품"
     )
 
     # 수량

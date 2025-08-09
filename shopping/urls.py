@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 # ViewSet import
 from shopping.views.product_views import ProductViewSet, CategoryViewSet
 from shopping.views.cart_views import CartViewSet, CartItemViewSet
+from shopping.views.order_views import OrderViewSet
 
 # DRF의 라우터 생성
 router = DefaultRouter()
@@ -11,7 +12,7 @@ router = DefaultRouter()
 # ViewSet 등록
 router.register(r"products", ProductViewSet, basename="product")
 router.register(r"categories", CategoryViewSet, basename="category")
-
+router.register(r"order", OrderViewSet, basename="order")
 # Cart 관련 ViewSet 등록
 # CartViewSet은 특별한 actions만 있으므로 수동 등록
 router.register(r"cart-items", CartItemViewSet, basename="cart-item")

@@ -2,6 +2,7 @@ from django.db import models
 from django.core.validators import MinValueValidator
 from decimal import Decimal
 from django.conf import settings
+from django.utils import timezone
 
 
 class Order(models.Model):
@@ -89,6 +90,14 @@ class Order(models.Model):
         verbose_name="총 주문금액",
     )
 
+    # 주문번호 필드 추가
+    order_number = models.CharField(
+        max_length=20,
+        unique=True,
+        null=True,  # 처음엔 null 허용
+        verbose_name="주문번호",
+    )
+
     # 시간 정보
     created_at = models.DateTimeField(
         auto_now_add=True, verbose_name="주문일시"  # 생성시 자동 설정
@@ -122,6 +131,24 @@ class Order(models.Model):
         """총액을 계산해서 저장"""
         self.total_amount = self.calcultate_total_amount()
         self.save(update_fields=["total_amount"])
+
+    def save(self, *args, **kwargs):
+        """
+        주문 생성시 자동으로 주문번호 생성
+        형식: YYYYMMDD + 6자리 ID
+        예: 202508090000001
+        """
+        if not self.pk:  # 신규 생성시에만
+            # 1. 먼저 저장하여 ID(PK) 생성
+            super().save(*args, **kwargs)
+
+            # 2. ID를 포함한 주문번호 생성
+            date_str = timezone.now().strftime("%Y%m%d")
+            # 3. 주문번호만 업데이트
+            self.save(update_fields=["order_number"])
+        else:
+            # 수정시에는 그냥 저장
+            super().save(*args, **kwargs)
 
     @property
     def get_full_shipping_address(self):

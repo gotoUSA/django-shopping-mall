@@ -6,6 +6,19 @@ from shopping.views.product_views import ProductViewSet, CategoryViewSet
 from shopping.views.cart_views import CartViewSet, CartItemViewSet
 from shopping.views.order_views import OrderViewSet
 
+# Auth Views import
+from shopping.views.auth_views import (
+    RegisterView,
+    LoginView,
+    CustomTokenRefreshView,
+    LogoutView,
+    ProfileView,
+    PasswordChangeView,
+    check_token,
+    email_verification_request,
+    withdraw,
+)
+
 # DRF의 라우터 생성
 router = DefaultRouter()
 
@@ -20,6 +33,20 @@ router.register(r"cart-items", CartItemViewSet, basename="cart-item")
 urlpatterns = [
     # API root - 라우터가 자동으로 생성하는 URL들
     path("", include(router.urls)),
+    # 인증(Auth) 관련 URLs
+    # 회원가입 및 로그인
+    path("auth/register/", RegisterView.as_view(), name="auth-register"),
+    path("auth/login/", LoginView.as_view(), name="auth-login"),
+    path("auth/logout/", LogoutView.as_view(), name="auth-logout"),
+    # 토큰 관리
+    path("auth/token/refresh/", CustomTokenRefreshView.as_view(), name="token-refresh"),
+    path("auth/token/verify/", check_token, name="token-verify"),
+    # 프로필 관리
+    path("auth/profile/", ProfileView.as_view(), name="auth-profile"),
+    path("auth/password/change/", PasswordChangeView.as_view(), name="password-change"),
+    # 추가 기능
+    path("auth/email/verify/", email_verification_request, name="email-verify"),
+    path("auth/withdraw/", withdraw, name="auth-withdraw"),
     # Cart 관련 커스텀 URLs (CartViewSet의 actions)
     path("cart/", CartViewSet.as_view({"get": "retrieve"}), name="cart-detail"),
     path("cart/summary/", CartViewSet.as_view({"get": "summary"}), name="cart-summary"),
@@ -52,6 +79,25 @@ urlpatterns = [
 
 """
 생성되는 URL 패턴:
+
+회원가입 및 로그인:
+- POST   /api/auth/register/         - 회원가입 (새 사용자 생성 + 토큰 발급)
+- POST   /api/auth/login/            - 로그인 (인증 + 토큰 발급)
+- POST   /api/auth/logout/           - 로그아웃 (토큰 블랙리스트 추가)
+
+토큰 관리:
+- POST   /api/auth/token/refresh/    - 토큰 갱신 (Refresh Token으로 새 Access Token 발급)
+- GET    /api/auth/token/verify/     - 토큰 유효성 확인
+
+프로필 관리:
+- GET    /api/auth/profile/          - 내 프로필 조회
+- PUT    /api/auth/profile/          - 프로필 전체 수정
+- PATCH  /api/auth/profile/          - 프로필 부분 수정
+- POST   /api/auth/password/change/  - 비밀번호 변경
+
+추가 기능:
+- POST   /api/auth/email/verify/     - 이메일 인증 요청 (구현 예정)
+- POST   /api/auth/withdraw/         - 회원 탈퇴
 
 상품(Product) 관련:
 - GET    /api/products/              - 상품 목록

@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "shopping",
     "mptt",
     "rest_framework",
+    "rest_framework_simplejwt",
 ]
 
 AUTH_USER_MODEL = "shopping.User"
@@ -141,6 +142,42 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.SessionAuthentication",  # 관리자 페이지
+        "rest_framework_simplejwt.authentication.JWTAuthentication",  # JWT
+    ],
+    # 권한 설정 (인증된 사용자만 API 사용 가능)
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticatedOrReadOnly",  # 읽기는 누구나, 쓰기는 로그인 필요
     ],
 }
+
+# JWT 설정
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    # 토큰 유효 시간 설정
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),  # Access Token: 30분
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),  # Refresh Token: 7일
+    # 토큰 갱신 설정
+    "ROTATE_REFRESH_TOKENS": True,  # Refresh Token 갱신 시 새로운 토큰 발급
+    "BLACKLIST_AFTER_ROTATION": True,  # 이전 Refresh Token은 블랙리스트에 추가
+    # 토큰 타입
+    "AUTH_HEADER_TYPES": ("Bearer",),  # Authorization: Bearer <token>
+    # 토큰 검증
+    "ALGORITHM": "HS256",  # 암호화 알고리즘
+    "SIGNING_KEY": SECRET_KEY,  # 서명에 사용할 키 (Django SECRET_KEY 사용)
+    # 토큰에 포함될 정보
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+    "TOKEN_TYPE_CLAIM": "token_type",
+    "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
+    # 토큰 클레임 설정
+    "JTI_CLAIM": "jti",
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "USER_AUTHENTICATION_RULE": "rest_framework_simplejwt.authentication.default_user_authentication_rule",
+}
+
+# JWT 블랙리스트 기능 사용 (로그아웃 구현용)
+INSTALLED_APPS += [
+    "rest_framework_simplejwt.token_blacklist",  # 토큰 블랙리스트 앱
+]

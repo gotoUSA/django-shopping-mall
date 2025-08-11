@@ -56,7 +56,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         write_only=True,
         required=True,
         style={"input_type", "password"},
-        lebel="비밀번호 확인",
+        label="비밀번호 확인",
     )
 
     # 비밀번호는 쓰기 전용

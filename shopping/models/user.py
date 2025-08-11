@@ -104,7 +104,7 @@ class User(AbstractUser):
     def use_points(self, amount):
         """포인트를 사용하는 메서드"""
         if 0 < amount <= self.points:
-            self.point -= amount
+            self.points -= amount
             self.save(update_fields=["points"])
             return True
         return False

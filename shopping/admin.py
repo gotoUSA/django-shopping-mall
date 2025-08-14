@@ -3,6 +3,8 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
 from django.db.models import Count, Avg
 from mptt.admin import DraggableMPTTAdmin
+from django.urls import reverse
+from django.utils import timezone
 
 from .models import (
     Product,
@@ -15,6 +17,8 @@ from .models import (
     Cart,
     CartItem,
 )
+
+from .models.payment import Payment, PaymentLog
 
 
 # User Admin
@@ -322,6 +326,267 @@ class CartItemAdmin(admin.ModelAdmin):
 
 # 모델 등록 (맨 아래에 추가)
 admin.site.register(Cart, CartAdmin)
+
+
+# PaymentAdmin
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    """
+    결제 관리 Admin
+    """
+
+    list_display = [
+        "id",
+        "order_link",
+        "order_id",
+        "colored_status",
+        "amount_display",
+        "method",
+        "user_display",
+        "approved_at",
+        "created_at",
+    ]
+
+    list_filter = [
+        "status",
+        "method",
+        "is_canceled",
+        "created_at",
+        "approved_at",
+    ]
+
+    search_fields = [
+        "order_id",
+        "payment_key",
+        "order__user__username",
+        "order__user__email",
+        "order__shipping_name",
+    ]
+
+    readonly_fields = [
+        "payment_key",
+        "order_id",
+        "approved_at",
+        "canceled_at",
+        "receipt_url_link",
+        "raw_response_formatted",
+        "created_at",
+        "updated_at",
+    ]
+
+    fieldsets = (
+        ("주문 정보", {"fields": ("order", "order_id")}),
+        (
+            "결제 정보",
+            {
+                "fields": (
+                    "payment_key",
+                    "amount",
+                    "status",
+                    "method",
+                    "approved_at",
+                    "receipt_url_link",
+                )
+            },
+        ),
+        (
+            "카드 정보",
+            {
+                "fields": (
+                    "card_company",
+                    "card_number",
+                    "installment_plan_months",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "취소 정보",
+            {
+                "fields": (
+                    "is_canceled",
+                    "canceled_amount",
+                    "cancel_reason",
+                    "canceled_at",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        ("실패 정보", {"fields": ("fail_reason",), "classes": ("collapse",)}),
+        (
+            "원본 데이터",
+            {"fields": ("raw_response_formatted",), "classes": ("collapse",)},
+        ),
+        ("시간 정보", {"fields": ("created_at", "updated_at")}),
+    )
+
+    def order_link(self, obj):
+        """주문 상세 페이지 링크"""
+        if obj.order:
+            url = reverse("admin:shopping_order_change", args=[obj.order.pk])
+            return format_html('<a href="{}">{}</a>', url, obj.order.order_number)
+        return "-"
+
+    order_link.short_description = "주문번호"
+
+    def colored_status(self, obj):
+        """상태별 색상 표시"""
+        colors = {
+            "ready": "#FFA500",  # 주황
+            "in_progress": "#4169E1",  # 파랑
+            "done": "#008000",  # 초록
+            "canceled": "#DC143C",  # 빨강
+            "aborted": "#8B0000",  # 진한 빨강
+            "expired": "#808080",  # 회색
+        }
+        color = colors.get(obj.status, "#000000")
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{}</span>',
+            color,
+            obj.get_status_display(),
+        )
+
+    colored_status.short_description = "상태"
+
+    def amount_display(self, obj):
+        """금액 포맷팅"""
+        return format_html("<strong>{:,}원</strong>", int(obj.amount))
+
+    amount_display.short_description = "결제금액"
+
+    def user_display(self, obj):
+        """사용자 정보"""
+        if obj.order and obj.order.user:
+            user = obj.order.user
+            return f"{user.username} ({user.email})"
+        return "-"
+
+    user_display.short_description = "사용자"
+
+    def receipt_url_link(self, obj):
+        """영수증 링크"""
+        if obj.receipt_url:
+            return format_html(
+                '<a href="{}" target="_blank">영수증 보기</a>', obj.receipt_url
+            )
+        return "-"
+
+    receipt_url_link.short_description = "영수증"
+
+    def raw_response_formatted(self, obj):
+        """JSON 응답 포맷팅"""
+        import json
+
+        if obj.raw_response:
+            formatted = json.dumps(obj.raw_response, indent=2, ensure_ascii=False)
+            return format_html("<pre>{}</pre>", formatted)
+        return "-"
+
+    raw_response_formatted.short_description = "토스페이먼츠 응답"
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_queryset(self, request):
+        """쿼리 최적화"""
+        return super().get_queryset(request).select_related("order", "order__user")
+
+
+# PaymentLogAdmin
+@admin.register(PaymentLog)
+class PaymentLogAdmin(admin.ModelAdmin):
+    """
+    결제 로그 Admin
+    """
+
+    list_display = [
+        "id",
+        "payment_link",
+        "colored_log_type",
+        "message_preview",
+        "created_at",
+    ]
+
+    list_filter = [
+        "log_type",
+        "created_at",
+    ]
+
+    search_fields = [
+        "payment__order_id",
+        "payment__payment_key",
+        "message",
+    ]
+
+    readonly_fields = [
+        "payment",
+        "log_type",
+        "message",
+        "data_formatted",
+        "created_at",
+    ]
+
+    fieldsets = (
+        ("기본 정보", {"fields": ("payment", "log_type", "message")}),
+        ("추가 데이터", {"fields": ("data_formatted",), "classes": ("collapse",)}),
+        ("시간 정보", {"fields": ("created_at",)}),
+    )
+
+    def payment_link(self, obj):
+        """결제 상세 링크"""
+        url = reverse("admin:shopping_payment_change", args=[obj.payment.pk])
+        return format_html('<a href="{}">{}</a>', url, obj.payment.order_id)
+
+    payment_link.short_description = "주문번호"
+
+    def colored_log_type(self, obj):
+        """로그 타입별 색상"""
+        colors = {
+            "request": "#4169E1",  # 파랑
+            "approve": "#008000",  # 초록
+            "cancel": "#FFA500",  # 주황
+            "webhook": "#9370DB",  # 보라
+            "error": "#DC143C",  # 빨강
+        }
+        color = colors.get(obj.log_type, "#000000")
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{}</span>',
+            color,
+            obj.get_log_type_display(),
+        )
+
+    colored_log_type.short_description = "로그 타입"
+
+    def message_preview(self, obj):
+        """메시지 미리보기"""
+        if len(obj.message) > 50:
+            return obj.message[:50] + "..."
+        return obj.message
+
+    message_preview.short_description = "메시지"
+
+    def data_formatted(self, obj):
+        """JSON 데이터 포맷팅"""
+        import json
+
+        if obj.data:
+            formatted = json.dumps(obj.data, indent=2, ensure_ascii=False)
+            return format_html("<pre>{}</pre>", formatted)
+        return "-"
+
+    data_formatted.short_description = "데이터"
+
+    def has_add_permission(self, request):
+        """로그는 수동 추가 불가"""
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """로그는 삭제 불가"""
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        """로그는 수정 불가"""
+        return False
 
 
 # Admin 사이트 설정

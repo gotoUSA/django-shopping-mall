@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "mptt",
     "rest_framework",
     "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",  # 토큰 블랙리스트 앱
 ]
 
 AUTH_USER_MODEL = "shopping.User"
@@ -177,7 +178,75 @@ SIMPLE_JWT = {
     "USER_AUTHENTICATION_RULE": "rest_framework_simplejwt.authentication.default_user_authentication_rule",
 }
 
-# JWT 블랙리스트 기능 사용 (로그아웃 구현용)
-INSTALLED_APPS += [
-    "rest_framework_simplejwt.token_blacklist",  # 토큰 블랙리스트 앱
-]
+
+# 토스페이먼츠 설정
+#
+# 토스페이먼츠 대시보드에서 발급받은 키를 환경변수로 설정하세요.
+# https://developers.tosspayments.com/my/api-keys
+#
+# .env 파일 예시:
+# TOSS_CLIENT_KEY=test_ck_...  # 클라이언트 키 (프론트엔드용)
+# TOSS_SECRET_KEY=test_sk_...  # 시크릿 키 (서버용)
+# TOSS_WEBHOOK_SECRET=...      # 웹훅 시크릿 (웹훅 서명 검증용)
+
+# 토스페이먼츠 API 키
+TOSS_CLIENT_KEY = os.environ.get("TOSS_CLIENT_KEY", "")  # 테스트 클라이언트 키
+TOSS_SECRET_KEY = os.environ.get("TOSS_SECRET_KEY", "")  # 테스트 시크릿 키
+
+# 토스페이먼츠 웹훅 시크릿 (웹훅 서명 검증용)
+# 토스페이먼츠 대시보드 > 웹훅 > 웹훅 엔드포인트 추가 후 발급
+TOSS_WEBHOOK_SECRET = os.environ.get("TOSS_WEBHOOK_SECRET", "")
+
+# 토스페이먼츠 API URL
+# 테스트: https://api.tosspayments.com
+# 운영: https://api.tosspayments.com (동일)
+TOSS_BASE_URL = os.environ.get("TOSS_BASE_URL", "https://api.tosspayments.com")
+
+# 프론트엔드 URL (결제 완료/실패 후 리다이렉트)
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+
+# 로깅 설정 (결제 디버깅용)
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+        "file": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": BASE_DIR / "logs" / "payment.log",
+            "formatter": "verbose",
+        },
+    },
+    "loggers": {
+        "shopping.views.payment_views": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "shopping.webhooks": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
+
+# logs 디렉토리 생성
+LOGS_DIR = BASE_DIR / "logs"
+if not LOGS_DIR.exists():
+    LOGS_DIR.mkdir()

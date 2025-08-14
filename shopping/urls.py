@@ -19,6 +19,19 @@ from shopping.views.auth_views import (
     withdraw,
 )
 
+# Payment Views import (새로 추가)
+from shopping.views.payment_views import (
+    PaymentRequestView,
+    PaymentConfirmView,
+    PaymentCancelView,
+    PaymentDetailView,
+    PaymentListView,
+    payment_fail,
+)
+
+# Webhook import (새로 추가)
+from shopping.webhooks.toss_webhook_view import toss_webhook
+
 # DRF의 라우터 생성
 router = DefaultRouter()
 
@@ -26,9 +39,11 @@ router = DefaultRouter()
 router.register(r"products", ProductViewSet, basename="product")
 router.register(r"categories", CategoryViewSet, basename="category")
 router.register(r"order", OrderViewSet, basename="order")
+
 # Cart 관련 ViewSet 등록
 # CartViewSet은 특별한 actions만 있으므로 수동 등록
 router.register(r"cart-items", CartItemViewSet, basename="cart-item")
+
 # URL 패턴 정의
 urlpatterns = [
     # API root - 라우터가 자동으로 생성하는 URL들
@@ -72,13 +87,36 @@ urlpatterns = [
         CartViewSet.as_view({"get": "check_stock"}),
         name="cart-check-stock",
     ),
-    # 추가적인 커스텀 URL 패턴들을 여기에 정의
-    # path('auth/', include('dj_rest_auth.urls')),  # 인증 관련 URL (나중에 추가)
-    # path('cart/', CartView.as_view(), name='cart'),  # 장바구니 (나중에 추가)
+    # 결제(Payment) 관련 URLs
+    # 결제 요청 및 처리
+    path("payments/request/", PaymentRequestView.as_view(), name="payment-request"),
+    path("payments/confirm/", PaymentConfirmView.as_view(), name="payment-confirm"),
+    path("payments/cancel/", PaymentCancelView.as_view(), name="payment-cancel"),
+    path("payments/fail/", payment_fail, name="payment-fail"),
+    # 결제 조회
+    path("payments/", PaymentListView.as_view(), name="payment-list"),
+    path(
+        "payments/<int:payment_id>/", PaymentDetailView.as_view(), name="payment-detail"
+    ),
+    # 웹훅(Webhook) URLs
+    path("webhooks/toss/", toss_webhook, name="toss-webhook"),
 ]
 
 """
 생성되는 URL 패턴:
+
+결제 처리:
+- POST   /api/payments/request/      - 결제 요청 (결제창 열기 전)
+- POST   /api/payments/confirm/      - 결제 승인 (결제창 완료 후)
+- POST   /api/payments/cancel/       - 결제 취소 (전체 취소)
+- POST   /api/payments/fail/         - 결제 실패 콜백
+
+결제 조회:
+- GET    /api/payments/              - 내 결제 목록
+- GET    /api/payments/{id}/         - 결제 상세 정보
+
+웹훅:
+- POST   /api/webhooks/toss/         - 토스페이먼츠 웹훅 수신
 
 회원가입 및 로그인:
 - POST   /api/auth/register/         - 회원가입 (새 사용자 생성 + 토큰 발급)

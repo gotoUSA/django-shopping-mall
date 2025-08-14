@@ -84,7 +84,13 @@ class OrderDetailSerializer(serializers.ModelSerializer):
 
 
 class OrderCreateSerializer(serializers.ModelSerializer):
-    """주문 생성용 Serializer (장바구니 -> 주문 변환)"""
+    """
+    주문 생성용 Serializer (장바구니 -> 주문 변환)
+
+    ⚠️ 변경사항: 재고 차감 로직 제거
+    - 이전: 주문 생성시 바로 재고 차감
+    - 현재: 주문 생성시 재고 체크만, 결제 완료시 재고 차감
+    """
 
     class Meta:
         model = Order
@@ -111,11 +117,12 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         if not cart.items.exists():
             raise serializers.ValidationError("장바구니가 비어있습니다.")
 
-        # 재고 확인
+        # 재고 확인 (차감하지 않고 체크만)
         for item in cart.items.all():
             if not item.is_available():
                 raise serializers.ValidationError(
-                    f"{item.product.name}의 재고가 부족합니다."
+                    f"{item.product.name}의 재고가 부족합니다. "
+                    f"(현재 재고: {item.product.stock}개)"
                 )
 
         self.cart = cart
@@ -123,7 +130,13 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        """트랜잭션으로 주문 생성"""
+        """
+        트랜잭션으로 주문 생성
+
+        변경사항:
+        - 재고 차감 제거 (결제 완료시 처리)
+        - 장바구니 유지 (결제 완료시 비활성화)
+        """
 
         user = self.context["request"].user
         cart = self.cart
@@ -131,13 +144,23 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         # 1. Order 생성
         order = Order.objects.create(
             user=user,
-            status="pending",
+            status="pending",  # 결제 대기 상태
             total_amount=cart.total_amount,
             **validated_data,
         )
 
         # 2. CartItem -> OrderItem 변환
         for cart_item in cart.items.all():
+            # 재고 최종 확인(select_for_update로 동시성 제어)
+            product = Product.objects.select_for_update().get(pk=cart_item.product.pk)
+
+            if product.stock < cart_item.quantity:
+                raise serializers.ValidationError(
+                    f"{product.name}의 재고가 부족합니다. "
+                    f"(요청: {cart_item.quantity}개, 재고: {product.stock}개)"
+                )
+
+            # OrderItem 생성 (재고는 차감하지 않음)
             OrderItem.objects.create(
                 order=order,
                 product=cart_item.product,
@@ -145,23 +168,5 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                 quantity=cart_item.quantity,
                 price=cart_item.product.price,
             )
-
-            # 재고 차감 전 한번 더 확인
-            product = Product.objects.select_for_update().get(pk=cart_item.product.pk)
-
-            if product.stock < cart_item.quantity:
-                raise serializers.ValidationError(
-                    f"{product.name}의 재고가 부족합니다."
-                    f"(요청: {cart_item.quantity}개, 재고: {product.stock}개)"
-                )
-
-            # 3. 재고 차감
-            Product.objects.filter(pk=cart_item.product.pk).update(
-                stock=F("stock") - cart_item.quantity,
-                sold_count=F("sold_count") + cart_item.quantity,
-            )
-
-        # 4. 장바구니 비우기
-        cart.clear()
 
         return order

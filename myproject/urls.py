@@ -20,6 +20,29 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
+from drf_yasg.views import get_schema_view
+from drf_yasg import openapi
+from rest_framework import permissions
+
+# Swagger 설정
+schema_view = get_schema_view(
+    openapi.Info(
+        title="Django 쇼핑몰 API",
+        default_version="v1",
+        description="쇼핑몰 프로젝트 API 문서",
+        terms_of_service="https://www.google.com/policies/terms/",
+        contact=openapi.Contact(email="contact@shopping.local"),
+        license=openapi.License(name="BSD License"),
+    ),
+    public=True,
+    permission_classes=[permissions.AllowAny],
+    url="http://127.0.0.1:8000",  # Base URL
+    patterns=[  # API URL 패턴지정
+        path("api/", include("shopping.urls")),
+    ],
+)
+
+
 urlpatterns = [
     # 관리자 페이지
     path("admin/", admin.site.urls),
@@ -27,6 +50,13 @@ urlpatterns = [
     path("api/", include("shopping.urls")),
     # DRF 인증 URLs (로그인/로그아웃 페이지)
     path("api-auth/", include("rest_framework.urls")),
+    # Swagger URLs
+    path(
+        "swagger/",
+        schema_view.with_ui("swagger", cache_timeout=0),
+        name="schema-swagger-ui",
+    ),
+    path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
 ]
 
 # 개발 환경에서 미디어 파일 서빙

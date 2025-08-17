@@ -20,6 +20,10 @@ from shopping.serializers import (
     CategoryTreeSerializer,
 )
 
+# Swagger
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+
 
 class ProductPagination(PageNumberPagination):
     """
@@ -340,35 +344,12 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_serializer_class(self):
         """
-        기본적으로 CategorySerializer 사용
-        (CategorySerializer는 별도로 작성 필요)
+        액션에 따라 다른 Serializer 사용
+        - tree 액션: CategoryTreeSerializer
+        - 기본: CategorySerializer
         """
-        # 임시로 기본 ModelSerializer 반환
-        from rest_framework import serializers
-
-        class CategorySerializer(serializers.ModelSerializer):
-            """카테고리 기본 Serializer"""
-
-            parent_id = serializers.IntegerField(
-                source="parent.id", read_only=True, allow_null=True
-            )
-            parent_name = serializers.CharField(source="parent.name", read_only=True)
-            product_count = serializers.IntegerField(read_only=True)
-
-            class Meta:
-                model = Category
-                fields = [
-                    "id",
-                    "name",
-                    "slug",
-                    "parent",
-                    "parent_id",
-                    "parent_name",
-                    "is_active",
-                    "product_count",
-                    "created_at",
-                ]
-
+        if self.action == "tree":
+            return CategoryTreeSerializer
         return CategorySerializer
 
     def get_queryset(self):
@@ -378,7 +359,9 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         return (
             Category.objects.filter(is_active=True)
             .select_related("parent")
-            .annotate(product_count=Count("product", filter=Q(product__is_active=True)))
+            .annotate(
+                product_count=Count("products", filter=Q(products__is_active=True))
+            )
         )
 
     @action(detail=False, methods=["get"])

@@ -27,7 +27,7 @@ class CartItemSerializer(serializers.ModelSerializer):
         source="product.id", read_only=True, help_text="상품 ID"
     )
     product_name = serializers.CharField(
-        source="product_name", read_only=True, help_text="상품명"
+        source="product.name", read_only=True, help_text="상품명"
     )
     product_price = serializers.DecimalField(
         source="product.price",

@@ -31,7 +31,9 @@ class ProductListSerializer(serializers.ModelSerializer):
 
     # 대표 이미지 URL을 가져오는 커스텀 필드
     # SerializerMethodField를 사용하면 메서드로 값을 계산할 수 있습니다.
-    thumnail_image = serializers.SerializerMethodField(help_text="상품 대표 이미지 URL")
+    thumbnail_image = serializers.SerializerMethodField(
+        help_text="상품 대표 이미지 URL"
+    )
 
     # 평균 평점 (리뷰가 없으면 0.0)
     average_rating = serializers.SerializerMethodField(

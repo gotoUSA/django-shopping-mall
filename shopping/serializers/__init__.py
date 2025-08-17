@@ -11,13 +11,27 @@ Serializer 모듈의 진입점입니다.
     from shopping.serializers import *
 """
 
+"""
+Shopping 앱의 모든 Serializer를 한 곳에서 import할 수 있도록 설정
+실제 grep 결과를 바탕으로 작성된 정확한 버전
+"""
+
+# User 관련 Serializers
+from .user_serializers import (
+    UserSerializer,
+    RegisterSerializer,
+    LoginSerializer,
+    PasswordChangeSerializer,
+    TokenResponseSerializer,
+)
+
 # Product 관련 Serializers
 from .product_serializers import (
     ProductListSerializer,
-    ProductDetailSerializer,
-    ProductCreateUpdateSerializer,
     ProductImageSerializer,
     ProductReviewSerializer,
+    ProductDetailSerializer,
+    ProductCreateUpdateSerializer,
 )
 
 # Category 관련 Serializers
@@ -30,58 +44,68 @@ from .category_serializers import (
 
 # Cart 관련 Serializers
 from .cart_serializers import (
-    CartSerializer,
     CartItemSerializer,
     CartItemCreateSerializer,
     CartItemUpdateSerializer,
+    CartSerializer,
     SimpleCartSerializer,
     CartClearSerializer,
 )
 
-# Order 관련 Serializers (아직 구현 전)
-# from .order_serializers import (
-#     OrderSerializer,
-#     OrderItemSerializer,
-#     OrderCreateSerializer,
-#     OrderDetailSerializer,
-# )
+# Order 관련 Serializers
+from .order_serializers import (
+    OrderItemSerializer,
+    OrderListSerializer,
+    OrderDetailSerializer,
+    OrderCreateSerializer,
+)
 
-# User 관련 Serializers (아직 구현 전)
-# from .user_serializers import (
-#     UserSerializer,
-#     UserRegistrationSerializer,
-#     UserProfileSerializer,
-#     UserUpdateSerializer,
-# )
+# Payment 관련 Serializers
+from .payment_serializers import (
+    PaymentSerializer,
+    PaymentRequestSerializer,
+    PaymentConfirmSerializer,
+    PaymentCancelSerializer,
+    PaymentLogSerializer,
+    PaymentWebhookSerializer,
+)
 
-# 외부에서 사용 가능한 모든 Serializer 목록
+# 외부에서 사용할 수 있도록 __all__ 정의
 __all__ = [
+    # User
+    "UserSerializer",
+    "RegisterSerializer",
+    "LoginSerializer",
+    "PasswordChangeSerializer",
+    "TokenResponseSerializer",
     # Product
     "ProductListSerializer",
-    "ProductDetailSerializer",
-    "ProductCreateUpdateSerializer",
     "ProductImageSerializer",
     "ProductReviewSerializer",
+    "ProductDetailSerializer",
+    "ProductCreateUpdateSerializer",
     # Category
     "CategorySerializer",
     "CategoryTreeSerializer",
     "CategoryCreateUpdateSerializer",
     "SimpleCategorySerializer",
     # Cart
-    "CartSerializer",
     "CartItemSerializer",
     "CartItemCreateSerializer",
     "CartItemUpdateSerializer",
+    "CartSerializer",
     "SimpleCartSerializer",
     "CartClearSerializer",
-    # Order (추후 추가)
-    # 'OrderSerializer',
-    # 'OrderItemSerializer',
-    # 'OrderCreateSerializer',
-    # 'OrderDetailSerializer',
-    # User (추후 추가)
-    # 'UserSerializer',
-    # 'UserRegistrationSerializer',
-    # 'UserProfileSerializer',
-    # 'UserUpdateSerializer',
+    # Order
+    "OrderItemSerializer",
+    "OrderListSerializer",
+    "OrderDetailSerializer",
+    "OrderCreateSerializer",
+    # Payment
+    "PaymentSerializer",
+    "PaymentRequestSerializer",
+    "PaymentConfirmSerializer",
+    "PaymentCancelSerializer",
+    "PaymentLogSerializer",
+    "PaymentWebhookSerializer",
 ]

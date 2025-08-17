@@ -39,6 +39,7 @@ class CartViewSet(viewsets.GenericViewSet):
     """
 
     permission_classes = [permissions.IsAuthenticated]  # 로그인 필수
+    queryset = Cart.objects.none()
 
     def get_serializer_class(self):
         """

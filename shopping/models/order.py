@@ -64,6 +64,12 @@ class Order(models.Model):
 
     shipping_postal_code = models.CharField(max_length=10, verbose_name="우편번호")
 
+    shipping_address = models.CharField(
+        max_length=200,
+        verbose_name="배송 주소",
+        help_text="기본 주소 (도로명 또는 지번)",
+    )
+
     shipping_address_detail = models.CharField(
         max_length=255, verbose_name="상세주소", help_text="동/호수 등 상세 주소"
     )

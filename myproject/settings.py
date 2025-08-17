@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",  # 토큰 블랙리스트 앱
+    "drf_yasg",
 ]
 
 AUTH_USER_MODEL = "shopping.User"

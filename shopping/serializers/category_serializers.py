@@ -69,7 +69,7 @@ class CategorySerializer(serializers.ModelSerializer):
             return obj.product_count
 
         # 그렇지 않은 경우 직접 계산
-        return Product.objects.filter(category=obj, is_active=True).count
+        return Product.objects.filter(category=obj, is_active=True).count()
 
     def get_children_count(self, obj):
         """직계 하위 카테고리 수 반환"""

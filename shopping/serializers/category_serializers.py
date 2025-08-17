@@ -65,11 +65,11 @@ class CategorySerializer(serializers.ModelSerializer):
         주의: ViewSet에서 annotate로 미리 계산하면 더 효율적입니다.
         """
         # annotate로 이미 계산된 경우
-        if hasattr(obj, "product_count"):
-            return obj.product_count
+        if hasattr(obj, "products_count"):
+            return obj.products_count
 
         # 그렇지 않은 경우 직접 계산
-        return Product.objects.filter(category=obj, is_active=True).count()
+        return obj.products.filter(is_active=True).count()
 
     def get_children_count(self, obj):
         """직계 하위 카테고리 수 반환"""

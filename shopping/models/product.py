@@ -77,7 +77,7 @@ class Category(MPTTModel):
     @property
     def product_count(self):
         """현재 카테고리의 활성 상품 수"""
-        return self.products.filter(is_acitve=True).count()
+        return self.products.filter(is_active=True).count()
 
     @property
     def total_product_count(self):

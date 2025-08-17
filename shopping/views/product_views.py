@@ -95,12 +95,19 @@ class ProductViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         """
         액션에 따라 다른 Serializer 사용
-        - tree 액션: CategoryTreeSerializer
-        - 기본: CategorySerializer
+        - list: 목록 조회용 간단한 Serializer
+        - retrieve: 상세 조회용 자세한 Serializer
+        - create/update/partial_update: 생성/수정용 Serializer
         """
-        if self.action == "tree":
-            return CategoryTreeSerializer
-        return CategorySerializer
+        if self.action == "list":
+            return ProductListSerializer
+        elif self.action == "retrieve":
+            return ProductDetailSerializer
+        elif self.action in ["create", "update", "partial_update"]:
+            return ProductCreateUpdateSerializer
+
+        # 기본값은 목록용 Serializer
+        return ProductListSerializer
 
     def get_queryset(self):
         """
@@ -360,7 +367,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
             Category.objects.filter(is_active=True)
             .select_related("parent")
             .annotate(
-                product_count=Count("products", filter=Q(products__is_active=True))
+                products_count=Count("products", filter=Q(products__is_active=True))
             )
         )
 

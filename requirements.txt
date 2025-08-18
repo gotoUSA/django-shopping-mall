@@ -6,11 +6,17 @@ django-js-asset==3.1.2
 django-mptt==0.17.0
 djangorestframework==3.16.0
 djangorestframework_simplejwt==5.5.1
+drf-yasg==1.21.10
 idna==3.10
+inflection==0.5.1
+packaging==25.0
 pillow==11.3.0
 PyJWT==2.10.1
 python-dotenv==1.1.1
+pytz==2025.2
+PyYAML==6.0.2
 requests==2.32.4
 sqlparse==0.5.3
 tzdata==2025.2
+uritemplate==4.2.0
 urllib3==2.5.0

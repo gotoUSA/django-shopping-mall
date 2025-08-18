@@ -73,7 +73,7 @@ class CartViewSet(viewsets.GenericViewSet):
         # prefetch_related: 1:N 관계 (items와 각 item의 product)
         cart = Cart.objects.prefetch_related(
             Prefetch(
-                "item",
+                "items",
                 queryset=CartItem.objects.select_related("product").order_by(
                     "-added_at"
                 ),  # 최근 추가된 순서로

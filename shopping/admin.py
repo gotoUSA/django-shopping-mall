@@ -206,10 +206,11 @@ class OrderAdmin(admin.ModelAdmin):
     date_hierarchy = "created_at"
     ordering = ["-created_at"]
 
+    readonly_fields = ["order_number", "total_amount", "created_at", "updated_at"]
     fieldsets = (
         (
             "주문 정보",
-            {"fields": ("user", "status", "total_amount", "created_at", "updated_at")},
+            {"fields": ("user", "status", "order_number", "total_amount")},
         ),
         (
             "배송 정보",
@@ -224,6 +225,13 @@ class OrderAdmin(admin.ModelAdmin):
             },
         ),
         ("결제 정보", {"fields": ("payment_method",), "classes": ("collapse",)}),
+        (
+            "시간정보",
+            {
+                "fields": ("created_at", "updated_at"),
+                "classes": ("collapse",),  # 접을 수 있게
+            },
+        ),
     )
 
     inlines = [OrderItemInline]
@@ -450,7 +458,8 @@ class PaymentAdmin(admin.ModelAdmin):
 
     def amount_display(self, obj):
         """금액 포맷팅"""
-        return format_html("<strong>{:,}원</strong>", int(obj.amount))
+        formatted_amount = "{:,}".format(int(obj.amount))
+        return format_html("<strong>{}원</strong>", formatted_amount)
 
     amount_display.short_description = "결제금액"
 

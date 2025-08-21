@@ -24,6 +24,8 @@ from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework import permissions
 
+from shopping.views import payment_views
+
 # Swagger 설정
 schema_view = get_schema_view(
     openapi.Info(
@@ -48,6 +50,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # shopping 앱 URLs 포함
     path("api/", include("shopping.urls")),
+    # 웹페이지
+    path("shopping/", include("shopping.urls")),
     # DRF 인증 URLs (로그인/로그아웃 페이지)
     path("api-auth/", include("rest_framework.urls")),
     # Swagger URLs

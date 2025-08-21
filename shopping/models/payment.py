@@ -154,19 +154,19 @@ class Payment(models.Model):
     )
 
     class Meta:
-        db_table = "shopping_paments"
+        db_table = "shopping_payment"
         verbose_name = "결제"
         verbose_name_plural = "결제 목록"
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["payment_key"]),
-            models.Index(fields=["order_id"]),
+            models.Index(fields=["toss_order_id"]),
             models.Index(fields=["status"]),
             models.Index(fields=["-created_at"]),
         ]
 
     def __str__(self):
-        return f"{self.order_id} - {self.get_status_display()} ({self.amount:,}원)"
+        return f"{self.toss_order_id} - {self.get_status_display()} ({self.amount:,}원)"
 
     @property
     def is_paid(self):
@@ -227,9 +227,9 @@ class Payment(models.Model):
 
     def save(self, *args, **kwargs):
         """저장 전 처리"""
-        # order_id가 없으면 주문번호로 설정
-        if not self.order_id and self.order:
-            self.order_id = self.order.order_number
+        # toss_order_id가 없으면 주문번호로 설정
+        if not self.toss_order_id and self.order:
+            self.toss_order_id = self.order.order_number
 
         super().save(*args, **kwargs)
 

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>결제 성공</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .success-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .success-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #28a745;
+            margin-bottom: 20px;
+        }
+        .info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 30px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="success-container">
+        <div class="success-icon">✅</div>
+        <h1>결제가 완료되었습니다!</h1>
+        
+        <div class="info">
+            <p><strong>주문번호:</strong> {{ order.order_number }}</p>
+            <p><strong>결제금액:</strong> {{ payment.amount|floatformat:0 }}원</p>
+            <p><strong>결제수단:</strong> {{ payment.method }}</p>
+            {% if payment.card_company %}
+            <p><strong>카드사:</strong> {{ payment.card_company }}</p>
+            {% endif %}
+        </div>
+        
+        <div>
+            <a href="/shopping/orders/{{ order.id }}/" class="btn">주문 상세보기</a>
+            <a href="/shopping/" class="btn">쇼핑 계속하기</a>
+        </div>
+    </div>
+</body>
+</html>

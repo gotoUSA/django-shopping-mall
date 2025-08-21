@@ -6,6 +6,10 @@ from django.db import transaction
 from django.db.models import F
 from django.conf import settings
 from django.utils import timezone
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
+from django.http import HttpResponse, JsonResponse
 import logging
 
 from ..models.payment import Payment, PaymentLog
@@ -486,4 +490,105 @@ def payment_fail(request):
             "error_message": get_error_message(error_code) or error_message,
         },
         status=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+@login_required
+def payment_test_page(request, order_id):
+    """결제 테스트 페이지"""
+    # 관리자는 모든 주문 접근 가능
+    if request.user.is_staff or request.user.is_superuser:
+        order = get_object_or_404(Order, id=order_id)
+    else:
+        order = get_object_or_404(Order, id=order_id, user=request.user)
+
+    # order_number가 없으면 생성
+    if not order.order_number:
+        from django.utils import timezone
+
+        date_str = timezone.now().strftime("%Y%m%d")
+        order.order_number = f"{date_str}{order.id:06d}"
+        order.save(update_fields=["order_number"])
+        print(f"Order number 생성됨: {order.order_number}")
+
+    # 이미 결제된 주문인지 확인
+    if hasattr(order, "payment") and order.payment.is_paid:
+        return redirect("shopping:order_detail", order_id=order.id)
+
+    context = {
+        "order": order,
+        "client_key": settings.TOSS_CLIENT_KEY,
+    }
+    return render(request, "shopping/payment_test.html", context)
+
+
+@login_required
+def payment_success(request):
+    """결제 성공 처리"""
+    # URL 파라미터에서 값 가져오기
+    payment_key = request.GET.get("paymentKey")
+    order_id = request.GET.get("orderId")
+    amount = request.GET.get("amount")
+
+    if not all([payment_key, order_id, amount]):
+        return render(
+            request,
+            "shopping/payment_fail.html",
+            {"message": "필수 파라미터가 누락되었습니다."},
+        )
+
+    try:
+        # Payment 찾기
+        payment = Payment.objects.get(toss_order_id=order_id)
+
+        # 토스페이먼츠 API 클라이언트 사용
+        from ..utils.toss_payment import TossPaymentClient
+
+        toss_client = TossPaymentClient()
+        result = toss_client.confirm_payment(
+            payment_key=payment_key, order_id=order_id, amount=int(amount)
+        )
+
+        # 결제 성공 처리
+        payment.mark_as_paid(result)
+
+        # 주문 상태 업데이트
+        order = payment.order
+        order.status = "paid"
+        order.save()
+
+        return render(
+            request,
+            "shopping/payment_success.html",
+            {"payment": payment, "order": order},
+        )
+    except Payment.DoesNotExist:
+        return render(
+            request,
+            "shopping/payment_fail.html",
+            {"message": "결제 정보를 찾을 수 없습니다."},
+        )
+    except Exception as e:
+        return render(request, "shopping/payment_fail.html", {"message": str(e)})
+
+
+@login_required
+def payment_fail(request):
+    """결제 실패 처리"""
+    code = request.GET.get("code")
+    message = request.GET.get("message")
+    order_id = request.GET.get("orderId")
+
+    # Payment 상태 업데이트
+    if order_id:
+        try:
+            payment = Payment.objects.get(toss_order_id=order_id)
+            payment.mark_as_failed(message)
+        except Payment.DoesNotExist:
+            pass
+
+    return render(
+        request,
+        "shopping/payment_fail.html",
+        {"code": code, "message": message, "order_id": order_id},
     )

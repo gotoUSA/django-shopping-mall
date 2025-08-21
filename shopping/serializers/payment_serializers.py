@@ -60,18 +60,29 @@ class PaymentRequestSerializer(serializers.Serializer):
     """
 
     order_id = serializers.IntegerField(help_text="주문 ID")
+    payment_method = serializers.CharField(
+        max_length=50,
+        default="card",
+        help_text="결제 수단 (card, bank_transfer 등)",
+    )
 
     def validate_order_id(self, value):
         """주문 검증"""
         user = self.context["request"].user
 
         try:
-            order = Order.objects.get(id=value, user=user)
+            # 관리자 권한 체크
+            if user.is_staff or user.is_superuser:
+                # 관리자는 모든 주문 접근 가능
+                order = Order.objects.get(id=value)
+            else:
+                # 일반 사용자는 본인 주문만 접근 가능
+                order = Order.objects.get(id=value, user=user)
         except Order.DoesNotExist:
             raise serializers.ValidationError("주문을 찾을 수 없습니다.")
 
         # 이미 결제된 주문인지 확인
-        if hasattr(order, "payment") and order.payment.id_paid:
+        if hasattr(order, "payment") and order.payment.is_paid:
             raise serializers.ValidationError("이미 결제된 주문입니다.")
 
         # 주문 상태 확인
@@ -90,6 +101,7 @@ class PaymentRequestSerializer(serializers.Serializer):
     def create(self, validated_data):
         """결제 정보 생성"""
         order = self.order
+        payment_method = validated_data.get("payment_method", "card")
 
         # 기존 Payment가 있으면 삭제 (재시도의 경우)
         Payment.objects.filter(order=order).delete()
@@ -97,8 +109,9 @@ class PaymentRequestSerializer(serializers.Serializer):
         # 새 Payment 생성
         payment = Payment.objects.create(
             order=order,
-            toss_order_id=order.order_number,
+            toss_order_id=order.order_number,  # 명시적으로 설정
             amount=order.total_amount,
+            method=payment_method,  # 결제 수단 저장
             status="ready",
         )
 
@@ -107,7 +120,11 @@ class PaymentRequestSerializer(serializers.Serializer):
             payment=payment,
             log_type="request",
             message="결제 요청 생성",
-            data={"order_id": order.id, "amount": str(order.total_amount)},
+            data={
+                "order_id": order.id,
+                "amount": str(order.total_amount),
+                "payment_method": payment_method,
+            },
         )
 
         return payment

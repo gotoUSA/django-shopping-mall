@@ -17,10 +17,15 @@ class OrderViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        """본인 주문만 조회"""
-        return Order.objects.filter(user=self.request.user).prefetch_related(
-            "order_items__product"
-        )
+        """주문 조회 - 관리자는 전체, 일반 사용자는 본인 것만"""
+        if self.request.user.is_staff or self.request.user.is_superuser:
+            # 관리자는 모든 주문 조회 가능
+            return Order.objects.all().prefetch_related("order_items__product")
+        else:
+            # 일반 사용자는 본인 주문만 조회 가능
+            return Order.objects.filter(user=self.request.user).prefetch_related(
+                "order_items__product"
+            )
 
     def get_serializer_class(self):
         if self.action == "list":

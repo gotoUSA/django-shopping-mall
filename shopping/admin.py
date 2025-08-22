@@ -129,6 +129,7 @@ class ProductAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("name",)}
     date_hierarchy = "created_at"
     ordering = ["-created_at"]
+    readonly_fields = ["created_at", "updated_at"]
 
     # 상세 페이지 필드 구성
     fieldsets = (

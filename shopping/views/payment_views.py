@@ -311,7 +311,7 @@ class PaymentCancelView(APIView):
             payment.mark_as_canceled(cancel_data)
 
             # 3. 재고 복구
-            for order_item in order.order_item.all():
+            for order_item in order.order_items.all():
                 if order_item.product:  # 상품이 삭제되지 않았다면
                     Product.objects.filter(pk=order_item.product.pk).update(
                         stock=F("stock") + order_item.quantity,

@@ -133,7 +133,7 @@ class ProductAdmin(admin.ModelAdmin):
     # 상세 페이지 필드 구성
     fieldsets = (
         ("기본 정보", {"fields": ("name", "slug", "category", "sku", "seller")}),
-        ("가격 및 재고", {"fields": ("price", "stock_quantity")}),
+        ("가격 및 재고", {"fields": ("price", "stock")}),
         ("상세 정보", {"fields": ("description", "is_active")}),
         (
             "시간 정보",

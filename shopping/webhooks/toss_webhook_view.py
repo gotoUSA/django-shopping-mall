@@ -195,7 +195,7 @@ def handle_payment_canceled(event_data):
     order_id = event_data.get("orderId")
 
     try:
-        payment = Payment.objects.select_for_update().get(order_id=order_id)
+        payment = Payment.objects.select_for_update().get(toss_order_id=order_id)
     except Payment.DoesNotExist:
         logger.error(f"Payment not found for order_id: {order_id}")
         return

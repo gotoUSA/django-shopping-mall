@@ -26,14 +26,13 @@ from shopping.views.payment_views import (
     PaymentCancelView,
     PaymentDetailView,
     PaymentListView,
+    payment_test_page,
+    payment_success,
     payment_fail,
 )
 
 # Webhook import
 from shopping.webhooks.toss_webhook_view import toss_webhook
-
-# payment testview import
-from .views import payment_views
 
 # DRF의 라우터 생성
 router = DefaultRouter()
@@ -41,7 +40,7 @@ router = DefaultRouter()
 # ViewSet 등록
 router.register(r"products", ProductViewSet, basename="product")
 router.register(r"categories", CategoryViewSet, basename="category")
-router.register(r"order", OrderViewSet, basename="order")
+router.register(r"orders", OrderViewSet, basename="order")
 
 # Cart 관련 ViewSet 등록
 # CartViewSet은 특별한 actions만 있으므로 수동 등록
@@ -52,11 +51,11 @@ urlpatterns = [
     # 웹페이지 URL
     path(
         "payment/test/<int:order_id>/",
-        payment_views.payment_test_page,
+        payment_test_page,
         name="payment_test",
     ),
-    path("payment/success/", payment_views.payment_success, name="payment_success"),
-    path("payment/fail/", payment_views.payment_fail, name="payment_fail"),
+    path("payment/success/", payment_success, name="payment_success"),
+    path("payment/fail/", payment_fail, name="payment_fail"),
     # API root - 라우터가 자동으로 생성하는 URL들
     path("", include(router.urls)),
     # 인증(Auth) 관련 URLs

@@ -153,7 +153,7 @@ class PaymentConfirmSerializer(serializers.Serializer):
 
         # Payment 찾기
         try:
-            payment = Payment.objects.get(order_id=order_id)
+            payment = Payment.objects.get(toss_order_id=order_id)
         except Payment.DoesNotExist:
             raise serializers.ValidationError("결제 정보를 찾을 수 없습니다.")
 

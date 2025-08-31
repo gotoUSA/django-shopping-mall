@@ -21,6 +21,16 @@ class PaymentSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    used_points = serializers.IntegerField(
+        source="order.used_points",
+        read_only=True,
+    )
+
+    earned_points = serializers.IntegerField(
+        source="order.earned_points",
+        read_only=True,
+    )
+
     class Meta:
         model = Payment
         fields = [
@@ -30,6 +40,8 @@ class PaymentSerializer(serializers.ModelSerializer):
             "payment_key",
             "order_id",
             "amount",
+            "used_points",
+            "earned_points",
             "method",
             "card_company",
             "card_number",
@@ -91,7 +103,8 @@ class PaymentRequestSerializer(serializers.Serializer):
                 f"결제할 수 없는 주문 상태입니다: {order.get_status_display()}"
             )
 
-        # 주문 금액이 0원인지 확인
+        # 주문 금액이 0원인지 확인 (포인트 전액 결제 허용)
+        # final_amount가 0원이어도 허용 (포인트 전액 결제)
         if order.total_amount <= 0:
             raise serializers.ValidationError("결제 금액이 올바르지 않습니다.")
 
@@ -106,11 +119,11 @@ class PaymentRequestSerializer(serializers.Serializer):
         # 기존 Payment가 있으면 삭제 (재시도의 경우)
         Payment.objects.filter(order=order).delete()
 
-        # 새 Payment 생성
+        # 새 Payment 생성 (포인트 차감 후 금액으로)
         payment = Payment.objects.create(
             order=order,
             toss_order_id=order.order_number,  # 명시적으로 설정
-            amount=order.total_amount,
+            amount=order.final_amount,
             method=payment_method,  # 결제 수단 저장
             status="ready",
         )
@@ -122,7 +135,9 @@ class PaymentRequestSerializer(serializers.Serializer):
             message="결제 요청 생성",
             data={
                 "order_id": order.id,
-                "amount": str(order.total_amount),
+                "total_amount": str(order.total_amount),
+                "used_points": order.used_points,
+                "amount": str(order.final_amount),  # 실제 결제 금액
                 "payment_method": payment_method,
             },
         )
@@ -161,7 +176,7 @@ class PaymentConfirmSerializer(serializers.Serializer):
         if payment.is_paid:
             raise serializers.ValidationError("이미 완료된 결제입니다.")
 
-        # 금액 검증
+        # 금액 검증 (포인트 차감 후 금액과 비교)
         if payment.amount != amount:
             raise serializers.ValidationError(
                 f"결제 금액이 일치하지 않습니다. "

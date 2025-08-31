@@ -20,6 +20,8 @@ from .models import (
 
 from .models.payment import Payment, PaymentLog
 
+from .models.point import PointHistory
+
 
 # User Admin
 @admin.register(User)
@@ -200,6 +202,9 @@ class OrderAdmin(admin.ModelAdmin):
         "status",
         "formatted_total_amount",
         "created_at",
+        "used_points",
+        "final_amount",
+        "earned_points",
     ]
 
     list_filter = ["status", "created_at"]
@@ -226,6 +231,17 @@ class OrderAdmin(admin.ModelAdmin):
             },
         ),
         ("결제 정보", {"fields": ("payment_method",), "classes": ("collapse",)}),
+        (
+            "포인트",
+            {
+                "fields": (
+                    "used_points",
+                    "final_amount",
+                    "earned_points",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
         (
             "시간정보",
             {
@@ -597,6 +613,69 @@ class PaymentLogAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         """로그는 수정 불가"""
         return False
+
+
+@admin.register(PointHistory)
+class PointHistoryAdmin(admin.ModelAdmin):
+    """포인트 이력 관리자"""
+
+    list_display = [
+        "id",
+        "user",
+        "formatted_points",
+        "type",
+        "balance",
+        "order",
+        "description",
+        "created_at",
+    ]
+
+    list_filter = [
+        "type",
+        "created_at",
+        ("expires_at", admin.DateFieldListFilter),
+    ]
+
+    search_fields = [
+        "user__username",
+        "user__email",
+        "order__order_number",
+        "description",
+    ]
+
+    readonly_fields = [
+        "user",
+        "points",
+        "balance",
+        "type",
+        "order",
+        "description",
+        "expires_at",
+        "metadata",
+        "created_at",
+    ]
+
+    ordering = ["-created_at"]
+
+    def formatted_points(self, obj):
+        """포인트 표시 형식"""
+        if obj.points > 0:
+            return f"+{obj.points}P"
+        else:
+            return f"{obj.points}P"
+
+    formatted_points.short_description = "포인트"
+
+    def has_add_permission(self, request):
+        """직접 추가 방지 (시스템에서만 생성)"""
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """삭제 방지"""
+        return False
+
+    class Media:
+        css = {"all": ("admin/css/point_history.css",)}
 
 
 # Admin 사이트 설정

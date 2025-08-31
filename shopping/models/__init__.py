@@ -3,6 +3,7 @@ from .order import Order, OrderItem
 from .user import User
 from .cart import Cart, CartItem
 from .payment import Payment, PaymentLog
+from .point import PointHistory
 
 # import 위해
 
@@ -18,4 +19,5 @@ __all__ = [
     "CartItem",
     "Payment",
     "PaymentLog",
+    "PointHistory",
 ]

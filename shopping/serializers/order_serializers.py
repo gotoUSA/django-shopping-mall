@@ -6,6 +6,7 @@ from django.db.models import F
 from ..models.order import Order, OrderItem
 from ..models.cart import Cart, CartItem
 from ..models.product import Product
+from ..models.point import PointHistory
 from .product_serializers import ProductListSerializer
 
 
@@ -47,6 +48,8 @@ class OrderListSerializer(serializers.ModelSerializer):
             "status",
             "status_display",
             "total_amount",
+            "used_points",
+            "final_amount",
             "item_count",
             "created_at",
         ]
@@ -70,6 +73,9 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "status_display",
             "order_items",
             "total_amount",
+            "used_points",
+            "final_amount",
+            "earded_points",
             "shipping_name",
             "shipping_phone",
             "shipping_postal_code",
@@ -87,10 +93,18 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     """
     주문 생성용 Serializer (장바구니 -> 주문 변환)
 
-    ⚠️ 변경사항: 재고 차감 로직 제거
-    - 이전: 주문 생성시 바로 재고 차감
-    - 현재: 주문 생성시 재고 체크만, 결제 완료시 재고 차감
+    ⚠️ 변경사항: 포인트 사용 기능 추가
+    - 주문 생성시 포인트 사용 가능
+    - 최소 100포인트 이상 사용
+    - 최대 주문 금액의 100%까지 사용 가능
     """
+
+    use_points = serializers.IntegerField(
+        default=0,
+        min_value=0,
+        required=False,
+        help_text="사용할 포인트 (최소 100포인트)",
+    )
 
     class Meta:
         model = Order
@@ -101,11 +115,13 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             "shipping_address",
             "shipping_address_detail",
             "order_memo",
+            "use_points",
         ]
 
     def validate(self, attrs):
         """장바구니 검증"""
         user = self.context["request"].user
+        use_points = attrs.get("use_points", 0)
 
         # 활성 장바구니 확인
         try:
@@ -125,7 +141,31 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                     f"(현재 재고: {item.product.stock}개)"
                 )
 
+        # 포인트 검증
+        if use_points > 0:
+            # 최소 사용 포인트 체크 (100포인트)
+            if use_points < 100:
+                raise serializers.ValidationError(
+                    "포인트는 최소 100포인트 이상 사용 가능합니다."
+                )
+
+            # 보유 포인트 체크
+            if use_points > use_points:
+                raise serializers.ValidationError(
+                    f"보유 포인트가 부족합니다. "
+                    f"(보유: {user.points}P, 사용 요청: {use_points}P)"
+                )
+
+            # 최대 사용 포인트 체크 (주문 금액의 100%)
+            total_amount = cart.total_amount
+            if use_points > total_amount:
+                raise serializers.ValidationError(
+                    f"주문 금액보다 많은 포인트를 사용할 수 없습니다. "
+                    f"(주문 금액: {total_amount}원, 사용 요청: {use_points}P)"
+                )
+
         self.cart = cart
+        attrs["use_points"] = use_points
         return attrs
 
     @transaction.atomic
@@ -134,18 +174,24 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         트랜잭션으로 주문 생성
 
         변경사항:
-        - 재고 차감 제거 (결제 완료시 처리)
-        - 장바구니 유지 (결제 완료시 비활성화)
+        - 포인트 사용 처리 추가
+        - 포인트 이력 기록
         """
 
         user = self.context["request"].user
         cart = self.cart
+        use_points = validated_data.pop("use_points", 0)
 
         # 1. Order 생성
+        total_amount = cart.total_amount
+        final_amount = max(Decimal("0"), total_amount - Decimal(str(use_points)))
+
         order = Order.objects.create(
             user=user,
             status="pending",  # 결제 대기 상태
-            total_amount=cart.total_amount,
+            total_amoun=total_amount,
+            used_points=use_points,
+            final_amount=final_amount,
             **validated_data,
         )
 
@@ -167,6 +213,26 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                 product_name=cart_item.product.name,
                 quantity=cart_item.quantity,
                 price=cart_item.product.price,
+            )
+
+        # 3. 포인트 사용 처리
+        if use_points > 0:
+            # 포인트 차감
+            user.use_points(use_points)
+
+            # 포인트 사용 이력 기록
+            PointHistory.create_history(
+                user=user,
+                points=use_points,  # 음수로 기록
+                type="use",
+                order=order,
+                description=f"주문 #{order.order_number} 결제시 사용",
+                metadata={
+                    "order_id": order.id,
+                    "order_number": order.order_number,
+                    "total_amount": str(total_amount),
+                    "final_amount": str(final_amount),
+                },
             )
 
         return order

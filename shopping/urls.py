@@ -31,6 +31,9 @@ from shopping.views.payment_views import (
     payment_fail,
 )
 
+# Point view import
+from .views import point_views
+
 # Webhook import
 from shopping.webhooks.toss_webhook_view import toss_webhook
 
@@ -108,6 +111,20 @@ urlpatterns = [
     path(
         "payments/<int:payment_id>/", PaymentDetailView.as_view(), name="payment-detail"
     ),
+    # 포인트 관련 URL
+    path("points/my/", point_views.MyPointView.as_view(), name="my_points"),
+    path(
+        "points/history/",
+        point_views.PointHistoryListView.as_view(),
+        name="point_history",
+    ),
+    path("points/check/", point_views.PointCheckView.as_view(), name="point_check"),
+    path(
+        "points/expiring/",
+        point_views.ExpiringPointsView.as_view(),
+        name="expiring_points",
+    ),
+    path("points/statistics/", point_views.point_statistics, name="point_statistics"),
     # 웹훅(Webhook) URLs
     path("webhooks/toss/", toss_webhook, name="toss-webhook"),
 ]

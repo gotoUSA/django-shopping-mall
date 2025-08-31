@@ -96,6 +96,24 @@ class Order(models.Model):
         verbose_name="총 주문금액",
     )
 
+    # 포인트 사용 관련 필드
+    used_points = models.PositiveIntegerField(
+        default=0, verbose_name="사용 포인트", help_text="이 주문에서 사용한 포인트"
+    )
+
+    final_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=0,
+        default=Decimal("0"),
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="최종 결제금액",
+        help_text="총 주문 금액 - 사용 포인트",
+    )
+
+    earned_points = models.PositiveIntegerField(
+        default=0, verbose_name="적립 포인트", help_text="이 주문으로 적립된 포인트"
+    )
+
     # 주문번호 필드 추가
     order_number = models.CharField(
         max_length=20,
@@ -136,7 +154,22 @@ class Order(models.Model):
     def update_total_amount(self):
         """총액을 계산해서 저장"""
         self.total_amount = self.calcultate_total_amount()
-        self.save(update_fields=["total_amount"])
+        # final_amount (포인트가 이미 사용된 경우 고려)
+        self.final_amount = max(
+            Decimal("0"), self.total_amount - Decimal(str(self.used_points))
+        )
+        self.save(update_fields=["total_amount", "final_amount"])
+
+    def calcultate_final_amount(self):
+        """포인트 차감 후 최종 결제 금액 계산"""
+        return max(Decimal("0"), self.total_amount - Decimal(str(self.used_points)))
+
+    def calculate_earned_points(self):
+        """적립 예정 포인트 계산 (실제 결제 금액의 1%)"""
+        # 포인트로만 결제한 경우 적립 없음
+        if self.final_amount <= 0:
+            return 0
+        return int(self.final_amount * Decimal("0.01"))
 
     def save(self, *args, **kwargs):
         """
@@ -150,6 +183,9 @@ class Order(models.Model):
 
             # 2. ID를 포함한 주문번호 생성
             date_str = timezone.now().strftime("%Y%m%d")
+            self.order_number = (
+                f"{date_str}{self.id:06d}"  # 이거 맞는건지 클로드한테 물어보기
+            )
             # 3. 주문번호만 업데이트
             self.save(update_fields=["order_number"])
         else:

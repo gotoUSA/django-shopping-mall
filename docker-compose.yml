@@ -1,0 +1,90 @@
+# Docker Compose 설정 파일 (version 제거)
+services:
+  # PostgreSQL 데이터베이스
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=shopping_db
+      - POSTGRES_USER=shopping_user
+      - POSTGRES_PASSWORD=shopping_pass
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shopping_user"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis (Celery 브로커 및 캐시)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Django 웹 애플리케이션
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Celery Worker (백그라운드 작업 처리)
+  celery_worker:
+    build: .
+    command: celery -A myproject worker -l info
+    volumes:
+      - .:/code
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Celery Beat (주기적 작업 스케줄러)
+  celery_beat:
+    build: .
+    command: celery -A myproject beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - .:/code
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Flower (Celery 모니터링 도구 - 선택사항)
+  flower:
+    build: .
+    command: celery -A myproject flower
+    volumes:
+      - .:/code
+    env_file:
+      - .env
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery_worker
+
+volumes:
+  postgres_data:

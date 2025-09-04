@@ -247,6 +247,90 @@ LOGGING = {
     },
 }
 
+# ========== Celery 설정 추가 ==========
+
+# Celery 브로커 설정 (Redis)
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = os.environ.get(
+    "CELERY_RESULT_BACKEND", "redis://localhost:6379/0"
+)
+
+# Celery 설정
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE  # Django 시간대와 동일하게 설정
+CELERY_ENABLE_UTC = False  # 로컬 시간대 사용
+
+# Celery Beat 설정 (데이터베이스 스케줄러 사용)
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+# ========== 데이터베이스 설정 수정 (Docker 사용 시) ==========
+
+# 환경변수로 데이터베이스 설정 관리
+if os.environ.get("DATABASE_ENGINE"):
+    DATABASES = {
+        "default": {
+            "ENGINE": os.environ.get("DATABASE_ENGINE", "django.db.backends.sqlite3"),
+            "NAME": os.environ.get("DATABASE_NAME", BASE_DIR / "db.sqlite3"),
+            "USER": os.environ.get("DATABASE_USER", ""),
+            "PASSWORD": os.environ.get("DATABASE_PASSWORD", ""),
+            "HOST": os.environ.get("DATABASE_HOST", ""),
+            "PORT": os.environ.get("DATABASE_PORT", ""),
+        }
+    }
+
+# ========== 이메일 설정 (포인트 만료 알림용) ==========
+
+# 이메일 백엔드 설정
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",  # 개발용: 콘솔에 출력
+)
+
+# SMTP 설정 (실제 이메일 발송 시)
+if EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend":
+    EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+    EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
+    EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "TRUE") == "TRUE"
+    EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+    DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@shopping.com")
+
+# ========== 캐시 설정 (Redis 사용) ==========
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/1"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    }
+}
+
+# ========== 추가 로깅 설정 ==========
+
+# Celery 관련 로깅 추가
+LOGGING["loggers"]["celery"] = {
+    "handlers": ["console", "file"],
+    "level": "INFO",
+    "propagate": False,
+}
+
+LOGGING["loggers"]["shopping.services"] = {
+    "handlers": ["console", "file"],
+    "level": "INFO",
+    "propagate": False,
+}
+
+LOGGING["loggers"]["shopping.tasks"] = {
+    "handlers": ["console", "file"],
+    "level": "INFO",
+    "propagate": False,
+}
+
+
 # logs 디렉토리 생성
 LOGS_DIR = BASE_DIR / "logs"
 if not LOGS_DIR.exists():

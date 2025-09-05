@@ -52,6 +52,42 @@ def expire_points_task() -> dict:
         raise expire_points_task.retry(exc=e)
 
 
+@shared_task(
+    name="shopping.tasks.send_expiry_notification_task",
+    max_retries=3,
+    default_retry_delay=60,
+)
+def send_expiry_notification_task() -> dict:
+    """
+    포인트 만료 예정 알림 발송 태스크
+    매일 오전 10시에 실행됨
+
+    Returns:
+        처리 결과 딕셔너리
+    """
+    from shopping.services.point_service import PointService
+
+    logger.info(f"포인트 만료 알림 발송 시작: {timezone.now()}")
+
+    try:
+        service = PointService()
+        notification_count = service.send_expiry_notifications()
+
+        result = {
+            "status": "success",
+            "notification_count": notification_count,
+            "executed_at": timezone.now().isoformat(),
+            "message": f"{notification_count}명에게 만료 예정 알림을 발송했습니다.",
+        }
+
+        logger.info(f"포인트 만료 알림 발송 완료: {result}")
+        return result
+
+    except Exception as e:
+        logger.error(f"포인트 만료 알림 발송 실패: {str(e)}\n{traceback.format_exc()}")
+        raise send_expiry_notification_task.retry(exc=e)
+
+
 @shared_task(name="shopping.tasks.process_single_user_points", queue="points")
 def process_single_user_points(user_id: int) -> dict:
     """

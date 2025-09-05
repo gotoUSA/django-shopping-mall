@@ -203,7 +203,8 @@ class PointService:
             # 메타데이터 업데이트
             if "used_amount" not in point_history.metadata:
                 point_history.metadata["used_amount"] = 0
-            point_history.metadata["used_amount"] += use_from_this
+            metadata = point_history.metadata.copy()
+            metadata["used_amount"] = metadata.get("used_amount", 0) + use_from_this
 
             # 사용 내역 추가
             if "usage_history" not in point_history.metadata:
@@ -212,7 +213,8 @@ class PointService:
                 {"amount": use_from_this, "used_at": timezone.now().isoformat()}
             )
 
-            point_history.save(update_fields=["metadata"])
+            point_history.metadata = metadata
+            point_history.save()
 
             used_details.append(
                 {
@@ -260,7 +262,7 @@ class PointService:
             user_id = point.user_id
             if user_id not in user_points:
                 user_points[user_id] = {"user": point.user, "points": [], "total": 0}
-            remaining = self.get_expired_points(point)
+            remaining = self.get_remaining_points(point)
             if remaining > 0:
                 user_points[user_id]["points"].append(point)
                 user_points[user_id]["total"] += remaining

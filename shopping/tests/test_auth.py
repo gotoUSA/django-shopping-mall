@@ -330,11 +330,14 @@ class AuthenticationTestCase(TestCase):
         # 인증 없이 로그아웃 시도
         response = self.client.post(self.logout_url)
 
-        # 인증되지 않은 요청은 401 Unauthorized
+        # DRF는 인증되지 않은 경우 401 또는 403을 반환할 수 있음
         self.assertIn(
             response.status_code,
             [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
         )
+
+        # 추가 검증: 어떤 상태코드든 성공하면 안 됨
+        self.assertNotEqual(response.status_code, status.HTTP_200_OK)
 
     # ========== 프로필 관련 테스트 ==========
 
@@ -363,10 +366,15 @@ class AuthenticationTestCase(TestCase):
         인증 없이 프로필 조회 실패 테스트
         """
         response = self.client.get(self.profile_url)
+
+        # DRF는 인증되지 않은 경우 401 또는 403을 반환할 수 있음
         self.assertIn(
             response.status_code,
             [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
         )
+
+        # 추가 검증: 어떤 경우든 프로필 데이터는 반환되면 안 됨
+        self.assertNotIn("username", response.json() if response.json() else {})
 
     def test_update_profile(self):
         """
@@ -531,8 +539,11 @@ class TokenExpiryTestCase(TestCase):
 
         response = self.client.get(reverse("auth-profile"))
 
-        # 401 Unauthorized 응답 확인
+        # DRF는 만료된 토큰에 대해 401 또는 403을 반환할 수 있음
         self.assertIn(
             response.status_code,
             [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
         )
+
+        # 추가 검증: 어떤 경우든 성공하면 안 됨
+        self.assertNotEqual(response.status_code, status.HTTP_200_OK)

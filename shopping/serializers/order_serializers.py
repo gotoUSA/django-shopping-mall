@@ -75,7 +75,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "total_amount",
             "used_points",
             "final_amount",
-            "earded_points",
+            "earned_points",
             "shipping_name",
             "shipping_phone",
             "shipping_postal_code",
@@ -150,7 +150,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                 )
 
             # 보유 포인트 체크
-            if use_points > use_points:
+            if use_points > user.points:
                 raise serializers.ValidationError(
                     f"보유 포인트가 부족합니다. "
                     f"(보유: {user.points}P, 사용 요청: {use_points}P)"
@@ -189,8 +189,8 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         order = Order.objects.create(
             user=user,
             status="pending",  # 결제 대기 상태
-            total_amoun=total_amount,
-            used_points=use_points,
+            total_amount=total_amount,
+            used_points=use_points,  # 양수로 저장 (0 이상)
             final_amount=final_amount,
             **validated_data,
         )
@@ -223,7 +223,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             # 포인트 사용 이력 기록
             PointHistory.create_history(
                 user=user,
-                points=use_points,  # 음수로 기록
+                points=-use_points,  # 음수로 기록
                 type="use",
                 order=order,
                 description=f"주문 #{order.order_number} 결제시 사용",

@@ -57,3 +57,17 @@ class OrderViewSet(viewsets.ModelViewSet):
             order.save()
 
         return Response({"message": "주문이 취소되었습니다."})
+
+    def list(self, request, *args, **kwargs):
+        """주문 목록 조회 - 페이지네이션 구조 확인"""
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # 페이지네이션이 설정되어 있으면
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        # 페이지네이션이 없으면
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

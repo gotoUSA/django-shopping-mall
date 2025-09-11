@@ -385,10 +385,8 @@ class CartClearSerializer(serializers.Serializer):
         required=True, help_text="장바구니를 비우려면 true를 전송하세요."
     )
 
-    def validate(self, value):
-        """
-        확인 값 검증
-        """
+    def validate_confirm(self, value):  # 특정 필드 검증
+        """확인 값 검증"""
         if not value:
             raise serializers.ValidationError("장바구니 비우기를 확인해주세요.")
         return value

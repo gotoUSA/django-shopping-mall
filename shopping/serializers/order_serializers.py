@@ -39,6 +39,7 @@ class OrderListSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source="user.username", read_only=True)
     item_count = serializers.IntegerField(source="order_items.count", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
+    total_shipping_fee = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -48,11 +49,17 @@ class OrderListSerializer(serializers.ModelSerializer):
             "status",
             "status_display",
             "total_amount",
+            "shipping_fee",
+            "total_shipping_fee",
             "used_points",
             "final_amount",
             "item_count",
             "created_at",
         ]
+
+    def get_total_shipping_fee(self, obj):
+        """전체 배송비 반환"""
+        return str(obj.get_total_shipping_fee())
 
 
 class OrderDetailSerializer(serializers.ModelSerializer):
@@ -62,6 +69,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source="user.username", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     can_cancel = serializers.BooleanField(read_only=True)
+    total_shipping_fee = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -73,6 +81,10 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "status_display",
             "order_items",
             "total_amount",
+            "shipping_fee",
+            "additional_shipping_fee",
+            "is_free_shipping",
+            "total_shipping_fee",
             "used_points",
             "final_amount",
             "earned_points",
@@ -87,6 +99,10 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+    def get_total_shipping_fee(self, obj):
+        """전체 배송비 반환"""
+        return str(obj.get_total_shipping_fee())
 
 
 class OrderCreateSerializer(serializers.ModelSerializer):
@@ -194,6 +210,16 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             final_amount=final_amount,
             **validated_data,
         )
+
+        # 도서 산간 지역 체크 (우편번호 기반)
+        remote_area_postal_codes = ["63", "59", "52"]  # 제주, 울릉도 등
+        is_remote = any(
+            order.shipping_postal_code.startswith(code)
+            for code in remote_area_postal_codes
+        )
+
+        # 배송비 적용 (이미 생성된 order 객체에 적용)
+        order.apply_shipping_fee(is_remote_area=is_remote)
 
         # 2. CartItem -> OrderItem 변환
         for cart_item in cart.items.all():

@@ -114,6 +114,31 @@ class Order(models.Model):
         default=0, verbose_name="적립 포인트", help_text="이 주문으로 적립된 포인트"
     )
 
+    # 배송비 관련 필드 추가
+    shipping_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=0,
+        default=Decimal("0"),
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="배송비",
+        help_text="기본 배송비",
+    )
+
+    additional_shipping_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=0,
+        default=Decimal("0"),
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="추가 배송비",
+        help_text="제주/도서산간 등 추가 배송비",
+    )
+
+    is_free_shipping = models.BooleanField(
+        default=False,
+        verbose_name="무료배송 여부",
+        help_text="무료배송 적용 여부",
+    )
+
     # 주문번호 필드 추가
     order_number = models.CharField(
         max_length=20,
@@ -154,9 +179,15 @@ class Order(models.Model):
     def update_total_amount(self):
         """총액을 계산해서 저장"""
         self.total_amount = self.calcultate_total_amount()
-        # final_amount (포인트가 이미 사용된 경우 고려)
+
+        # 배송비 포함한 최종 금액 계산
+        total_with_shipping = (
+            self.total_amount + self.shipping_fee + self.additional_shipping_fee
+        )
+
+        # 포인트 차감 후 최종 금액
         self.final_amount = max(
-            Decimal("0"), self.total_amount - Decimal(str(self.used_points))
+            Decimal("0"), total_with_shipping - Decimal(str(self.used_points))
         )
         self.save(update_fields=["total_amount", "final_amount"])
 
@@ -206,6 +237,71 @@ class Order(models.Model):
     def can_cancel(self):
         """취소 가능 여부"""
         return self.status in ["pending", "paid"]
+
+    def calcultate_shipping_fee(self, is_remote_area=False):
+        """
+        배송비 계산
+
+        Args:
+            is_remote_area: 제주/도서산간 지역 여부
+
+        Returns:
+            tuple: (기본 배송비, 추가 배송비, 무료배송 여부)
+        """
+        # 설정값 (나중에 settings.py나 별도 모델로 관리 가능)
+        FREE_SHIPPING_THROSHOLD = Decimal("30000")  # 무료배송 기준 금액
+        DEFAULT_SHIPPING_FEE = Decimal("3000")  # 기본 배송비
+        REMOTE_AREA_FEE = Decimal("3000")  # 도서산간 추가 배송비
+
+        # 상품 금액 계산 (포인트 사용 전 금액)
+        product_total = self.total_amount
+
+        # 무료배송 여부 확인
+        if product_total >= FREE_SHIPPING_THROSHOLD:
+            # 무료배송이어도 도서산간 추가비는 받을 수 있음
+            return (
+                Decimal("0"),
+                REMOTE_AREA_FEE if is_remote_area else Decimal("0"),
+                True,
+            )
+
+        # 기본 배송비 + 추가 배송비
+        additional_fee = REMOTE_AREA_FEE if is_remote_area else Decimal("0")
+        return DEFAULT_SHIPPING_FEE, additional_fee, False
+
+    def apply_shipping_fee(self, is_remote_area=False):
+        """
+        배송비를 적용하고 최종 금액 재계산
+
+        Args:
+            is_remote_area: 제주/도서산간 지역 여부
+        """
+        # 배송비 계산
+        base_fee, additional_fee, is_free = self.calcultate_shipping_fee(is_remote_area)
+
+        # 필드 업데이트
+        self.shipping_fee = base_fee
+        self.additional_shipping_fee = additional_fee
+        self.is_free_shipping = is_free
+
+        # 최종 금액 재계산 (상품금액 + 배송비 - 포인트)
+        total_with_shipping = self.total_amount + base_fee + additional_fee
+        self.final_amount = max(
+            Decimal("0"), total_with_shipping - Decimal(str(self.used_points))
+        )
+
+        self.save(
+            update_fields=[
+                "shipping_fee",
+                "additional_shipping_fee",
+                "is_free_shipping",
+                "final_amount",
+            ]
+        )
+
+    def get_total_shipping_fee(self):
+        """전체 배송비 반환 (기본 + 추가)"""
+        return self.shipping_fee + self.additional_shipping_fee
 
 
 class OrderItem(models.Model):

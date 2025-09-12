@@ -127,14 +127,6 @@ class OrderCreateTestCase(TestCase):
 
         return cart_item
 
-    def _print_response_for_debug(self, response):
-        """디버깅용 응답 출력 헬퍼"""
-        print(f"\n=== Response Status: {response.status_code} ===")
-        try:
-            print(f"Response Data: {response.json()}")
-        except:
-            print(f"Response Content: {response.content}")
-
     # ========== 정상 주문 생성 테스트 ==========
 
     def test_create_order_from_cart_success(self):

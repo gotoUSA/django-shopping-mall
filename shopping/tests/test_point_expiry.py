@@ -199,15 +199,8 @@ class PointExpiryTestCase(TestCase):
         # When: 일부 포인트 사용 (300P)
         result = self.point_service.use_points_fifo(self.user, 300)
 
-        # 디버깅 출력
-        print(f"USE RESULT: {result}")
-
         # Then: 남은 포인트 추적
         history.refresh_from_db()
-
-        # 디버깅 출력
-        print(f"METADATA AFTER USE: {history.metadata}")
-        print(f"USED_AMOUNT: {history.metadata.get('used_amount', 0)}")
 
         remaining = self.point_service.get_remaining_points(history)
         self.assertEqual(remaining, 700)

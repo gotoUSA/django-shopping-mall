@@ -2,6 +2,8 @@ from rest_framework import serializers
 from django.db import transaction
 from django.core.exceptions import ValidationError as djangoValidationError
 from decimal import Decimal
+from django.utils import timezone
+from django.db.models import F
 
 # 모델 import
 from ..models.cart import Cart, CartItem
@@ -166,14 +168,24 @@ class CartItemCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("장바구니 정보가 없습니다.")
 
         with transaction.atomic():
-            # 이미 장바구니에 있는 상품인지 확인
-            cart_item, created = CartItem.objects.get_or_create(
-                cart=cart, product_id=product_id, defaults={"quantity": quantity}
-            )
+            # Cart를 잠금 (동시 접근 방지)
+            cart = Cart.objects.select_for_update().get(pk=cart.pk)
 
-            if not created:
-                # 이미 있는 경우 수량 증가
-                cart_item.increase_quantity(quantity)
+            try:
+                # 기존 아이템을 잠금과 함께 조회
+                cart_item = CartItem.objects.select_for_update().get(
+                    cart=cart, product_id=product_id
+                )
+                # F() 객체로 안전하게 수량 증가 (atomic update)
+                CartItem.objects.filter(pk=cart_item.pk).update(
+                    quantity=F("quantity") + quantity, updated_at=timezone.now()
+                )
+                cart_item.refresh_from_db()  # DB에서 최신 값 다시 로드
+            except CartItem.DoesNotExist:
+                # 없으면 생성
+                cart_item = CartItem.objects.create(
+                    cart=cart, product_id=product_id, quantity=quantity
+                )
 
             return cart_item
 
@@ -224,17 +236,27 @@ class CartItemUpdateSerializer(serializers.ModelSerializer):
         수량 업데이트
 
         0이면 삭제, 아니면 수량 변경
+        select_for_update()로 동시성 처리
         """
+        from django.db import transaction
+
         quantity = validated_data.get("quantity")
 
-        if quantity == 0:
-            # 수량이 0이면 삭제
-            instance.delete()
-            return instance  # 삭제된 인스턴스 반환
-        else:
-            # 수량 변경
-            instance.update_quantity(quantity)
-            return instance
+        with transaction.atomic():
+            # 해당 CartItem을 잠금
+            cart_item = CartItem.objects.select_for_update().get(pk=instance.pk)
+
+            if quantity == 0:
+                # 수량이 0이면 삭제
+                cart_item.delete()
+                return cart_item
+            else:
+                # 직접 UPDATE 쿼리로 수량 변경 (race condition 방지)
+                CartItem.objects.filter(pk=cart_item.pk).update(
+                    quantity=quantity, updated_at=timezone.now()
+                )
+                cart_item.refresh_from_db()
+                return cart_item
 
 
 class CartSerializer(serializers.ModelSerializer):

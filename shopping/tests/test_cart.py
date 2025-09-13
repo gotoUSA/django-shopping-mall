@@ -605,6 +605,7 @@ class CartConcurrencyTestCase(TransactionTestCase):
 
         success_count = 0
         errors = []
+        expected_total_quantity = 5  # 5개 스레드 * 1개씩
 
         def add_to_cart():
             """장바구니에 상품 추가하는 함수"""
@@ -639,21 +640,16 @@ class CartConcurrencyTestCase(TransactionTestCase):
         cart = Cart.objects.get(user=self.user, is_active=True)
         try:
             cart_item = CartItem.objects.get(cart=cart, product=self.product)
-            # 동시성으로 인해 정확한 수량 예측이 어려우므로
-            # 최소 1개 이상 추가되었는지만 확인
-            self.assertGreaterEqual(cart_item.quantity, 1)
-            self.assertLess(cart_item.quantity, 5)
+            self.assertEqual(cart_item.quantity, expected_total_quantity)
         except CartItem.DoesNotExist:
             self.fail("장바구니 아이템이 생성되지 않았습니다.")
 
-        # 최소 1개의 요청은 성공해야함
-        self.assertGreaterEqual(success_count, 1)
-
     def test_concurrent_quantity_update(self):
-        """동시에 수량을 변경할 때 정확한 처리 테스트"""
+        """동시 수량 변경 시 Last Write Wins 정책 테스트"""
         # 초기 장바구니 설정
         cart = Cart.get_or_create_active_cart(self.user)[0]
         cart_item = CartItem.objects.create(cart=cart, product=self.product, quantity=5)
+        initial_quantity = cart_item.quantity
 
         # 로그인
         response = self.client.post(
@@ -662,6 +658,7 @@ class CartConcurrencyTestCase(TransactionTestCase):
         token = response.json()["access"]
 
         results = []
+        update_times = []
 
         def update_quantity(new_quantity):
             """수량 변경 함수"""
@@ -669,10 +666,20 @@ class CartConcurrencyTestCase(TransactionTestCase):
             client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
             update_url = reverse("cart-item-detail", kwargs={"pk": cart_item.id})
+
+            start_time = time.time()
             response = client.patch(
                 update_url, {"quantity": new_quantity}, format="json"
             )
-            results.append((new_quantity, response.status_code))
+            end_time = time.time()
+            results.append(
+                {
+                    "quantity": new_quantity,
+                    "status": response.status_code,
+                    "start": start_time,
+                    "end": end_time,
+                }
+            )
 
         # 여러 스레드로 다른 수량으로 변경 시도
         threads = []
@@ -681,8 +688,10 @@ class CartConcurrencyTestCase(TransactionTestCase):
         for qty in quantities:
             thread = threading.Thread(target=update_quantity, args=(qty,))
             threads.append(thread)
+
+        # 모든 스레드 거의 동시 시작
+        for thread in threads:
             thread.start()
-            time.sleep(0.01)  # 약간의 지연을 두어 순차 처리 유도
 
         # 모든 스레드 완료 대기
         for thread in threads:
@@ -690,10 +699,43 @@ class CartConcurrencyTestCase(TransactionTestCase):
 
         # 마지막 업데이트가 반영되어야 함
         cart_item.refresh_from_db()
-        # 동시성으로 인해 정확한 값 예측이 어려우므로
-        # 수량이 변경되었는지만 확인
-        self.assertGreater(cart_item.quantity, 0)
-        self.assertLessEqual(cart_item.quantity, 8)  # 최대값 이하
+
+        # 1. 모든 요청이 성공했는지 확인 (select_for_update로 순차 처리됨)
+        success_count = sum(1 for r in results if r["status"] == 200)
+        self.assertEqual(
+            success_count,
+            len(quantities),
+            f"모든 요청이 성공해야 함. 성공: {success_count}/{len(quantities)}",
+        )
+
+        # 2. 최종값이 요청한 값 중 하나여야 함
+        self.assertIn(
+            cart_item.quantity,
+            quantities,
+            f"최종 수량({cart_item.quantity})은 요청한 값 중 하나여야 함: {quantities}",
+        )
+
+        # 3. 데이터 정합성 확인
+        self.assertGreater(cart_item.quantity, 0, "수량은 0보다 커야 함")
+        self.assertLessEqual(
+            cart_item.quantity,
+            self.product.stock,
+            f"수량은 재고({self.product.stock})를 초과할 수 없음",
+        )
+
+        # 4. 실제로 업데이트가 되었는지 확인
+        self.assertNotEqual(
+            cart_item.quantity,
+            initial_quantity,
+            f"수량이 초기값({initial_quantity})에서 변경되어야 함",
+        )
+
+        # 디버깅 정보 출력 (실패 시 유용)
+        if success_count != len(quantities):
+            print(f"\n업데이트 결과:")
+            for r in sorted(results, key=lambda x: x["end"]):
+                print(f"  수량 {r['quantity']}: 상태 {r['status']}")
+            print(f"최종 수량: {cart_item.quantity}")
 
 
 class CartPerformanceTestCase(TestCase):

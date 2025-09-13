@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from decimal import Decimal
+from django.utils import timezone
 
 
 class Cart(models.Model):
@@ -146,8 +147,11 @@ class CartItem(models.Model):
     def update_quantity(self, quantity):
         """수량 직접 설정"""
         if quantity > 0:
-            self.quantity = quantity
-            self.save(update_fields=["quantity", "updated_at"])
+            # F() 객체 사용하지 않고 직접 값 설정 (이미 lock이 걸려있다고 가정)
+            CartItem.objects.filter(pk=self.pk).update(
+                quantity=quantity, updated_at=timezone.now()
+            )
+            self.refresh_from_db()
         else:
             self.delete()
 

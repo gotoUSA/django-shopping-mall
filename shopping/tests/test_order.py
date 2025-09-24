@@ -233,16 +233,50 @@ class OrderCreateTestCase(TestCase):
         self._login_user()
         self._add_to_cart(self.product1, 2)  # 20,000원
 
-        # When: 주문 금액 전액을 포인트로 결제
-        order_data = {**self.shipping_data, "use_points": 20000}
+        # When: 주문 금액 + 배송비 전액을 포인트로 결제
+        # 20,000원(상품) + 3,000원(배송비) = 23,000원
+        order_data = {**self.shipping_data, "use_points": 23000}
         response = self.client.post(self.order_list_url, order_data, format="json")
 
         # Then: 성공
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+        # 전체 주문 확인
         order = Order.objects.filter(user=self.user).first()
         self.assertIsNotNone(order)
+
+        # 검증: 상품 금액, 배송비, 포인트 사용
+        self.assertEqual(order.total_amount, Decimal("20000"))  # 상품 금액
+        self.assertEqual(order.shipping_fee, Decimal("3000"))  # 배송비 (무료배송 미달)
+        self.assertEqual(order.used_points, 23000)  # 사용 포인트
         self.assertEqual(order.final_amount, Decimal("0"))  # 전액 포인트 결제
+
+        # 사용자 포인트 차감 확인
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.points, 27000)  # 50000 - 23000
+
+    def test_create_order_with_partial_points_covering_product(self):
+        """포인트로 상품 금액만 결제하고 배송비는 현금 결제하는 테스트"""
+        # Given: 포인트 보유
+        self.user.points = 25000
+        self.user.save()
+
+        self._login_user()
+        self._add_to_cart(self.product1, 2)  # 20,000원
+
+        # When: 상품 금액만큼만 포인트 사용
+        order_data = {**self.shipping_data, "use_points": 20000}
+        response = self.client.post(self.order_list_url, order_data, format="json")
+
+        # Then: 배송비만 현금 결제
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        order = Order.objects.filter(user=self.user).first()
+        self.assertIsNotNone(order)
+        self.assertEqual(order.total_amount, Decimal("20000"))
+        self.assertEqual(order.shipping_fee, Decimal("3000"))
+        self.assertEqual(order.used_points, 20000)
+        self.assertEqual(order.final_amount, Decimal("3000"))  # 배송비만 남음
 
     # ========== 검증 실패 테스트 ==========
 

@@ -139,23 +139,43 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         use_points = attrs.get("use_points", 0)
 
-        # 활성 장바구니 확인
-        try:
-            cart = Cart.objects.get(user=user, is_active=True)
-        except Cart.DoesNotExist:
-            raise serializers.ValidationError("장바구니가 비어있습니다.")
-
-        # 장바구니 아이템 확인
-        if not cart.items.exists():
+        # 장바구니 확인
+        cart = Cart.objects.filter(user=user, is_active=True).first()
+        if not cart or not cart.items.exists():
             raise serializers.ValidationError("장바구니가 비어있습니다.")
 
         # 재고 확인 (차감하지 않고 체크만)
         for item in cart.items.all():
-            if not item.is_available():
+            if item.product.stock < item.quantity:
                 raise serializers.ValidationError(
                     f"{item.product.name}의 재고가 부족합니다. "
                     f"(현재 재고: {item.product.stock}개)"
                 )
+
+        # 배송비 미리 계산
+        total_amount = cart.total_amount
+
+        # 도서 산간 지역 체크 (우편번호 기반)
+        shipping_postal_code = attrs.get("shipping_postal_code", "")
+        remote_area_postal_codes = ["63", "59", "52"]  # 제주, 울릉도 등
+        is_remote = any(
+            shipping_postal_code.startswith(code) for code in remote_area_postal_codes
+        )
+
+        # 배송비 계산
+        FREE_SHIPPING_THRESHOLD = Decimal("30000")
+        DEFAULT_SHIPPING_FEE = Decimal("3000")
+        REMOTE_AREA_FEE = Decimal("3000")
+
+        if total_amount >= FREE_SHIPPING_THRESHOLD:
+            shipping_fee = Decimal("0")
+            additional_shipping_fee = REMOTE_AREA_FEE if is_remote else Decimal("0")
+        else:
+            shipping_fee = DEFAULT_SHIPPING_FEE
+            additional_shipping_fee = REMOTE_AREA_FEE if is_remote else Decimal("0")
+
+        # 배송비를 포함한 총 결제 예정 금액
+        total_payment_amount = total_amount + shipping_fee + additional_shipping_fee
 
         # 포인트 검증
         if use_points > 0:
@@ -168,16 +188,14 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             # 보유 포인트 체크
             if use_points > user.points:
                 raise serializers.ValidationError(
-                    f"보유 포인트가 부족합니다. "
-                    f"(보유: {user.points}P, 사용 요청: {use_points}P)"
+                    f"보유 포인트가 부족합니다. (보유: {user.points}P, 사용 요청: {use_points}P)"
                 )
 
-            # 최대 사용 포인트 체크 (주문 금액의 100%)
-            total_amount = cart.total_amount
-            if use_points > total_amount:
+            # 배송비를 포함한 총 금액보다 많은 포인트 사용 불가
+            if use_points > total_payment_amount:
                 raise serializers.ValidationError(
                     f"주문 금액보다 많은 포인트를 사용할 수 없습니다. "
-                    f"(주문 금액: {total_amount}원, 사용 요청: {use_points}P)"
+                    f"(주문 금액: {total_payment_amount}원, 사용 요청: {use_points}P)"
                 )
 
         self.cart = cart

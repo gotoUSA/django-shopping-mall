@@ -11,6 +11,9 @@ class UserSerializer(serializers.ModelSerializer):
     - 읽기 전용 필드 설정
     """
 
+    # 이메일 인증 대기 상태
+    email_verification_pending = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
@@ -27,6 +30,7 @@ class UserSerializer(serializers.ModelSerializer):
             "membership_level",
             "points",
             "is_email_verified",
+            "email_verification_pending",
             "is_phone_verified",
             "agree_marketing_email",
             "agree_marketing_sms",
@@ -43,6 +47,19 @@ class UserSerializer(serializers.ModelSerializer):
             "date_joined",
             "last_login",
         ]
+
+    def get_email_verification_pending(self, obj):
+        """이메일 인증 대기중인지 확인"""
+        if obj.is_email_verified:
+            return False
+
+        # 유효한 토큰이 있는지 확인
+        from shopping.models.email_verification import EmailVerificationToken
+
+        return EmailVerificationToken.objects.filter(
+            user=obj,
+            is_used=False,
+        ).exists()
 
 
 class RegisterSerializer(serializers.ModelSerializer):

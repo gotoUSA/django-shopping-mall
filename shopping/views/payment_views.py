@@ -66,6 +66,13 @@ class PaymentRequestView(APIView):
             "fail_url": "http://localhost:8000/api/payments/fail"
         }
         """
+        # 이메일 인증 체크
+        if not request.user.is_email_verified:
+            return Response(
+                {"error": "이메일 인증이 필요합니다. 먼저 이메일을 인증해주세요."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = PaymentRequestSerializer(
             data=request.data, context={"request": request}
         )

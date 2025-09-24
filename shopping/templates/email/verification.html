@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>이메일 인증</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            color: #333333;
+            margin-bottom: 20px;
+        }
+        .message {
+            color: #666666;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+        .verification-section {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 25px;
+            margin: 30px 0;
+            text-align: center;
+        }
+        .verification-code {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            letter-spacing: 8px;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #ffffff;
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            display: inline-block;
+        }
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .verify-button {
+            display: inline-block;
+            padding: 15px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            transition: transform 0.2s;
+        }
+        .verify-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        .divider {
+            text-align: center;
+            margin: 30px 0;
+            color: #999999;
+            position: relative;
+        }
+        .divider::before,
+        .divider::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 40%;
+            height: 1px;
+            background-color: #e0e0e0;
+        }
+        .divider::before {
+            left: 0;
+        }
+        .divider::after {
+            right: 0;
+        }
+        .link-section {
+            background-color: #fafafa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            word-break: break-all;
+        }
+        .link-text {
+            color: #667eea;
+            font-size: 14px;
+            text-decoration: none;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .warning-title {
+            color: #856404;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .warning-text {
+            color: #856404;
+            font-size: 14px;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #e0e0e0;
+        }
+        .footer-text {
+            color: #999999;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .spam-notice {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f4fd;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #0066cc;
+        }
+        {% if is_resend %}
+        .resend-badge {
+            display: inline-block;
+            background-color: #28a745;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 12px;
+            margin-bottom: 20px;
+        }
+        {% endif %}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛍️ 쇼핑몰 이메일 인증</h1>
+        </div>
+        
+        <div class="content">
+            {% if is_resend %}
+            <span class="resend-badge">재발송된 메일입니다</span>
+            {% endif %}
+            
+            <div class="greeting">
+                안녕하세요, {{ user.first_name }}님! 👋
+            </div>
+            
+            <div class="message">
+                쇼핑몰 회원가입을 환영합니다!<br>
+                아래 방법 중 하나를 선택하여 이메일 인증을 완료해주세요.
+            </div>
+            
+            <div class="verification-section">
+                <strong style="color: #333; font-size: 16px;">방법 1: 인증 코드 입력</strong>
+                <div class="verification-code">{{ verification_code }}</div>
+                <p style="color: #666; font-size: 14px; margin-top: 10px;">
+                    웹사이트에서 위 6자리 코드를 입력하세요
+                </p>
+            </div>
+            
+            <div class="divider">또는</div>
+            
+            <div class="button-container">
+                <a href="{{ verification_url }}" class="verify-button">
+                    이메일 인증하기
+                </a>
+            </div>
+            
+            <div class="message" style="text-align: center; color: #999; font-size: 14px;">
+                방법 2: 위 버튼을 클릭하여 바로 인증
+            </div>
+            
+            <div class="link-section">
+                <p style="color: #666; font-size: 13px; margin-bottom: 10px;">
+                    버튼이 작동하지 않으면 아래 링크를 복사하여 브라우저에 붙여넣으세요:
+                </p>
+                <a href="{{ verification_url }}" class="link-text">{{ verification_url }}</a>
+            </div>
+            
+            <div class="warning">
+                <div class="warning-title">⏰ 유효기간 안내</div>
+                <div class="warning-text">
+                    이 인증 링크와 코드는 24시간 동안만 유효합니다.<br>
+                    기간이 지나면 새로운 인증 메일을 요청해주세요.
+                </div>
+            </div>
+            
+            <div class="spam-notice">
+                📧 <strong>이메일이 보이지 않나요?</strong><br>
+                스팸함 또는 프로모션 폴더를 확인해주세요.<br>
+                계속 메일을 받지 못하신다면 1분 후 재발송을 요청하실 수 있습니다.
+            </div>
+        </div>
+        
+        <div class="footer">
+            <div class="footer-text">
+                이 메일은 {{ user.email }} 계정의 이메일 인증을 위해 발송되었습니다.<br>
+                본인이 요청하지 않으셨다면 이 메일을 무시하셔도 됩니다.<br><br>
+                © 2024 쇼핑몰. All rights reserved.<br>
+                고객센터: support@shopping.com | 1588-0000
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,10 +1,12 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
-from django.db.models import Count, Avg
+from django.db.models import Count, Avg, Q
 from mptt.admin import DraggableMPTTAdmin
 from django.urls import reverse
 from django.utils import timezone
+from datetime import timedelta
+
 
 from .models import (
     Product,
@@ -21,6 +23,9 @@ from .models import (
 from .models.payment import Payment, PaymentLog
 
 from .models.point import PointHistory
+
+# 이메일 인증 모델
+from shopping.models.email_verification import EmailVerificationToken, EmailLog
 
 
 # User Admin
@@ -676,6 +681,177 @@ class PointHistoryAdmin(admin.ModelAdmin):
 
     class Media:
         css = {"all": ("admin/css/point_history.css",)}
+
+
+@admin.register(EmailVerificationToken)
+class EmailVerificationTokenAdmin(admin.ModelAdmin):
+    """이메일 인증 토큰 관리"""
+
+    list_display = [
+        "user_email",
+        "verification_code_display",
+        "status_display",
+        "created_at",
+        "is_expired_display",
+        "used_at",
+    ]
+
+    list_filter = ["is_used", "created_at", ("user", admin.RelatedOnlyFieldListFilter)]
+
+    search_fields = ["user__email", "user__username", "verification_code", "token"]
+
+    readonly_fields = ["token", "verification_code", "created_at", "used_at"]
+
+    ordering = ["created_at"]
+
+    def user_email(self, obj):
+        return obj.user.email
+
+    user_email.short_description = "사용자 이메일"
+    user_email.admin_order_field = "user__email"
+
+    def verification_code_display(self, obj):
+        return format_html(
+            '<code style="font-size: 14px; font-weight: bold; '
+            'background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">{}</code>',
+            obj.verification_code,
+        )
+
+    verification_code_display.short_description = "인증 코드"
+
+    def status_display(self, obj):
+        if obj.is_used:
+            return format_html('<span style="color: green;">✓ 사용됨</span>')
+        elif obj.is_expired():
+            return format_html('<span style="color: red;">✗ 만료됨</span>')
+        else:
+            return format_html('<span style="color: blue;">● 유효</span>')
+
+    status_display.short_description = "상태"
+
+    def is_expired_display(self, obj):
+        return obj.is_expired()
+
+    is_expired_display.short_description = "만료 여부"
+    is_expired_display.boolean = True
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("user")
+
+
+@admin.register(EmailLog)
+class EmailLogAdmin(admin.ModelAdmin):
+    """이메일 발송 로그 관리"""
+
+    list_display = [
+        "id",
+        "email_type",
+        "recipient_email",
+        "status_badge",
+        "sent_at",
+        "verified_at",
+        "created_at",
+    ]
+
+    list_filter = ["email_type", "status", "created_at", "sent_at", "verified_at"]
+
+    search_fields = ["recipient_email", "subject", "user__email", "user__username"]
+
+    readonly_fields = [
+        "created_at",
+        "sent_at",
+        "opened_at",
+        "clicked_at",
+        "verified_at",
+    ]
+
+    ordering = ["-created_at"]
+
+    date_hierarchy = "created_at"
+
+    def status_badge(self, obj):
+        colors = {
+            "pending": "#ffc107",
+            "sent": "#28a745",
+            "failed": "#dc3545",
+            "opened": "#17a2b8",
+            "clicked": "#6610f2",
+            "verified": "#28a745",
+        }
+
+        icons = {
+            "pending": "⏳",
+            "sent": "✉️",
+            "failed": "❌",
+            "opened": "👁️",
+            "clicked": "👆",
+            "verified": "✅",
+        }
+
+        return format_html(
+            '<span style="background-color: {}; color: white; '
+            'padding: 3px 8px; border-radius: 3px; font-size: 11px;">'
+            "{} {}</span>",
+            colors.get(obj.status, "#6c757d"),
+            icons.get(obj.status, ""),
+            obj.get_status_display(),
+        )
+
+    status_badge.short_description = "상태"
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("user", "token")
+
+    # 액션 추가
+    actions = ["mark_as_sent", "mark_as_failed"]
+
+    def mark_as_sent(self, request, queryset):
+        updated = queryset.filter(status="pending").update(
+            status="sent", sent_at=timezone.now()
+        )
+        self.message_user(request, f"{updated}개의 이메일을 발송 완료로 표시했습니다.")
+
+    mark_as_sent.short_description = "선택한 이메일을 발송 완료로 표시"
+
+    def mark_as_failed(self, request, queryset):
+        updated = queryset.filter(status="pending").update(status="failed")
+        self.message_user(request, f"{updated}개의 이메일을 발송 실패로 표시했습니다.")
+
+    mark_as_failed.short_description = "선택한 이메일을 발송 실패로 표시"
+
+    # 통계 표시 (상단에 표시)
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+
+        # 오늘 통계
+        today = timezone.now().date()
+        today_logs = EmailLog.objects.filter(
+            created_at__date=today, email_type="verification"
+        )
+
+        # 전체 통계
+        total_logs = EmailLog.objects.filter(email_type="verification")
+
+        extra_context["summary"] = {
+            "today_sent": today_logs.filter(status="sent").count(),
+            "today_verified": today_logs.filter(status="verified").count(),
+            "today_failed": today_logs.filter(status="failed").count(),
+            "total_sent": total_logs.filter(status="sent").count(),
+            "total_verified": total_logs.filter(status="verified").count(),
+            "verification_rate": self.calculate_verification_rate(total_logs),
+        }
+
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def calculate_verification_rate(self, queryset):
+        """인증 완료율 계산"""
+        sent_count = queryset.filter(status="sent").count()
+        verified_count = queryset.filter(status="verified").count()
+
+        if sent_count > 0:
+            rate = (verified_count / sent_count) * 100
+            return f"{rate:.1f}%"
+        return "0%"
 
 
 # Admin 사이트 설정

@@ -301,6 +301,10 @@ if EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend":
     EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
     DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@shopping.com")
 
+# 프론트엔드 URL (이메일 링크용)
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+
+
 # ========== 캐시 설정 (Redis 사용) ==========
 
 CACHES = {

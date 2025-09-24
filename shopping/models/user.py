@@ -79,6 +79,11 @@ class User(AbstractUser):
 
     withdrawn_at = models.DateTimeField(null=True, blank=True, verbose_name="탈퇴 일시")
 
+    # 이메일 인증 상태 표시
+    is_email_verified = models.BooleanField(
+        default=False, verbose_name="이메일 인증 여부"
+    )
+
     class Meta:
         db_table = "shopping_users"
         verbose_name = "사용자"

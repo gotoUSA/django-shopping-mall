@@ -18,6 +18,12 @@ from shopping.serializers.user_serializers import (
     TokenResponseSerializer,
 )
 
+from shopping.views.email_verification_views import SendVerificationEmailView
+from shopping.models.email_verification import EmailVerificationToken, EmailLog
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.conf import settings
+
 
 class RegisterView(APIView):
     """
@@ -37,12 +43,67 @@ class RegisterView(APIView):
             # JWT 토큰 생성
             refresh = RefreshToken.for_user(user)
 
+            # 이메일 인증 토큰 생성 및 발송
+            try:
+                # 토큰 생성
+                token = EmailVerificationToken.objects.create(user=user)
+
+                # 이메일 로그 생성
+                email_log = EmailLog.objects.create(
+                    user=user,
+                    email_type="verification",
+                    recipient_email=user.email,
+                    subject="[쇼핑몰] 이메일 인증을 완료해주세요",
+                    token=token,
+                    status="pending",
+                )
+
+                # 이메일 발송
+                verification_url = (
+                    f"{settings.FRONTEND_URL}/verify-email?token={token.token}"
+                )
+
+                html_message = render_to_string(
+                    "email/verification.html",
+                    {
+                        "user": user,
+                        "verification_url": verification_url,
+                        "verfication_code": token.verification_code,
+                    },
+                )
+
+                plain_message = f"""
+안녕하세요, {user.first_name}님!
+
+회원가입을 환영합니다!
+이메일 인증을 완료하려면 아래 링크를 클릭하거나 인증 코드를 입력해주세요.
+
+인증 링크: {verification_url}
+인증 코드: {token.verification_code}
+
+이 링크와 코드는 24시간 동안 유효합니다.
+"""
+
+                send_mail(
+                    subject="[쇼핑몰] 이메일 인증을 완료해주세요",
+                    message=plain_message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[user.email],
+                    html_message=html_message,
+                    fail_silently=True,  # 이메일 실패해도 회원가입은 성공
+                )
+
+            except Exception as e:
+                # 이메일 발송 실패해도 회원가입은 성공
+                pass
+
             # 응답 데이터 구성
             response_data = {
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
                 "user": UserSerializer(user).data,
                 "message": "회원가입이 완료되었습니다.",
+                "email_sent": True,
             }
 
             return Response(response_data, status=status.HTTP_201_CREATED)

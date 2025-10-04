@@ -221,6 +221,43 @@ class Product(models.Model):
             return True
         return False
 
+    # 찜하기 관련 메서드
+    def get_wishlist_count(self):
+        """이 상품을 찜한 사용자 수 반환"""
+        return self.wished_by_users.count()
+
+    def is_wished_by(self, user):
+        """특정 사용자가 이 상품을 찜했는지 확인"""
+        if not user or not user.is_authenticated:
+            return False
+        return self.wished_by_users.filter(id=user.id).exists()
+
+    def get_wishlist_users(self):
+        """이 상품을 찜한 사용자 목록 반환"""
+        return self.wished_by_users.all()
+
+    # ProductListSerializer나 ProductDetailSerializer에서 사용할 수 있는
+    # 추가 property
+    @property
+    def wishlist_count(self):
+        """찜 개수를 property로 제공"""
+        return self.get_wishlist_count()
+
+    # Admin이나 템플릿에서 표시용
+    def wishlist_count_display(self):
+        """찜 개수를 포맷팅해서 반환"""
+        count = self.get_wishlist_count()
+        if count == 0:
+            return "찜 없음"
+        elif count < 10:
+            return f"{count}명이 찜"
+        elif count < 100:
+            return f"{count}명이 찜"
+        elif count < 1000:
+            return f"{count}명이 찜"
+        else:
+            return f"{count:,}명이 찜"  # 천 단위 콤마
+
 
 class ProductImage(models.Model):
     """상품 이미지 (여러개 가능)"""

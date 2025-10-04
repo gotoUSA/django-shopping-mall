@@ -54,6 +54,10 @@ class ProductListSerializer(serializers.ModelSerializer):
         help_text="재고 상태 (품절/부족/충분)"
     )
 
+    # 찜 관련 필드
+    wishlist_count = serializers.SerializerMethodField()
+    is_wished = serializers.SerializerMethodField()  # 현재 사용자가 찜했는지
+
     class Meta:
         model = Product
         fields = [
@@ -71,6 +75,8 @@ class ProductListSerializer(serializers.ModelSerializer):
             "review_count",  # 리뷰 개수
             "is_active",  # 판매 중 여부
             "created_at",  # 등록일
+            "wishlist_count",  # 찜목록 카운팅
+            "is_wished",  # 찜 여부
         ]
 
         # 읽기 전용 필드 지정 (API로 수정 불가)
@@ -143,6 +149,17 @@ class ProductListSerializer(serializers.ModelSerializer):
             return "부족"  # 10개 미만이면 부족으로 표시
         else:
             return "충분"
+
+    def get_wishlist_count(self, obj):
+        """찜한 사용자 수"""
+        return obj.get_wishlist_count()
+
+    def get_is_wished(self, obj):
+        """현재 사용자가 찜했는지 여부"""
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            return obj.is_wished_by(request.user)
+        return False
 
 
 class ProductImageSerializer(serializers.ModelSerializer):

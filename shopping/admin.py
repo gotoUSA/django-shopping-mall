@@ -35,11 +35,120 @@ class UserAdmin(admin.ModelAdmin):
     사용자 관리자 페이지 설정
     """
 
-    list_display = ["username", "email", "phone_number", "date_joined", "is_active"]
-    list_filter = ["is_active", "is_staff", "date_joined"]
-    search_fields = ["username", "email", "phone_number"]
+    # 목록 페이지 설정
+    list_display = [
+        "username",
+        "email",
+        "phone_number",
+        "get_wishlist_count",  # 찜한 상품 개수
+        "points",  # 포인트
+        "membership_level",  # 회원 등급
+        "date_joined",
+        "is_active",
+    ]
+
+    list_filter = [
+        "is_active",
+        "is_staff",
+        "is_superuser",
+        "membership_level",
+        "date_joined",
+    ]
+
+    search_fields = ["username", "email", "phone_number", "first_name", "last_name"]
     date_hierarchy = "date_joined"
     ordering = ["-date_joined"]
+
+    # ManyToMany 필드용 위젯
+    filter_horizontal = ("wishlist_products", "groups", "user_permissions")
+
+    # 상세 페이지 필드 구성 (fieldsets)
+    fieldsets = (
+        # 기본 정보
+        (None, {"fields": ("username", "password")}),
+        # 개인 정보
+        ("개인 정보", {"fields": ("first_name", "last_name", "email", "phone_number")}),
+        # 주소 정보
+        (
+            "배송 정보",
+            {
+                "fields": ("address", "address_detail", "postal_code"),
+                "classes": ("collapse",),  # 접을 수 있게
+            },
+        ),
+        # 쇼핑몰 관련
+        (
+            "쇼핑몰 정보",
+            {
+                "fields": (
+                    "points",
+                    "membership_level",
+                    "is_email_verified",
+                    "wishlist_products",  # 찜한 상품
+                ),
+                "classes": ("wide",),  # 넓게 표시
+            },
+        ),
+        # 권한 관련
+        (
+            "권한",
+            {
+                "fields": (
+                    "is_active",
+                    "is_staff",
+                    "is_superuser",
+                    "groups",
+                    "user_permissions",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        # 중요 날짜
+        (
+            "중요 날짜",
+            {
+                "fields": ("last_login", "date_joined"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    # 새 사용자 추가 시 필드 구성 (비밀번호 설정 포함)
+    add_fieldsets = (
+        (
+            None,
+            {
+                "classes": ("wide",),
+                "fields": (
+                    "username",
+                    "email",
+                    "password1",
+                    "password2",
+                    "first_name",
+                    "last_name",
+                    "phone_number",
+                ),
+            },
+        ),
+    )
+
+    # readonly 필드
+    readonly_fields = ("date_joined", "last_login")
+
+    def get_wishlist_count(self, obj):
+        """찜한 상품 개수 표시"""
+        count = obj.wishlist_products.count()
+        if count > 0:
+            return f"❤️ {count}"
+        return "-"
+
+    get_wishlist_count.short_description = "찜"
+    get_wishlist_count.admin_order_field = "wished_by_users__count"  # 정렬 가능하게
+
+    # 쿼리 최적화
+    def get_queryset(self, request):
+        """성능 최적화를 위해 관련 객체 미리 로드"""
+        return super().get_queryset(request).prefetch_related("wishlist_products")
 
 
 # Category Admin

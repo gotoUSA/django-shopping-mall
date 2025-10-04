@@ -84,6 +84,15 @@ class User(AbstractUser):
         default=False, verbose_name="이메일 인증 여부"
     )
 
+    # 찜한 상품 (ManyToMany 관계)
+    wishlist_products = models.ManyToManyField(
+        "Product",  # Product 모델과 연결
+        related_name="wished_by_users",  # 역참조 이름
+        blank=True,  # 찜한 상품이 없어도 됨
+        verbose_name="찜한 상품",
+        db_table="shopping_wishlist",  # 중간 테이블 이름 지정
+    )
+
     class Meta:
         db_table = "shopping_users"
         verbose_name = "사용자"
@@ -118,3 +127,27 @@ class User(AbstractUser):
     def is_vip(self):
         """VIP 회원인지 확인하는 속성"""
         return self.membership_level == "vip"
+
+    # 찜하기 관련 메서드 추가
+    def add_to_wishlist(self, product):
+        """상품을 찜 목록에 추가"""
+        self.wishlist_products.add(product)
+        return True
+
+    def is_in_wishlist(self, product):
+        """상품이 찜 목록에 있는지 확인"""
+        return self.wishlist_products.filter(id=product.id).exists()
+
+    def get_wishlist_count(self):
+        """찜한 상품 개수 반환"""
+        return self.wishlist_products.count()
+
+    def clear_wishlist(self):
+        """찜 목록 전체 삭제"""
+        self.wishlist_products.clear()
+        return True
+
+    def remove_from_wishlist(self, product):
+        """상품을 찜 목록에서 제거"""
+        self.wishlist_products.remove(product)
+        return True

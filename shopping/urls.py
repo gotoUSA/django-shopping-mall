@@ -37,6 +37,9 @@ from .views import point_views
 # Webhook import
 from shopping.webhooks.toss_webhook_view import toss_webhook
 
+# wishlist import
+from shopping.views.wishlist_views import WishlistViewSet
+
 # DRF의 라우터 생성
 router = DefaultRouter()
 
@@ -44,6 +47,7 @@ router = DefaultRouter()
 router.register(r"products", ProductViewSet, basename="product")
 router.register(r"categories", CategoryViewSet, basename="category")
 router.register(r"orders", OrderViewSet, basename="order")
+
 
 # Cart 관련 ViewSet 등록
 # CartViewSet은 특별한 actions만 있으므로 수동 등록
@@ -127,6 +131,46 @@ urlpatterns = [
     path("points/statistics/", point_views.point_statistics, name="point_statistics"),
     # 웹훅(Webhook) URLs
     path("webhooks/toss/", toss_webhook, name="toss-webhook"),
+    # 찜하기(Wishlist) 관련 URLs
+    path("wishlist/", WishlistViewSet.as_view({"get": "list"}), name="wishlist-list"),
+    path(
+        "wishlist/toggle/",
+        WishlistViewSet.as_view({"post": "toggle"}),
+        name="wishlist-toggle",
+    ),
+    path(
+        "wishlist/add/", WishlistViewSet.as_view({"post": "add"}), name="wishlist-add"
+    ),
+    path(
+        "wishlist/remove/",
+        WishlistViewSet.as_view({"delete": "remove"}),
+        name="wishlist-remove",
+    ),
+    path(
+        "wishlist/bulk_add/",
+        WishlistViewSet.as_view({"post": "bulk_add"}),
+        name="wishlist-bulk-add",
+    ),
+    path(
+        "wishlist/clear/",
+        WishlistViewSet.as_view({"delete": "clear"}),
+        name="wishlist-clear",
+    ),
+    path(
+        "wishlist/check/",
+        WishlistViewSet.as_view({"get": "check"}),
+        name="wishlist-check",
+    ),
+    path(
+        "wishlist/stats/",
+        WishlistViewSet.as_view({"get": "stats"}),
+        name="wishlist-stats",
+    ),
+    path(
+        "wishlist/move_to_cart/",
+        WishlistViewSet.as_view({"post": "move_to_cart"}),
+        name="wishlist-move-to-cart",
+    ),
 ]
 
 """
@@ -206,4 +250,25 @@ urlpatterns = [
 - /api/products/?ordering=-price
 - /api/products/?in_stock=true
 - /api/products/?seller=3
+
+조회 및 확인:
+- GET    /api/wishlist/              - 내 찜 목록 조회
+- GET    /api/wishlist/check/        - 특정 상품 찜 상태 확인
+- GET    /api/wishlist/stats/        - 찜 목록 통계
+
+상품 추가/제거:
+- POST   /api/wishlist/toggle/       - 찜하기 토글 (추가/제거)
+- POST   /api/wishlist/add/          - 찜 목록에 추가
+- DELETE /api/wishlist/remove/       - 찜 목록에서 제거
+- POST   /api/wishlist/bulk_add/     - 여러 상품 한번에 찜하기
+- DELETE /api/wishlist/clear/        - 찜 목록 전체 삭제
+
+장바구니 연동:
+- POST   /api/wishlist/move_to_cart/ - 찜 목록에서 장바구니로 이동
+
+검색 및 필터링 예시:
+- /api/wishlist/?ordering=-created_at      - 최신순 정렬
+- /api/wishlist/?ordering=price            - 가격 낮은순
+- /api/wishlist/?is_available=true         - 구매 가능한 상품만
+- /api/wishlist/?on_sale=true              - 세일 중인 상품만
 """

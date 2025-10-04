@@ -70,6 +70,15 @@ from .payment_serializers import (
     PaymentWebhookSerializer,
 )
 
+# Wishlist 관련 Serializers
+from .wishlist_serializers import (
+    WishlistProductSerializer,
+    WishlistToggleSerializer,
+    WishlistBulkAddSerializer,
+    WishlistStatusSerializer,
+    WishlistStatsSerializer,
+)
+
 # 외부에서 사용할 수 있도록 __all__ 정의
 __all__ = [
     # User
@@ -108,4 +117,10 @@ __all__ = [
     "PaymentCancelSerializer",
     "PaymentLogSerializer",
     "PaymentWebhookSerializer",
+    # Wishlist
+    "WishlistProductSerializer",
+    "WishlistToggleSerializer",
+    "WishlistBulkAddSerializer",
+    "WishlistStatusSerializer",
+    "WishlistStatsSerializer",
 ]

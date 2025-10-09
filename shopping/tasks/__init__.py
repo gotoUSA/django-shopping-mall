@@ -11,7 +11,16 @@ from .email_tasks import (
 from .cleanup_tasks import (
     delete_unverified_users_task,
     cleanup_old_email_logs_task,
+    cleanup_used_tokens_task,
+    cleanup_expired_tokens_task,
 )
+
+from .point_tasks import (
+    expire_points_task,
+    send_expiry_notification_task,
+    send_email_notification,
+)
+
 
 __all__ = [
     # 이메일 태스크
@@ -20,4 +29,10 @@ __all__ = [
     # 정리 태스크
     "delete_unverified_users_task",
     "cleanup_old_email_logs_task",
+    "cleanup_used_tokens_task",
+    "cleanup_expired_tokens_task",
+    # 포인트 태스크
+    "expire_points_task",
+    "send_expiry_notification_task",
+    "send_email_notification",
 ]

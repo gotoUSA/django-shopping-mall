@@ -338,6 +338,14 @@ LOGGING["loggers"]["shopping.tasks"] = {
     "propagate": False,
 }
 
+# 테스트 설정에서 동기 실행 강제
+import sys
+
+if "test" in sys.argv:
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+    CELERY_BROKER_URL = "memory://"
+    CELERY_RESULT_BACKEND = "cache+memory://"
 
 # logs 디렉토리 생성
 LOGS_DIR = BASE_DIR / "logs"

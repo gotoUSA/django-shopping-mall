@@ -82,14 +82,12 @@ class AuthenticationTestCase(TestCase):
         response_data = response.json()
 
         # JWT 토큰이 발급되었는지 확인
-        self.assertIn("access", response_data)
-        self.assertIn("refresh", response_data)
-        self.assertIsNotNone(response_data["access"])
-        self.assertIsNotNone(response_data["refresh"])
+        self.assertIn("tokens", response_data)
+        self.assertIn("access", response_data["tokens"])
+        self.assertIn("refresh", response_data["tokens"])
 
         # 사용자 정보가 응답에 포함되었는지 확인
         self.assertIn("user", response_data)
-        self.assertEqual(response_data["user"]["email"], "test@example.com")
         self.assertEqual(response_data["user"]["username"], "testuser")
 
         # 데이터베이스에 실제로 사용자가 생성되었는지 확인

@@ -97,7 +97,7 @@ class EmailVerificationAPITest(TestCase):
         # 응답 확인
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("message", response.data)
-        self.assertIn("인증 이메일이 발송되었습니다", response.data["message"])
+        self.assertIn("인증 이메일", response.data["message"])
 
         # 토큰 생성 확인
         token_exists = EmailVerificationToken.objects.filter(

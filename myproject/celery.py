@@ -21,6 +21,48 @@ app.autodiscover_tasks()
 
 # Celery Beat 스케줄 설정
 app.conf.beat_schedule = {
+    # 이메일 관련 태스크
+    # 실패한 이메일 재시도 - 5분마다
+    "retry-failed-emails": {
+        "task": "shopping.tasks.email_tasks.retry_failed_emails_task",
+        "schedule": crontab(minute="*/5"),  # 5분마다
+        "options": {
+            "expires": 300,  # 5분 후 만료
+        },
+    },
+    # 정리(Cleanup) 관련 태스크
+    # 미인증 계정 삭제 - 매일 새벽 3시
+    "delete-unverified-users": {
+        "task": "shopping.tasks.cleanup_tasks.delete_unverified_users_task",
+        "schedule": crontab(hour=3, minute=0),  # 매일 03:00
+        "options": {
+            "expires": 3600,  # 1시간 후 만료
+        },
+    },
+    # 오래된 이메일 로그 정리 - 매주 일요일 새벽 4시
+    "cleanup-old-email-logs": {
+        "task": "shopping.tasks.cleanup_tasks.cleanup_old_email_logs_task",
+        "schedule": crontab(hour=4, minute=0, day_of_week=0),  # 일요일 04:00
+        "options": {
+            "expires": 3600,
+        },
+    },
+    # 사용된 토큰 정리 - 매주 일요일 새벽 4시 30분
+    "cleanup-used-tokens": {
+        "task": "shopping.tasks.cleanup_tasks.cleanup_used_tokens_task",
+        "schedule": crontab(hour=4, minute=30, day_of_week=0),  # 일요일 04:30
+        "options": {
+            "expires": 3600,
+        },
+    },
+    # 만료된 토큰 정리 - 매일 새벽 2시
+    "cleanup-expired-tokens": {
+        "task": "shopping.tasks.cleanup_tasks.cleanup_expired_tokens_task",
+        "schedule": crontab(hour=2, minute=0),  # 매일 02:00
+        "options": {
+            "expires": 3600,
+        },
+    },
     # 포인트 만료 처리 - 매일 새벽 2시
     "expire-points-daily": {
         "task": "shopping.tasks.expire_points_task",
@@ -42,7 +84,17 @@ app.conf.beat_schedule = {
     #     'task': 'shopping.tasks.test_periodic_task',
     #     'schedule': crontab(minute='*/5'),  # 5분마다
     # },
+    # 스케줄 설명
+    # 실행 시간표:
+    # - 02:00 - 만료된 토큰 정리
+    # - 03:00 - 미인증 계정 삭제
+    # - 04:00 - 이메일 로그 정리 (일요일만)
+    # - 04:30 - 사용된 토큰 정리 (일요일만)
+    # - */5분 - 실패한 이메일 재시도
+    # 새벽 시간대에 정리 작업을 몰아서 처리하여
+    # 서버 부하를 최소화합니다.
 }
+
 
 # Celery 설정
 app.conf.update(

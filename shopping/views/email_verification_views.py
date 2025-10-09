@@ -17,9 +17,11 @@ from shopping.serializers.email_verification_serializers import (
     ResendVerificationEmailSerializer,
 )
 
+from shopping.tasks.email_tasks import send_verification_email_task
+
 
 class SendVerificationEmailView(APIView):
-    """이메일 인증 발송 API"""
+    """이메일 인증 발송 API (비동기 처리)"""
 
     permission_classes = [IsAuthenticated]
 
@@ -46,75 +48,20 @@ class SendVerificationEmailView(APIView):
         # 새 토큰 생성
         token = EmailVerificationToken.objects.create(user=user)
 
-        # 이메일 로그 생성
-        email_log = EmailLog.objects.create(
-            user=user,
-            email_type="verification",
-            recipient_email=user.email,
-            subject="[쇼핑몰] 이메일 인증을 완료해주세요",
-            token=token,
-            status="pending",
+        # 비동기 이메일 발송 (Celery 태스크)
+        send_verification_email_task.delay(
+            user_id=user.id,
+            token_id=token.id,
+            is_resend=False,
         )
 
-        # 이메일 발송 (동기 방식 - 나중에 Celery로 변경)
-        try:
-            verification_url = (
-                f"{settings.FRONTEND_URL}/verify-email?token={token.token}"
-            )
-
-            # HTML 이메일 내용
-            html_message = render_to_string(
-                "email/verification.html",
-                {
-                    "user": user,
-                    "verification_url": verification_url,
-                    "verification_code": token.verification_code,
-                },
-            )
-
-            # 텍스트 버전
-            plain_message = f"""
-안녕하세요, {user.first_name}님!
-
-이메일 인증을 완료하려면 아래 링크를 클릭하거나 인증 코드를 입력해주세요.
-
-인증 링크: {verification_url}
-인증 코드: {token.verification_code}
-
-이 링크와 코드는 24시간 동안 유효합니다.
-
-감사합니다.
-쇼핑몰 팀 드림
-"""
-
-            send_mail(
-                subject="[쇼핑몰] 이메일 인증을 완료해주세요",
-                message=plain_message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                html_message=html_message,
-                fail_silently=False,
-            )
-
-            # 발송 성공 처리
-            email_log.mark_as_sent()
-
-            return Response(
-                {
-                    "message": "인증 이메일이 발송되었습니다. 이메일을 확인해주세요.",
-                    "verification_code": token.verification_code,  # 테스트용
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        except Exception as e:
-            # 발송 실패 처리
-            email_log.mark_as_failed(str(e))
-
-            return Response(
-                {"error": "이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        return Response(
+            {
+                "message": "인증 이메일이 발송 중입니다. 잠시 후 이메일을 확인해주세요.",
+                "verification_code": token.verification_code,  # 테스트용
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class VerifyEmailView(APIView):
@@ -264,74 +211,20 @@ class ResendVerificationEmailView(APIView):
         # 새 토큰 생성
         token = EmailVerificationToken.objects.create(user=user)
 
-        # 이메일 로그 생성
-        email_log = EmailLog.objects.create(
-            user=user,
-            email_type="verification",
-            recipient_email=user.email,
-            subject="[쇼핑몰] 이메일 인증을 완료해주세요 (재발송)",
-            token=token,
-            status="pending",
+        # 비동기 이메일 재발송 (Celery 태스크)
+        send_verification_email_task.delay(
+            user_id=user.id,
+            token_id=token.id,
+            is_resend=True,
         )
 
-        # 이메일 발송
-        try:
-            verification_url = (
-                f"{settings.FRONTEND_URL}/verify-email?token={token.token}"
-            )
-
-            html_message = render_to_string(
-                "email/verification.html",
-                {
-                    "user": user,
-                    "verification_url": verification_url,
-                    "verification_code": token.verification_code,
-                    "is_resend": True,  # 재발송 표시
-                },
-            )
-
-            plain_message = f"""
-안녕하세요, {user.first_name}님!
-
-요청하신 이메일 인증 메일을 다시 보내드립니다.
-
-인증 링크: {verification_url}
-인증 코드: {token.verification_code}
-
-이 링크와 코드는 24시간 동안 유효합니다.
-
-이전에 받으신 인증 메일은 더 이상 유효하지 않습니다.
-
-감사합니다.
-쇼핑몰 팀 드림
-"""
-
-            send_mail(
-                subject="[쇼핑몰] 이메일 인증을 완료해주세요 (재발송)",
-                message=plain_message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                html_message=html_message,
-                fail_silently=False,
-            )
-
-            email_log.mark_as_sent()
-
-            return Response(
-                {
-                    "message": "인증 이메일이 재발송되었습니다.",
-                    "verification_code": token.verification_code,  # 테스트용
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        except Exception as e:
-            email_log.mark_as_failed(str(e))
-
-            return Response(
-                {"error": "이메일 발송에 실패했습니다."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        return Response(
+            {
+                "message": "인증 이메일이 재발송 중입니다. 잠시 후 이메일을 확인해주세요.",
+                "verification_code": token.verification_code,  # 테스트용
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 @api_view(["GET"])

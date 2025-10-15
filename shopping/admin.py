@@ -27,6 +27,12 @@ from .models.point import PointHistory
 # 이메일 인증 모델
 from shopping.models.email_verification import EmailVerificationToken, EmailLog
 
+# ==========================================
+# 소셜 로그인 Admin 설정
+# ==========================================
+# allauth의 기본 Admin을 사용합니다.
+# Admin 페이지 → Social accounts 메뉴에서 확인 가능
+
 
 # User Admin
 @admin.register(User)

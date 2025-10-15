@@ -40,6 +40,41 @@ from shopping.webhooks.toss_webhook_view import toss_webhook
 # wishlist import
 from shopping.views.wishlist_views import WishlistViewSet
 
+# social login
+from dj_rest_auth.registration.views import SocialLoginView
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.kakao.views import KakaoOAuth2Adapter
+from allauth.socialaccount.providers.naver.views import NaverOAuth2Adapter
+from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+from django.conf import settings
+from django.views.generic import TemplateView
+
+
+# 소셜 로그인 뷰 정의
+class GoogleLogin(SocialLoginView):
+    """구글 소셜 로그인"""
+
+    adapter_class = GoogleOAuth2Adapter
+    client_class = OAuth2Client
+    callback_url = settings.SOCIAL_LOGIN_REDIRECT_URI
+
+
+class KakaoLogin(SocialLoginView):
+    """카카오 소셜 로그인"""
+
+    adapter_class = KakaoOAuth2Adapter
+    client_class = OAuth2Client
+    callback_url = settings.SOCIAL_LOGIN_REDIRECT_URI
+
+
+class NaverLogin(SocialLoginView):
+    """네이버 소셜 로그인"""
+
+    adapter_class = NaverOAuth2Adapter
+    client_class = OAuth2Client
+    callback_url = settings.SOCIAL_LOGIN_REDIRECT_URI
+
+
 # DRF의 라우터 생성
 router = DefaultRouter()
 
@@ -170,6 +205,18 @@ urlpatterns = [
         "wishlist/move_to_cart/",
         WishlistViewSet.as_view({"post": "move_to_cart"}),
         name="wishlist-move-to-cart",
+    ),
+    # 소셜 로그인 엔드포인트
+    path("auth/social/google/", GoogleLogin.as_view(), name="google-login"),
+    path("auth/social/kakao/", KakaoLogin.as_view(), name="kakao-login"),
+    path("auth/social/naver/", NaverLogin.as_view(), name="naver-login"),
+    # dj-rest-auth 기본 엔드포인트 (소셜 계정 관리)
+    path("auth/social/", include("dj_rest_auth.registration.urls")),
+    # 소셜 로그인 테스트 페이지
+    path(
+        "social/test/",
+        TemplateView.as_view(template_name="social_test.html"),
+        name="social-test-page",
     ),
 ]
 

@@ -24,14 +24,6 @@ from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework import permissions
 
-from shopping.views import payment_views
-
-from shopping.views.email_verification_views import (
-    SendVerificationEmailView,
-    VerifyEmailView,
-    ResendVerificationEmailView,
-    check_verification_status,
-)
 
 # Swagger 설정
 schema_view = get_schema_view(
@@ -68,31 +60,9 @@ urlpatterns = [
         name="schema-swagger-ui",
     ),
     path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
-    # 이메일 인증 관련 URLs
-    path(
-        "auth/email/send/",
-        SendVerificationEmailView.as_view(),
-        name="email-verification-send",
-    ),
-    path(
-        "auth/email/verify/",
-        VerifyEmailView.as_view(),
-        name="email-verification-verify",
-    ),
-    path(
-        "auth/email/resend/",
-        ResendVerificationEmailView.as_view(),
-        name="email-verification-resend",
-    ),
-    path(
-        "auth/email/status/",
-        check_verification_status,
-        name="email-verification-status",
-    ),
 ]
 
 # 개발 환경에서 미디어 파일 서빙
-
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

@@ -35,7 +35,7 @@ class User(AbstractUser):
         max_length=255, blank=True, verbose_name="상세주소"
     )
 
-    # 마케팅 및 약관 동의
+    # 인증 상태
     is_email_verified = models.BooleanField(
         default=False, verbose_name="이메일 인증 여부"
     )
@@ -44,6 +44,7 @@ class User(AbstractUser):
         default=False, verbose_name="휴대폰 인증 여부"
     )
 
+    # 마케팅 동의
     agree_marketing_email = models.BooleanField(
         default=False, verbose_name="마케팅 이메일 수신 동의"
     )
@@ -78,11 +79,6 @@ class User(AbstractUser):
     is_withdrawn = models.BooleanField(default=False, verbose_name="탈퇴 여부")
 
     withdrawn_at = models.DateTimeField(null=True, blank=True, verbose_name="탈퇴 일시")
-
-    # 이메일 인증 상태 표시
-    is_email_verified = models.BooleanField(
-        default=False, verbose_name="이메일 인증 여부"
-    )
 
     # 찜한 상품 (ManyToMany 관계)
     wishlist_products = models.ManyToManyField(

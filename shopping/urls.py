@@ -19,6 +19,15 @@ from shopping.views.auth_views import (
     withdraw,
 )
 
+# Email Verification Views import
+from shopping.views.email_verification_views import (
+    SendVerificationEmailView,
+    VerifyEmailView,
+    ResendVerificationEmailView,
+    check_verification_status,
+)
+
+
 # Payment Views import
 from shopping.views.payment_views import (
     PaymentRequestView,
@@ -111,6 +120,27 @@ urlpatterns = [
     # 프로필 관리
     path("auth/profile/", ProfileView.as_view(), name="auth-profile"),
     path("auth/password/change/", PasswordChangeView.as_view(), name="password-change"),
+    # 이메일 인증
+    path(
+        "auth/email/send/",
+        SendVerificationEmailView.as_view(),
+        name="email-verification-send",
+    ),
+    path(
+        "auth/email/verify/",
+        VerifyEmailView.as_view(),
+        name="email-verification-verify",
+    ),
+    path(
+        "auth/email/resend/",
+        ResendVerificationEmailView.as_view(),
+        name="email-verification-resend",
+    ),
+    path(
+        "auth/email/status/",
+        check_verification_status,
+        name="email-verification-status",
+    ),
     # 추가 기능
     path("auth/email/verify/", email_verification_request, name="email-verify"),
     path("auth/withdraw/", withdraw, name="auth-withdraw"),

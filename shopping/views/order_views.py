@@ -2,6 +2,8 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction
+import logging
+
 
 from ..models.order import Order, OrderItem
 from ..serializers.order_serializers import (
@@ -9,6 +11,9 @@ from ..serializers.order_serializers import (
     OrderDetailSerializer,
     OrderCreateSerializer,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -33,6 +38,33 @@ class OrderViewSet(viewsets.ModelViewSet):
         elif self.action == "create":
             return OrderCreateSerializer
         return OrderDetailSerializer
+
+    # create 메서드 오버라이드
+    def create(self, request, *args, **kwargs):
+        """
+        주문 생성
+
+        이메일 인증이 완료된 사용자만 주문을 생성할 수 있습니다.
+        """
+        # 이메일 인증 체크
+        if not request.user.is_email_verified:
+            logger.warning(
+                f"미인증 사용자 주문 생성 시도: user_id={request.user.id}, "
+                f"email={request.user.email}"
+            )
+            return Response(
+                {
+                    "error": "이메일 인증이 필요합니다.",
+                    "message": "주문을 생성하려면 먼저 이메일 인증을 완료해주세요.",
+                    "detail": "이메일 인증 후 모든 기능을 사용하실 수 있습니다.",
+                    "verification_required": True,
+                    "verification_url": "/api/email-verification/send/",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # 이메일 인증이 완료되었다면 정상적으로 주문 생성
+        return super().create(request, *args, **kwargs)
 
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):

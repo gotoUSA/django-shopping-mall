@@ -139,6 +139,11 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         use_points = attrs.get("use_points", 0)
 
+        # 이메일 인증 확인
+        if not user.is_email_verified:
+            raise serializers.ValidationError(
+                "이메일 인증이 필요합니다. 먼저 이메일을 인증해주세요."
+            )
         # 장바구니 확인
         cart = Cart.objects.filter(user=user, is_active=True).first()
         if not cart or not cart.items.exists():

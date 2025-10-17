@@ -26,6 +26,7 @@ class ShippingFeeTestCase(TestCase):
             password="testpass123",
             phone_number="010-1234-5678",
             points=10000,
+            is_email_verified=True,
         )
 
         # 카테고리 생성
@@ -175,6 +176,7 @@ class OrderCreateWithShippingFeeTest(TransactionTestCase):
             email="test@example.com",
             password="testpass123",
             points=5000,
+            is_email_verified=True,
         )
 
         # 로그인

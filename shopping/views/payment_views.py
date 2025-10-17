@@ -133,7 +133,24 @@ class PaymentConfirmView(APIView):
             "amount": 1500000
         }
         """
-        serializer = PaymentConfirmSerializer(data=request.data)
+        # 이메일 인증 체크 (보안)
+        if not request.user.is_email_verified:
+            logger.warning(
+                f"미인증 사용자 결제 승인 시도: user_id={request.user.id}, "
+                f"email={request.user.email}"
+            )
+            return Response(
+                {
+                    "error": "이메일 인증이 필요합니다.",
+                    "message": "결제를 완료하려면 먼저 이메일을 인증해주세요.",
+                    "verification_required": True,
+                    "verification_url": "/api/email-verification/send/",  # 인증 메일 발송 URL
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        serializer = PaymentConfirmSerializer(
+            data=request.data, context={"request": request}
+        )
 
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -613,6 +630,7 @@ def payment_test_page(request, order_id):
     context = {
         "order": order,
         "client_key": settings.TOSS_CLIENT_KEY,
+        "user": request.user,  # 템플릿에서 user 접근 가능하도록
         "user_points": request.user.points,  # 사용자 보유 포인트 추가
         "used_points": order.used_points,  # 사용한 포인트
         "final_amount": order.final_amount,  # 최종 결제 금액

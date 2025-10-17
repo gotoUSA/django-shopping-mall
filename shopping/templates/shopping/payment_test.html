@@ -50,7 +50,82 @@
             text-align: center;
             font-size: 28px;
         }
+        .alert {
+        display: flex;
+        align-items: flex-start;
+        gap: 15px;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+        animation: slideIn 0.3s ease-out;
+        }
         
+        .alert-warning {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            border: 2px solid #28a745;
+        }
+        
+        .alert-icon {
+            font-size: 28px;
+            flex-shrink: 0;
+        }
+        
+        .alert-content {
+            flex: 1;
+        }
+        
+        .alert-title {
+            font-weight: 700;
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        .alert-text {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #666;
+        }
+        
+        .alert-warning .alert-title,
+        .alert-warning .alert-text {
+            color: #856404;
+        }
+        
+        .alert-success .alert-title,
+        .alert-success .alert-text {
+            color: #155724;
+        }
+        
+        .alert-link {
+            color: #667eea;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 8px;
+            transition: color 0.2s;
+        }
+        
+        .alert-link:hover {
+            color: #5568d3;
+            text-decoration: underline;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
         .order-info {
             background: #f8f9fa;
             border-radius: 10px;
@@ -208,6 +283,30 @@
 <body>
     <div class="payment-container">
         <h1>💳 결제하기</h1>
+
+        <!-- 이메일 인증 상태 표시-->
+        {% if not user.is_email_verified %}
+        <div class="alert alert-warning">
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-content">
+                <div class="alert-title">이메일 인증이 필요합니다</div>
+                <div class="alert-text">
+                    결제를 진행하려면 먼저 이메일 인증을 완료해주세요.<br>
+                    <a href="/api/email-verification/send/" class="alert-link">
+                        인증 메일 발송하기 →
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-success">
+            <div class="alert-icon">✅</div>
+            <div class="alert-content">
+                <div class="alert-title">이메일 인증 완료</div>
+                <div class="alert-text">결제를 진행하실 수 있습니다.</div>
+            </div>
+        </div>
+        {% endif %}
         
         <div class="test-info">
             <div class="test-info-title">📌 테스트 결제 안내</div>
@@ -275,6 +374,7 @@
         });
         
         // 결제 버튼 클릭
+        // 결제 버튼 클릭
         document.getElementById('payment-button').addEventListener('click', async () => {
             const button = document.getElementById('payment-button');
             const loading = document.querySelector('.loading');
@@ -297,8 +397,23 @@
                     })
                 });
                 
+                // ========== 에러 핸들링 개선 ==========
                 if (!response.ok) {
-                    throw new Error('결제 요청 실패');
+                    const errorData = await response.json();
+                    
+                    // 이메일 인증 필요 에러
+                    if (errorData.verification_required) {
+                        alert('⚠️ ' + errorData.error + '\n\n' + errorData.message);
+                        
+                        // 인증 페이지로 리다이렉트 여부 확인
+                        if (confirm('이메일 인증 페이지로 이동하시겠습니까?')) {
+                            window.location.href = errorData.verification_url || '/api/email-verification/send/';
+                        }
+                        return;
+                    }
+                    
+                    // 기타 에러
+                    throw new Error(errorData.error || '결제 요청 실패');
                 }
                 
                 const data = await response.json();

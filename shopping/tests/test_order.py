@@ -42,6 +42,7 @@ class OrderCreateTestCase(TestCase):
             password="testpass123",
             phone_number="010-1234-5678",
             points=5000,  # 포인트 보유
+            is_email_verified=True,  # 이메일 인증 완료된 사용자 생성
         )
 
         # 카테고리 생성
@@ -94,6 +95,13 @@ class OrderCreateTestCase(TestCase):
             "shipping_address_detail": "101동 202호",
             "order_memo": "부재시 경비실에 맡겨주세요",
         }
+
+    def _print_response_for_debug(self, response):
+        """테스트 실패시 응답 내용을 출력하는 헬퍼 메서드"""
+        print("\n=== Response Debug Info ===")
+        print(f"Status Code: {response.status_code}")
+        print(f"Response Data: {response.data}")
+        print("===========================\n")
 
     def tearDown(self):
         """테스트 후 정리"""
@@ -496,6 +504,7 @@ class OrderConcurrencyTestCase(TransactionTestCase):
 
     def setUp(self):
         """테스트 데이터 설정"""
+
         # 카테고리
         self.category = Category.objects.create(
             name="테스트 카테고리", slug="test-category"
@@ -514,11 +523,17 @@ class OrderConcurrencyTestCase(TransactionTestCase):
 
         # 두 명의 사용자
         self.user1 = User.objects.create_user(
-            username="user1", email="user1@example.com", password="pass123"
+            username="user1",
+            email="user1@example.com",
+            password="pass123",
+            is_email_verified=True,
         )
 
         self.user2 = User.objects.create_user(
-            username="user2", email="user2@example.com", password="pass123"
+            username="user2",
+            email="user2@example.com",
+            password="pass123",
+            is_email_verified=True,
         )
 
         self.order_results = []
@@ -688,7 +703,10 @@ class OrderAdminPermissionTestCase(TestCase):
 
         # 일반 사용자
         self.normal_user = User.objects.create_user(
-            username="normaluser", email="normal@example.com", password="pass123"
+            username="normaluser",
+            email="normal@example.com",
+            password="pass123",
+            is_email_verified=True,
         )
 
         # 관리자
@@ -698,6 +716,7 @@ class OrderAdminPermissionTestCase(TestCase):
             password="admin123",
             is_staff=True,
             is_superuser=True,
+            is_email_verified=True,  # 일관성 위해 추가
         )
 
         # 카테고리와 상품

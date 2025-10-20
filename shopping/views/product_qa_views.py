@@ -35,7 +35,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
     """
 
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    # pagination_class = ProductQuestionPagination
+    pagination_class = ProductQuestionPagination
 
     def get_queryset(self):
         """
@@ -81,40 +81,6 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         elif self.action in ["update", "partial_update"]:
             return ProductQuestionUpdateSerializer
         return ProductQuestionDetailSerializer
-
-    def list(self, request, *args, **kwargs):
-        """
-        문의 목록 조회
-
-        get_queryset()에서 이미 권한에 따라 필터링된 queryset을 반환하므로
-        여기서는 그대로 사용합니다.
-        """
-        print(f"\n=== list() 메서드 시작 ===")
-        queryset = self.filter_queryset(self.get_queryset())
-        print(f"filter_queryset 후 queryset count: {queryset.count()}")
-        for q in queryset:
-            print(f"  - Q{q.id}: {q.title}, is_secret={q.is_secret}")
-
-        page = self.paginate_queryset(queryset)
-        print(f"paginate_queryset 후: {len(page) if page else 'None'}")
-        if page:
-            for q in page:
-                print(f"  - Q{q.id}: {q.title}, is_secret={q.is_secret}")
-
-            serializer = self.get_serializer(page, many=True)
-            print(f"serializer.data count: {len(serializer.data)}")
-            print(f"serializer.data: {serializer.data}")  # 전체 데이터 출력
-
-            result = self.get_paginated_response(serializer.data)
-            print(f"get_paginated_response 반환 타입: {type(result)}")
-            print(f"result.data 타입: {type(result.data)}")
-            print(f"result.data: {result.data}")  # 전체 응답 출력
-            print(f"최종 응답 results count: {len(result.data.get('results', []))}")
-
-            return result
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
 
     def create(self, request, *args, **kwargs):
         """문의 작성"""

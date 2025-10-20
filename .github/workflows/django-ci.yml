@@ -19,8 +19,7 @@ jobs:
           POSTGRES_DB: test_db
           POSTGRES_USER: test_user
           POSTGRES_PASSWORD: test_password
-        ports:
-          - 5432:5432
+
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -29,8 +28,7 @@ jobs:
       
       redis:
         image: redis:7-alpine
-        ports:
-          - 6379:6379
+    
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -64,11 +62,11 @@ jobs:
         echo "DATABASE_NAME=test_db" >> .env
         echo "DATABASE_USER=test_user" >> .env
         echo "DATABASE_PASSWORD=test_password" >> .env
-        echo "DATABASE_HOST=localhost" >> .env
+        echo "DATABASE_HOST=postgres" >> .env
         echo "DATABASE_PORT=5432" >> .env
-        echo "REDIS_URL=redis://localhost:6379/0" >> .env
-        echo "CELERY_BROKER_URL=redis://localhost:6379/0" >> .env
-        echo "CELERY_RESULT_BACKEND=redis://localhost:6379/0" >> .env
+        echo "REDIS_URL=redis://redis:6379/0" >> .env
+        echo "CELERY_BROKER_URL=redis://redis:6379/0" >> .env
+        echo "CELERY_RESULT_BACKEND=redis://redis:6379/0" >> .env
         echo "TOSS_CLIENT_KEY=test_ck_fake_key" >> .env
         echo "TOSS_SECRET_KEY=test_sk_fake_key" >> .env
         echo "TOSS_WEBHOOK_SECRET=test_webhook_secret" >> .env

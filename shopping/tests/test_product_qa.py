@@ -97,44 +97,22 @@ class ProductQuestionTestCase(TestCase):
             content="비밀 문의 내용",
             is_secret=True,
         )
-        # 데이터베이스 확인
-        all_questions = ProductQuestion.objects.filter(product=self.product)
-        print(f"\n=== DB에 생성된 문의 ===")
-        print(f"총 개수: {all_questions.count()}")
-        for q in all_questions:
-            print(
-                f"  ID={q.id}, title={q.title}, is_secret={q.is_secret}, user={q.user.username}"
-            )
+
         url = reverse("product-question-list", kwargs={"product_pk": self.product.id})
 
         # 1. 비로그인 사용자: 일반 문의만 보임
-        print(f"\n=== 1. 비로그인 테스트 ===")
         response = self.client.get(url)
-        print(f"Status: {response.status_code}")
-        print(f"Results count: {len(response.data.get('results', []))}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 1)
 
         # 2. 작성자: 모두 보임
-        print(f"\n=== 2. 작성자(buyer) 로그인 테스트 ===")
-        print(f"Buyer user: {self.buyer.username}, ID: {self.buyer.id}")
         self.client.force_authenticate(user=self.buyer)
         response = self.client.get(url)
-        print(f"Status: {response.status_code}")
-        print(f"Results count: {len(response.data.get('results', []))}")
-        print(f"Results: {response.data.get('results', [])}")
-        # 실제 반환된 데이터 출력
-        for idx, item in enumerate(response.data.get("results", [])):
-            print(
-                f"  [{idx}] title={item.get('display_title')}, is_secret={item.get('is_secret')}"
-            )
         self.assertEqual(len(response.data["results"]), 2)
 
         # 3. 판매자: 모두 보임
-        print(f"\n=== 3. 판매자(seller) 로그인 테스트 ===")
         self.client.force_authenticate(user=self.seller)
         response = self.client.get(url)
-        print(f"Status: {response.status_code}")
-        print(f"Results count: {len(response.data.get('results', []))}")
         self.assertEqual(len(response.data["results"]), 2)
 
     def test_update_question(self):

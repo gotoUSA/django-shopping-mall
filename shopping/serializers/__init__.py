@@ -11,11 +11,6 @@ Serializer 모듈의 진입점입니다.
     from shopping.serializers import *
 """
 
-"""
-Shopping 앱의 모든 Serializer를 한 곳에서 import할 수 있도록 설정
-실제 grep 결과를 바탕으로 작성된 정확한 버전
-"""
-
 # User 관련 Serializers
 from .user_serializers import (
     UserSerializer,
@@ -94,6 +89,23 @@ from .point_serializers import (
     PointUseSerializer,
 )
 
+# Notification 관련 Serializers
+from .notification_serializers import (
+    NotificationSerializer,
+    NotificationMarkReadSerializer,
+)
+
+# Product Q&A 관련 Serializers
+from .product_qa_serializers import (
+    ProductQuestionListSerializer,
+    ProductQuestionDetailSerializer,
+    ProductQuestionCreateSerializer,
+    ProductQuestionUpdateSerializer,
+    ProductAnswerSerializer,
+    ProductAnswerCreateSerializer,
+    ProductAnswerUpdateSerializer,
+)
+
 # 외부에서 사용할 수 있도록 __all__ 정의
 __all__ = [
     # User
@@ -147,4 +159,15 @@ __all__ = [
     "PointHistorySerializer",
     "UserPointSerializer",
     "PointUseSerializer",
+    # Notification
+    "NotificationSerializer",
+    "NotificationMarkReadSerializer",
+    # Product Q&A
+    "ProductQuestionListSerializer",
+    "ProductQuestionDetailSerializer",
+    "ProductQuestionCreateSerializer",
+    "ProductQuestionUpdateSerializer",
+    "ProductAnswerSerializer",
+    "ProductAnswerCreateSerializer",
+    "ProductAnswerUpdateSerializer",
 ]

@@ -20,6 +20,9 @@ from .models import (
     CartItem,
 )
 
+from .models.notification import Notification
+from .models.product_qa import ProductQuestion, ProductAnswer
+
 from .models.payment import Payment, PaymentLog
 
 from .models.point import PointHistory
@@ -967,6 +970,157 @@ class EmailLogAdmin(admin.ModelAdmin):
             rate = (verified_count / sent_count) * 100
             return f"{rate:.1f}%"
         return "0%"
+
+
+# 알림 Admin
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    """알림 관리자 페이지"""
+
+    list_display = [
+        "id",
+        "user",
+        "notification_type",
+        "title",
+        "is_read",
+        "created_at",
+    ]
+
+    list_filter = [
+        "notification_type",
+        "is_read",
+        "created_at",
+    ]
+
+    search_fields = [
+        "user__username",
+        "user__email",
+        "title",
+        "message",
+    ]
+
+    date_hierarchy = "created_at"
+
+    ordering = ["-created_at"]
+
+    readonly_fields = ["created_at", "read_at"]
+
+    fieldsets = (
+        ("기본 정보", {"fields": ("user", "notification_type", "title", "message")}),
+        ("링크", {"fields": ("link",)}),
+        ("상태", {"fields": ("is_read", "read_at")}),
+        ("시간 정보", {"fields": ("created_at",), "classes": ("collapse",)}),
+    )
+
+    def has_add_permission(self, request):
+        """관리자 페이지에서는 알림 추가 불가 (코드로만 생성)"""
+        return False
+
+
+# 상품 문의 Admin
+class ProductAnswerInline(admin.StackedInline):
+    """문의 상세 페이지에서 답변을 함께 관리"""
+
+    model = ProductAnswer
+    extra = 0
+    readonly_fields = ["created_at", "updated_at"]
+    can_delete = True
+
+
+@admin.register(ProductQuestion)
+class ProductQuestionAdmin(admin.ModelAdmin):
+    """상품 문의 관리자 페이지"""
+
+    list_display = [
+        "id",
+        "product",
+        "user",
+        "title_preview",
+        "is_secret",
+        "is_answered",
+        "created_at",
+    ]
+
+    list_filter = [
+        "is_secret",
+        "is_answered",
+        "created_at",
+    ]
+
+    search_fields = [
+        "title",
+        "content",
+        "user__username",
+        "product__name",
+    ]
+
+    date_hierarchy = "created_at"
+
+    ordering = ["-created_at"]
+
+    readonly_fields = ["created_at", "updated_at"]
+
+    inlines = [ProductAnswerInline]
+
+    fieldsets = (
+        ("기본 정보", {"fields": ("product", "user")}),
+        ("문의 내용", {"fields": ("title", "content", "is_secret")}),
+        ("상태", {"fields": ("is_answered",)}),
+        (
+            "시간 정보",
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
+    )
+
+    def title_preview(self, obj):
+        """제목 미리보기 (30자)"""
+        if len(obj.title) > 30:
+            return obj.title[:30] + "..."
+        return obj.title
+
+    title_preview.short_description = "제목"
+
+
+@admin.register(ProductAnswer)
+class ProductAnswerAdmin(admin.ModelAdmin):
+    """답변 관리자 페이지"""
+
+    list_display = [
+        "id",
+        "question",
+        "seller",
+        "content_preview",
+        "created_at",
+    ]
+
+    search_fields = [
+        "content",
+        "question__title",
+        "seller__username",
+    ]
+
+    date_hierarchy = "created_at"
+
+    ordering = ["-created_at"]
+
+    readonly_fields = ["created_at", "updated_at"]
+
+    fieldsets = (
+        ("기본 정보", {"fields": ("question", "seller")}),
+        ("답변 내용", {"fields": ("content",)}),
+        (
+            "시간 정보",
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
+    )
+
+    def content_preview(self, obj):
+        """내용 미리보기 (50자)"""
+        if len(obj.content) > 50:
+            return obj.content[:50] + "..."
+        return obj.content
+
+    content_preview.short_description = "답변 내용"
 
 
 # Admin 사이트 설정

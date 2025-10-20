@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",  # 토큰 블랙리스트 앱
     "drf_yasg",
+    "django_celery_beat",
     # 소셜 로그인 필수 앱
     "django.contrib.sites",  # allauth 필수
     "allauth",

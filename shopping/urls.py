@@ -58,6 +58,11 @@ from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from django.conf import settings
 from django.views.generic import TemplateView
 
+# notification import
+from rest_framework_nested import routers
+from .views.notification_views import NotificationViewSet
+from .views.product_qa_views import ProductQuestionViewSet, MyQuestionViewSet
+
 
 # 소셜 로그인 뷰 정의
 class GoogleLogin(SocialLoginView):
@@ -92,6 +97,19 @@ router.register(r"products", ProductViewSet, basename="product")
 router.register(r"categories", CategoryViewSet, basename="category")
 router.register(r"orders", OrderViewSet, basename="order")
 
+# 알림 라우터
+router.register(r"notifications", NotificationViewSet, basename="notification")
+
+# 내 문의 라우터
+router.register(r"my/questions", MyQuestionViewSet, basename="my-question")
+
+# 상품별 문의 중첩 라우터
+# /api/products/{product_pk}/questions/
+products_router = routers.NestedSimpleRouter(router, r"products", lookup="product")
+products_router.register(
+    r"questions", ProductQuestionViewSet, basename="product-question"
+)
+
 
 # Cart 관련 ViewSet 등록
 # CartViewSet은 특별한 actions만 있으므로 수동 등록
@@ -109,6 +127,7 @@ urlpatterns = [
     path("payment/fail/", payment_fail, name="payment_fail"),
     # API root - 라우터가 자동으로 생성하는 URL들
     path("", include(router.urls)),
+    path("", include(products_router.urls)),  # 중첩 라우터
     # 인증(Auth) 관련 URLs
     # 회원가입 및 로그인
     path("auth/register/", RegisterView.as_view(), name="auth-register"),
@@ -348,4 +367,25 @@ urlpatterns = [
 - /api/wishlist/?ordering=price            - 가격 낮은순
 - /api/wishlist/?is_available=true         - 구매 가능한 상품만
 - /api/wishlist/?on_sale=true              - 세일 중인 상품만
+
+알림:
+- GET    /api/notifications/              - 알림 목록
+- GET    /api/notifications/{id}/         - 알림 상세
+- GET    /api/notifications/unread/       - 읽지 않은 알림 개수
+- POST   /api/notifications/mark_read/    - 알림 읽음 처리
+- DELETE /api/notifications/clear/        - 읽은 알림 삭제
+
+상품 문의:
+- GET    /api/products/{product_id}/questions/              - 문의 목록
+- POST   /api/products/{product_id}/questions/              - 문의 작성
+- GET    /api/products/{product_id}/questions/{id}/         - 문의 상세
+- PATCH  /api/products/{product_id}/questions/{id}/         - 문의 수정
+- DELETE /api/products/{product_id}/questions/{id}/         - 문의 삭제
+- POST   /api/products/{product_id}/questions/{id}/answer/  - 답변 작성
+- PATCH  /api/products/{product_id}/questions/{id}/answer/  - 답변 수정
+- DELETE /api/products/{product_id}/questions/{id}/answer/  - 답변 삭제
+
+내 문의:
+- GET    /api/my/questions/               - 내가 작성한 문의 목록
+- GET    /api/my/questions/{id}/          - 문의 상세
 """

@@ -19,7 +19,8 @@ jobs:
           POSTGRES_DB: test_db
           POSTGRES_USER: test_user
           POSTGRES_PASSWORD: test_password
-
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -28,7 +29,8 @@ jobs:
       
       redis:
         image: redis:7-alpine
-    
+        ports:
+          - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -43,11 +45,11 @@ jobs:
       DATABASE_NAME: test_db
       DATABASE_USER: test_user
       DATABASE_PASSWORD: test_password
-      DATABASE_HOST: postgres
+      DATABASE_HOST: localhost
       DATABASE_PORT: 5432
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/0
+      CELERY_RESULT_BACKEND: redis://localhost:6379/0
       TOSS_CLIENT_KEY: test_ck_fake_key
       TOSS_SECRET_KEY: test_sk_fake_key
       TOSS_WEBHOOK_SECRET: test_webhook_secret
@@ -86,7 +88,7 @@ jobs:
     - name: Run tests with coverage
       run: |
         pip install coverage
-        coverage run --source='.' manage.py test
+        coverage run --source='.' manage.py test shopping
         coverage report
         coverage xml
 

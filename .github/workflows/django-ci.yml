@@ -1,0 +1,102 @@
+name: Django CI
+
+# 언제 실행할지 설정
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    # PostgreSQL 서비스 (테스트용)
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    # 1. 코드 체크아웃
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # 2. Python 설정
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    # 3. 의존성 설치
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    # 4. 환경변수 설정 (.env 파일 생성)
+    - name: Create .env file
+      run: |
+        echo "DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}" >> .env
+        echo "DJANGO_DEBUG=False" >> .env
+        echo "DATABASE_ENGINE=django.db.backends.postgresql" >> .env
+        echo "DATABASE_NAME=test_db" >> .env
+        echo "DATABASE_USER=test_user" >> .env
+        echo "DATABASE_PASSWORD=test_password" >> .env
+        echo "DATABASE_HOST=localhost" >> .env
+        echo "DATABASE_PORT=5432" >> .env
+        echo "REDIS_URL=redis://localhost:6379/0" >> .env
+        echo "CELERY_BROKER_URL=redis://localhost:6379/0" >> .env
+        echo "CELERY_RESULT_BACKEND=redis://localhost:6379/0" >> .env
+        echo "TOSS_CLIENT_KEY=test_ck_fake_key" >> .env
+        echo "TOSS_SECRET_KEY=test_sk_fake_key" >> .env
+        echo "TOSS_WEBHOOK_SECRET=test_webhook_secret" >> .env
+
+    # 5. 데이터베이스 마이그레이션
+    - name: Run migrations
+      run: |
+        python manage.py migrate --noinput
+
+    # 6. 테스트 실행
+    - name: Run tests
+      run: |
+        python manage.py test --verbosity=2
+
+    # 7. 테스트 커버리지 측정 (선택사항)
+    - name: Run tests with coverage
+      run: |
+        pip install coverage
+        coverage run --source='.' manage.py test
+        coverage report
+        coverage xml
+
+    # 8. 코드 스타일 체크 (선택사항)
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        # 에러만 체크 (경고는 무시)
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # 복잡도 체크 (10 이상만)
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      continue-on-error: true

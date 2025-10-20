@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import sys
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -371,7 +372,7 @@ LOGGING["loggers"]["shopping.tasks"] = {
 }
 
 # 테스트 설정에서 동기 실행 강제
-import sys
+
 
 if "test" in sys.argv:
     CELERY_TASK_ALWAYS_EAGER = True

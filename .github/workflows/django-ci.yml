@@ -79,7 +79,7 @@ jobs:
     # 6. 테스트 실행
     - name: Run tests
       run: |
-        python manage.py test shopping.tests --verbosity=2
+        python manage.py test shopping --verbosity=2
 
     # 7. 테스트 커버리지 측정 (선택사항)
     - name: Run tests with coverage

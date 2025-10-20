@@ -121,10 +121,6 @@ DATABASES = {
         "PORT": os.getenv("DATABASE_PORT", ""),
         # 테스트: 연결 즉시 종료, 프로덕션: 재사용
         "CONN_MAX_AGE": 0 if TESTING else 600,
-        # 테스트 DB 이름 명시 test_ prefix 제거하여 중복 방지
-        "TEST": {
-            "NAME": "test_db",
-        },
     }
 }
 

@@ -16,7 +16,7 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_DB: test_db
+          POSTGRES_DB: shopping_db
           POSTGRES_USER: test_user
           POSTGRES_PASSWORD: test_password
         ports:
@@ -42,7 +42,7 @@ jobs:
       DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
       DJANGO_DEBUG: False
       DATABASE_ENGINE: django.db.backends.postgresql
-      DATABASE_NAME: test_db
+      DATABASE_NAME: shopping_db
       DATABASE_USER: test_user
       DATABASE_PASSWORD: test_password
       DATABASE_HOST: localhost
@@ -79,18 +79,13 @@ jobs:
       run: |
         python manage.py migrate --noinput
 
-    # 테스트 실행
-    - name: Run tests
-      env:
-        TESTING: "True" # 테스트 환경 명시
-      run: |
-        python manage.py test shopping --verbosity=2 --keepdb --parallel
-
-    # 테스트 커버리지 측정 (선택사항)
+    # 테스트 커버리지 측정 
     - name: Run tests with coverage
       run: |
         pip install coverage
-        coverage run --source='.' manage.py test shopping
+        # --keepdb: DB 재사용으로 에러 방지
+        # --parallel=2: 병렬 실행으로 속도 향상
+        coverage run --source='.' manage.py test shopping --verbosity=2 --keepdb --parallel=2
         coverage report
         coverage xml
 

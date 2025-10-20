@@ -106,6 +106,10 @@ WSGI_APPLICATION = "myproject.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# 테스트 환경 감지
+TESTING = "test" in sys.argv or os.getenv("TESTING") == "True"
+
+# 데이터베이스 설정
 DATABASES = {
     "default": {
         "ENGINE": os.getenv("DATABASE_ENGINE", "django.db.backends.sqlite3"),
@@ -114,6 +118,12 @@ DATABASES = {
         "PASSWORD": os.getenv("DATABASE_PASSWORD", ""),
         "HOST": os.getenv("DATABASE_HOST", ""),
         "PORT": os.getenv("DATABASE_PORT", ""),
+        # 테스트: 연결 즉시 종료, 프로덕션: 재사용
+        "CONN_MAX_AGE": 0 if TESTING else 600,
+        # 테스트 DB 이름 명시 test_ prefix 제거하여 중복 방지
+        "TEST": {
+            "NAME": "test_db",
+        },
     }
 }
 

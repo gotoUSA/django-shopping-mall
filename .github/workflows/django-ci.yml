@@ -81,8 +81,10 @@ jobs:
 
     # 테스트 실행
     - name: Run tests
+      env:
+        TESTING: "True" # 테스트 환경 명시
       run: |
-        python manage.py test shopping --verbosity=2
+        python manage.py test shopping --verbosity=2 --keepdb --parallel
 
     # 테스트 커버리지 측정 (선택사항)
     - name: Run tests with coverage

@@ -1,4 +1,4 @@
-from django.test import TransactionTestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -12,7 +12,7 @@ from django.contrib.sites.models import Site
 
 # ✅ settings.py의 SOCIALACCOUNT_PROVIDERS를 빈 딕셔너리로 오버라이드
 @override_settings(SOCIALACCOUNT_PROVIDERS={})
-class SocialAuthTestCase(TransactionTestCase):
+class SocialAuthTestCase(TestCase):
     """소셜 로그인 기본 테스트"""
 
     def setUp(self):

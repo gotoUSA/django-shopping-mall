@@ -70,14 +70,15 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     "dj_rest_auth",
     "dj_rest_auth.registration",
-    # Debug Toolbar
-    "debug_toolbar",
 ]
+
+# Debug Toolbar는 DEBUG=True일 때만 추가
+if DEBUG:
+    INSTALLED_APPS += ["debug_toolbar"]
 
 AUTH_USER_MODEL = "shopping.User"
 
 MIDDLEWARE = [
-    "debug_toolbar.middleware.DebugToolbarMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -88,6 +89,13 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
 ]
+
+# Debug Toolbar Middleware도 DEBUG=True일 때만 추가
+if DEBUG:
+    MIDDLEWARE.insert(
+        0,
+        "debug_toolbar.middleware.DebugToolbarMiddleware",
+    )
 
 ROOT_URLCONF = "myproject.urls"
 

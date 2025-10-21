@@ -244,7 +244,7 @@ class SocialAuthTestCase(TestCase):
 
         # 같은 이메일로 소셜 로그인 시도
         # allauth는 자동으로 기존 계정에 연결
-        social_account = SocialAccount.objects.create(
+        SocialAccount.objects.create(
             user=user,  # 기존 사용자에 연결
             provider="google",
             uid="google_same_email",

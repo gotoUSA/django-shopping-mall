@@ -613,6 +613,9 @@ class OrderConcurrencyTestCase(TransactionTestCase):
         F() 객체를 사용한 동시성 제어 테스트
 
         실제 결제 시점에서의 재고 차감 시뮬레이션
+        - 재고 5개인 상품에 3개 스레드가 각각 2개씩 차감 시도
+        - F() 객체 덕분에 정확히 2개만 성공해야 함 (5 - 2 - 2 = 1)
+        - 나머지 1개는 재고 부족으로 실패
         """
         # 재고 5개인 상품 생성
         product = Product.objects.create(
@@ -624,36 +627,92 @@ class OrderConcurrencyTestCase(TransactionTestCase):
             sku="NORMAL-001",
         )
 
+        # 스레드별 결과를 저장할 리스트 (thread-safe)
+        results = []
+        lock = threading.Lock()
+
         def decrease_stock():
             """재고 차감 함수 (F 객체 사용)"""
             try:
-                # 새 연결 사용
+                # 새 DB 연결 사용 (각 스레드마다 독립적)
                 from django.db import connections
 
                 connections.close_all()
 
                 # F() 객체로 안전한 차감
+                # stock__gte=2 조건 -> 재고가 2개 이상일 때만 차감
                 updated = Product.objects.filter(id=product.id, stock__gte=2).update(stock=F("stock") - 2)
 
                 connections.close_all()
-            except Exception:
-                pass
 
-        # 3개의 스레드가 각각 2개씩 차감 시도
+                # 결과 저장 (thread-safe)
+                with lock:
+                    results.append(
+                        {
+                            "success": updated > 0,  # 1이면 성공, 0이면 실패
+                            "updated_count": updated,
+                            "thread_id": threading.current_thread().ident,
+                        }
+                    )
+
+            except Exception as e:
+                # 예외 발생 시 기록
+                with lock:
+                    results.append(
+                        {
+                            "success": False,
+                            "error": str(e),
+                            "thread_id": threading.current_thread().ident,
+                        }
+                    )
+
+        # 3개의 스레드가 동시에 각각 2개씩 차감 시도
         threads = []
-        for _ in range(3):
-            thread = threading.Thread(target=decrease_stock)
+        for i in range(3):
+            thread = threading.Thread(target=decrease_stock, name=f"Thread-{i}")
             threads.append(thread)
             thread.start()
 
+        # 모든 스레드 완료 대기
         for thread in threads:
             thread.join()
 
-        # 재고 확인
+        # 검증 시작
+
+        # 1. 모든 스레드가 결과를 반환했는지 확인
+        assert len(results) == 3, "3개 스레드 모두 실행되어야 함"
+
+        # 2. 성공한 스레드 개수 확인
+        success_count = sum(1 for r in results if r.get("success", False))
+
+        # F() 객체 때문에 정확히 2개만 성공해야함
+        # 5개 재고 - 2개 - 2개 = 1개 남음 -> 3번째는 실패
+        assert success_count == 2, "정확히 2개 스레드만 성공해야함\n" f"실제 성공: {success_count}\n" f"상세 결과: {results}"
+
+        # 3. 실패한 스레드 개수 확인
+        failed_count = sum(1 for r in results if not r.get("success", False))
+        assert failed_count == 1, (
+            "1개 스레드는 재고 부족으로 실패해야 함\n" f"실제 실패: {failed_count}\n" f"상세 결과: {results}"
+        )
+
+        # 4. 최종 재고 확인
         product.refresh_from_db()
-        # 5 - 2 - 2 = 1 (세 번째는 실패)
-        self.assertGreaterEqual(product.stock, 1)
-        self.assertLessEqual(product.stock, 3)
+        assert product.stock == 1, (
+            "최종 재고는 1개여야 함 (5 - 2 - 2 = 1)\n" f"실제 재고: {product.stock}\n" f"스레드 결과: {results}"
+        )
+
+        # 5. 성공한 스레드는 updated_count=1이어야 함
+        for result in results:
+            if result.get("success"):
+                assert result.get("updated_count") == 1, "성공한 업데이트는 1행을 수정해야 함\n" f"실제 결과: {results}"
+
+        # 디버깅용 출력 (선택사항)
+        print("\n=== F() 객체 동시성 제어 테스트 결과 ===")
+        print(f"초기 재고: 5개")
+        print(f"성공한 스레드: {success_count}개")
+        print(f"실패한 스레드: {failed_count}개")
+        print(f"최종 재고: {product.stock}개")
+        print(f"상세 결과: {results}")
 
 
 class OrderAdminPermissionTestCase(TestCase):

@@ -70,9 +70,7 @@ class PointExpiryTestCase(TestCase):
         # Given: 만료된 포인트와 사용자 잔액
         expired_date = timezone.now() - timedelta(days=366)
         with patch("django.utils.timezone.now", return_value=expired_date):
-            expired_history = PointHistory.create_history(
-                user=self.user, points=1000, type="earn", description="만료 예정 포인트"
-            )
+            PointHistory.create_history(user=self.user, points=1000, type="earn", description="만료 예정 포인트")
 
         # 사용자에게 포인트 추가
         self.user.points = 1500
@@ -101,15 +99,15 @@ class PointExpiryTestCase(TestCase):
 
         # 1번 포인트: 6개월 전 적립 (먼저 사용되어야 함)
         with patch("django.utils.timezone.now", return_value=base_time - timedelta(days=180)):
-            history1 = PointHistory.create_history(user=self.user, points=500, type="earn", description="첫 번째 적립")
+            PointHistory.create_history(user=self.user, points=500, type="earn", description="첫 번째 적립")
 
         # 2번 포인트: 3개월 전 적립
         with patch("django.utils.timezone.now", return_value=base_time - timedelta(days=90)):
-            history2 = PointHistory.create_history(user=self.user, points=300, type="earn", description="두 번째 적립")
+            PointHistory.create_history(user=self.user, points=300, type="earn", description="두 번째 적립")
 
         # 3번 포인트: 1개월 전 적립
         with patch("django.utils.timezone.now", return_value=base_time - timedelta(days=30)):
-            history3 = PointHistory.create_history(user=self.user, points=200, type="earn", description="세 번째 적립")
+            PointHistory.create_history(user=self.user, points=200, type="earn", description="세 번째 적립")
 
         # 사용자 총 포인트 설정
         self.user.points = 1000
@@ -136,7 +134,7 @@ class PointExpiryTestCase(TestCase):
         """포인트 만료 7일 전 알림 테스트"""
         # Given: 7일 후 만료될 포인트
         expiry_date = timezone.now() + timedelta(days=7)
-        history = PointHistory.objects.create(
+        PointHistory.objects.create(
             user=self.user,
             points=1000,
             balance=1000,

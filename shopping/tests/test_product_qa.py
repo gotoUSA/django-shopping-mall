@@ -77,7 +77,7 @@ class ProductQuestionTestCase(TestCase):
     def test_list_questions_with_secret(self):
         """비밀글 포함 문의 목록 조회 테스트"""
         # 일반 문의 생성
-        question1 = ProductQuestion.objects.create(
+        ProductQuestion.objects.create(
             product=self.product,
             user=self.buyer,
             title="일반 문의",
@@ -86,7 +86,7 @@ class ProductQuestionTestCase(TestCase):
         )
 
         # 비밀 문의 생성
-        question2 = ProductQuestion.objects.create(
+        ProductQuestion.objects.create(
             product=self.product,
             user=self.buyer,
             title="비밀 문의",
@@ -225,7 +225,7 @@ class ProductQuestionTestCase(TestCase):
         )
 
         # 판매자가 답변 작성
-        answer = ProductAnswer.objects.create(question=question, seller=self.seller, content="내일 출발 예정입니다!")
+        ProductAnswer.objects.create(question=question, seller=self.seller, content="내일 출발 예정입니다!")
 
         # 알림이 생성되었는지 확인
         self.assertEqual(Notification.objects.count(), 1)

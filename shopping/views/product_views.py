@@ -1,28 +1,25 @@
-from rest_framework import viewsets, permissions, filters, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination
 from django.db.models import Avg, Count, Q
-from django.shortcuts import get_object_or_404
 from django.utils.text import slugify
 
+from rest_framework import filters, permissions, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.response import Response
+
 # 모델 import
-from shopping.models.product import Product, Category, ProductImage, ProductReview
-from shopping.models.user import User
+from shopping.models.product import Category, Product, ProductReview
 
 # Serializer import
 from shopping.serializers import (
-    ProductCreateUpdateSerializer,
-    ProductListSerializer,
-    ProductDetailSerializer,
-    ProductReviewSerializer,
     CategorySerializer,
     CategoryTreeSerializer,
+    ProductCreateUpdateSerializer,
+    ProductDetailSerializer,
+    ProductListSerializer,
+    ProductReviewSerializer,
 )
 
 # Swagger
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
 
 
 class ProductPagination(PageNumberPagination):
@@ -33,9 +30,7 @@ class ProductPagination(PageNumberPagination):
     """
 
     page_size = 12  # 페이지당 기본 아이템수
-    page_size_query_param = (
-        "page_size"  # 클라이언트가 페이지 크기를 조정할 수 있는 파라미터
-    )
+    page_size_query_param = "page_size"  # 클라이언트가 페이지 크기를 조정할 수 있는 파라미터
     max_page_size = 100  # 최대 페이지 크기 제한
 
 
@@ -201,24 +196,16 @@ class ProductViewSet(viewsets.ModelViewSet):
         """
 
         # slug 변경시 중복 체크
-        if "name" in serializer.validated_data and not serializer.validated_data.get(
-            "slug"
-        ):
+        if "name" in serializer.validated_data and not serializer.validated_data.get("slug"):
             name = serializer.validated_data.get("name", "")
             slug = slugify(name, allow_unicode=True)
 
             # 현재 상품 제외하고 중복 체크
-            existing = Product.objects.filter(slug=slug).exclude(
-                pk=serializer.instance.pk
-            )
+            existing = Product.objects.filter(slug=slug).exclude(pk=serializer.instance.pk)
             if existing.exists():
                 base_slug = slug
                 counter = 1
-                while (
-                    Product.objects.filter(slug=slug)
-                    .exclude(pk=serializer.instance.pk)
-                    .exists()
-                ):
+                while Product.objects.filter(slug=slug).exclude(pk=serializer.instance.pk).exists():
                     slug = f"{base_slug}-{counter}"
                     counter += 1
 
@@ -253,9 +240,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer = ProductReviewSerializer(reviews, many=True)
         return Response(serializer.data)
 
-    @action(
-        detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated]
-    )
+    @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
     def add_review(self, request, pk=None):
         """
         상품 리뷰 작성
@@ -323,16 +308,10 @@ class ProductViewSet(viewsets.ModelViewSet):
         GET /api/products/low_stock/
         """
         if not request.user.is_authenticated:
-            return Response(
-                {"error": "로그인이 필요합니다."}, status=status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({"error": "로그인이 필요합니다."}, status=status.HTTP_401_UNAUTHORIZED)
 
         # 현재 사용자의 상품 중 재고가 10개 이하인 상품
-        low_stock_products = (
-            self.get_queryset()
-            .filter(seller=request.user, stock__lte=10)
-            .order_by("stock")
-        )
+        low_stock_products = self.get_queryset().filter(seller=request.user, stock__lte=10).order_by("stock")
 
         serializer = ProductListSerializer(low_stock_products, many=True)
         return Response(serializer.data)
@@ -366,9 +345,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         return (
             Category.objects.filter(is_active=True)
             .select_related("parent")
-            .annotate(
-                products_count=Count("products", filter=Q(products__is_active=True))
-            )
+            .annotate(products_count=Count("products", filter=Q(products__is_active=True)))
         )
 
     @action(detail=False, methods=["get"])
@@ -388,9 +365,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
                     "id": category.id,
                     "name": category.name,
                     "slug": category.slug,
-                    "product_count": Product.objects.filter(
-                        category=category, is_active=True
-                    ).count(),
+                    "product_count": Product.objects.filter(category=category, is_active=True).count(),
                     "children": build_tree(category),
                 }
                 categories.append(cat_data)

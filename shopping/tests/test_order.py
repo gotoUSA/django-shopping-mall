@@ -7,24 +7,23 @@
 Docker 환경: PostgreSQL 사용
 """
 
-import json
+import threading
 from decimal import Decimal
+
+from django.db import connection
+from django.db.models import F
 from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
-from django.db import transaction, connection
-from django.db.models import F
+
 from rest_framework import status
 from rest_framework.test import APIClient
-from unittest.mock import patch, MagicMock
-import threading
-import time
 
-from shopping.models.user import User
-from shopping.models.product import Product, Category
 from shopping.models.cart import Cart, CartItem
 from shopping.models.order import Order, OrderItem
 from shopping.models.point import PointHistory
+from shopping.models.product import Category, Product
+from shopping.models.user import User
 
 
 class OrderCreateTestCase(TestCase):
@@ -46,9 +45,7 @@ class OrderCreateTestCase(TestCase):
         )
 
         # 카테고리 생성
-        self.category = Category.objects.create(
-            name="테스트 카테고리", slug="test-category"
-        )
+        self.category = Category.objects.create(name="테스트 카테고리", slug="test-category")
 
         # 테스트 상품들 생성
         self.product1 = Product.objects.create(
@@ -112,9 +109,7 @@ class OrderCreateTestCase(TestCase):
 
     def _login_user(self):
         """사용자 로그인 헬퍼 메서드"""
-        response = self.client.post(
-            reverse("auth-login"), {"username": "testuser", "password": "testpass123"}
-        )
+        response = self.client.post(reverse("auth-login"), {"username": "testuser", "password": "testpass123"})
         token = response.json()["access"]
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
         return token
@@ -125,9 +120,7 @@ class OrderCreateTestCase(TestCase):
         cart, _ = Cart.get_or_create_active_cart(self.user)
 
         # 이미 있으면 수량 증가, 없으면 생성
-        cart_item, created = CartItem.objects.get_or_create(
-            cart=cart, product=product, defaults={"quantity": quantity}
-        )
+        cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product, defaults={"quantity": quantity})
 
         if not created:
             cart_item.quantity += quantity
@@ -153,9 +146,7 @@ class OrderCreateTestCase(TestCase):
         self._add_to_cart(self.product2, 1)
 
         # When: 주문 생성
-        response = self.client.post(
-            self.order_list_url, self.shipping_data, format="json"
-        )
+        response = self.client.post(self.order_list_url, self.shipping_data, format="json")
 
         # 디버깅: 실패 시 응답 확인
         if response.status_code != status.HTTP_201_CREATED:
@@ -224,9 +215,7 @@ class OrderCreateTestCase(TestCase):
         self.assertEqual(self.user.points, 3000)  # 5000 - 2000
 
         # 포인트 사용 이력 확인
-        point_history = PointHistory.objects.filter(
-            user=self.user, type="use", order=order
-        ).first()
+        point_history = PointHistory.objects.filter(user=self.user, type="use", order=order).first()
         self.assertIsNotNone(point_history)
         self.assertEqual(point_history.points, -2000)
 
@@ -293,9 +282,7 @@ class OrderCreateTestCase(TestCase):
         self._login_user()
 
         # 빈 장바구니 상태에서 주문 시도
-        response = self.client.post(
-            self.order_list_url, self.shipping_data, format="json"
-        )
+        response = self.client.post(self.order_list_url, self.shipping_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("장바구니가 비어있습니다", str(response.json()))
@@ -360,18 +347,13 @@ class OrderCreateTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         # 에러 메시지 확인 (두 가지 가능성)
         response_str = str(response.json())
-        self.assertTrue(
-            "주문 금액보다 많은 포인트" in response_str
-            or "보유 포인트가 부족합니다" in response_str
-        )
+        self.assertTrue("주문 금액보다 많은 포인트" in response_str or "보유 포인트가 부족합니다" in response_str)
 
     # ========== 인증 테스트 ==========
 
     def test_create_order_unauthenticated(self):
         """인증 없이 주문 시도"""
-        response = self.client.post(
-            self.order_list_url, self.shipping_data, format="json"
-        )
+        response = self.client.post(self.order_list_url, self.shipping_data, format="json")
 
         self.assertIn(
             response.status_code,
@@ -404,9 +386,7 @@ class OrderCreateTestCase(TestCase):
         self._login_user()
         self._add_to_cart(self.product1, 1)
 
-        response = self.client.post(
-            self.order_list_url, self.shipping_data, format="json"
-        )
+        response = self.client.post(self.order_list_url, self.shipping_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -415,9 +395,7 @@ class OrderCreateTestCase(TestCase):
         # 주문번호 형식: YYYYMMDD + 6자리 ID
         self.assertIsNotNone(order.order_number)
         self.assertEqual(len(order.order_number), 14)  # 8 + 6
-        self.assertTrue(
-            order.order_number.startswith(timezone.now().strftime("%Y%m%d"))
-        )
+        self.assertTrue(order.order_number.startswith(timezone.now().strftime("%Y%m%d")))
 
     # ========== 주문 취소 테스트 ==========
 
@@ -427,9 +405,7 @@ class OrderCreateTestCase(TestCase):
         self._add_to_cart(self.product1, 2)
 
         # 주문 생성
-        response = self.client.post(
-            self.order_list_url, self.shipping_data, format="json"
-        )
+        response = self.client.post(self.order_list_url, self.shipping_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         order = Order.objects.filter(user=self.user).first()
@@ -475,9 +451,7 @@ class OrderCreateTestCase(TestCase):
         self._add_to_cart(self.product1, 1)
 
         # 주문 생성
-        response = self.client.post(
-            self.order_list_url, self.shipping_data, format="json"
-        )
+        response = self.client.post(self.order_list_url, self.shipping_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         order = Order.objects.filter(user=self.user).first()
@@ -506,9 +480,7 @@ class OrderConcurrencyTestCase(TransactionTestCase):
         """테스트 데이터 설정"""
 
         # 카테고리
-        self.category = Category.objects.create(
-            name="테스트 카테고리", slug="test-category"
-        )
+        self.category = Category.objects.create(name="테스트 카테고리", slug="test-category")
 
         # 재고가 1개인 상품
         self.limited_product = Product.objects.create(
@@ -591,9 +563,7 @@ class OrderConcurrencyTestCase(TransactionTestCase):
                 {
                     "user": user.username,
                     "status": response.status_code,
-                    "response": (
-                        response.json() if response.status_code == 201 else None
-                    ),
+                    "response": (response.json() if response.status_code == 201 else None),
                 }
             )
         except Exception as e:
@@ -610,12 +580,8 @@ class OrderConcurrencyTestCase(TransactionTestCase):
         select_for_update()로 인해 한 명만 성공해야 함.
         """
         # 두 개의 스레드로 동시 주문
-        thread1 = threading.Thread(
-            target=self._create_order_for_user, args=(self.user1, self.limited_product)
-        )
-        thread2 = threading.Thread(
-            target=self._create_order_for_user, args=(self.user2, self.limited_product)
-        )
+        thread1 = threading.Thread(target=self._create_order_for_user, args=(self.user1, self.limited_product))
+        thread2 = threading.Thread(target=self._create_order_for_user, args=(self.user2, self.limited_product))
 
         # 동시 실행
         thread1.start()
@@ -626,9 +592,7 @@ class OrderConcurrencyTestCase(TransactionTestCase):
         thread2.join()
 
         # 결과 검증
-        success_count = sum(
-            1 for r in self.order_results if r.get("status") == status.HTTP_201_CREATED
-        )
+        success_count = sum(1 for r in self.order_results if r.get("status") == status.HTTP_201_CREATED)
 
         # 두 명 모두 성공할 수 있음 (재고는 아직 차감 안 함)
         # 또는 하나만 성공 (구현에 따라)
@@ -669,9 +633,7 @@ class OrderConcurrencyTestCase(TransactionTestCase):
                 connections.close_all()
 
                 # F() 객체로 안전한 차감
-                updated = Product.objects.filter(id=product.id, stock__gte=2).update(
-                    stock=F("stock") - 2
-                )
+                updated = Product.objects.filter(id=product.id, stock__gte=2).update(stock=F("stock") - 2)
 
                 connections.close_all()
             except Exception:
@@ -758,9 +720,7 @@ class OrderAdminPermissionTestCase(TestCase):
     def test_normal_user_sees_only_own_orders(self):
         """일반 사용자는 본인 주문만 조회"""
         # 일반 사용자로 로그인
-        response = self.client.post(
-            reverse("auth-login"), {"username": "normaluser", "password": "pass123"}
-        )
+        response = self.client.post(reverse("auth-login"), {"username": "normaluser", "password": "pass123"})
         token = response.json()["access"]
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
@@ -780,9 +740,7 @@ class OrderAdminPermissionTestCase(TestCase):
     def test_admin_sees_all_orders(self):
         """관리자는 모든 주문 조회 가능"""
         # 관리자로 로그인
-        response = self.client.post(
-            reverse("auth-login"), {"username": "admin", "password": "admin123"}
-        )
+        response = self.client.post(reverse("auth-login"), {"username": "admin", "password": "admin123"})
         token = response.json()["access"]
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
@@ -801,9 +759,7 @@ class OrderAdminPermissionTestCase(TestCase):
     def test_normal_user_cannot_view_others_order_detail(self):
         """일반 사용자는 다른 사람 주문 상세 조회 불가"""
         # 일반 사용자로 로그인
-        response = self.client.post(
-            reverse("auth-login"), {"username": "normaluser", "password": "pass123"}
-        )
+        response = self.client.post(reverse("auth-login"), {"username": "normaluser", "password": "pass123"})
         token = response.json()["access"]
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 

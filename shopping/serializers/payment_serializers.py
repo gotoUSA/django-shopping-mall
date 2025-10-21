@@ -1,9 +1,7 @@
 from rest_framework import serializers
-from django.db import transaction
-from decimal import Decimal
 
-from ..models.payment import Payment, PaymentLog
 from ..models.order import Order
+from ..models.payment import Payment, PaymentLog
 
 
 class PaymentSerializer(serializers.ModelSerializer):
@@ -99,9 +97,7 @@ class PaymentRequestSerializer(serializers.Serializer):
 
         # 주문 상태 확인
         if order.status != "pending":
-            raise serializers.ValidationError(
-                f"결제할 수 없는 주문 상태입니다: {order.get_status_display()}"
-            )
+            raise serializers.ValidationError(f"결제할 수 없는 주문 상태입니다: {order.get_status_display()}")
 
         # 주문 금액이 0원인지 확인 (포인트 전액 결제 허용)
         # final_amount가 0원이어도 허용 (포인트 전액 결제)
@@ -178,10 +174,7 @@ class PaymentConfirmSerializer(serializers.Serializer):
 
         # 금액 검증 (포인트 차감 후 금액과 비교)
         if payment.amount != amount:
-            raise serializers.ValidationError(
-                f"결제 금액이 일치하지 않습니다. "
-                f"(예상: {payment.amount}, 실제: {amount})"
-            )
+            raise serializers.ValidationError(f"결제 금액이 일치하지 않습니다. " f"(예상: {payment.amount}, 실제: {amount})")
 
         self.payment = payment
         return attrs
@@ -221,9 +214,7 @@ class PaymentLogSerializer(serializers.ModelSerializer):
     결제 로그 조회용 시리얼라이저
     """
 
-    log_type_display = serializers.CharField(
-        source="get_log_type_display", read_only=True
-    )
+    log_type_display = serializers.CharField(source="get_log_type_display", read_only=True)
 
     class Meta:
         model = PaymentLog

@@ -1,67 +1,67 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from django.conf import settings
+from django.urls import include, path
+from django.views.generic import TemplateView
 
-# ViewSet import
-from shopping.views.product_views import ProductViewSet, CategoryViewSet
-from shopping.views.cart_views import CartViewSet, CartItemViewSet
-from shopping.views.order_views import OrderViewSet
-
-# Auth Views import
-from shopping.views.auth_views import (
-    RegisterView,
-    LoginView,
-    CustomTokenRefreshView,
-    LogoutView,
-    ProfileView,
-    PasswordChangeView,
-    check_token,
-    email_verification_request,
-    withdraw,
-)
-
-# Email Verification Views import
-from shopping.views.email_verification_views import (
-    SendVerificationEmailView,
-    VerifyEmailView,
-    ResendVerificationEmailView,
-    check_verification_status,
-)
-
-
-# Payment Views import
-from shopping.views.payment_views import (
-    PaymentRequestView,
-    PaymentConfirmView,
-    PaymentCancelView,
-    PaymentDetailView,
-    PaymentListView,
-    payment_test_page,
-    payment_success,
-    payment_fail,
-)
-
-# Point view import
-from .views import point_views
-
-# Webhook import
-from shopping.webhooks.toss_webhook_view import toss_webhook
-
-# wishlist import
-from shopping.views.wishlist_views import WishlistViewSet
-
-# social login
-from dj_rest_auth.registration.views import SocialLoginView
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.kakao.views import KakaoOAuth2Adapter
 from allauth.socialaccount.providers.naver.views import NaverOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
-from django.conf import settings
-from django.views.generic import TemplateView
+
+# social login
+from dj_rest_auth.registration.views import SocialLoginView
+from rest_framework.routers import DefaultRouter
 
 # notification import
 from rest_framework_nested import routers
+
+# Auth Views import
+from shopping.views.auth_views import (
+    CustomTokenRefreshView,
+    LoginView,
+    LogoutView,
+    PasswordChangeView,
+    ProfileView,
+    RegisterView,
+    check_token,
+    email_verification_request,
+    withdraw,
+)
+from shopping.views.cart_views import CartItemViewSet, CartViewSet
+
+# Email Verification Views import
+from shopping.views.email_verification_views import (
+    ResendVerificationEmailView,
+    SendVerificationEmailView,
+    VerifyEmailView,
+    check_verification_status,
+)
+from shopping.views.order_views import OrderViewSet
+
+# Payment Views import
+from shopping.views.payment_views import (
+    PaymentCancelView,
+    PaymentConfirmView,
+    PaymentDetailView,
+    PaymentListView,
+    PaymentRequestView,
+    payment_fail,
+    payment_success,
+    payment_test_page,
+)
+
+# ViewSet import
+from shopping.views.product_views import CategoryViewSet, ProductViewSet
+
+# wishlist import
+from shopping.views.wishlist_views import WishlistViewSet
+
+# Webhook import
+from shopping.webhooks.toss_webhook_view import toss_webhook
+
+# Point view import
+from .views import point_views
 from .views.notification_views import NotificationViewSet
-from .views.product_qa_views import ProductQuestionViewSet, MyQuestionViewSet
+from .views.product_qa_views import MyQuestionViewSet, ProductQuestionViewSet
 
 
 # 소셜 로그인 뷰 정의
@@ -106,9 +106,7 @@ router.register(r"my/questions", MyQuestionViewSet, basename="my-question")
 # 상품별 문의 중첩 라우터
 # /api/products/{product_pk}/questions/
 products_router = routers.NestedSimpleRouter(router, r"products", lookup="product")
-products_router.register(
-    r"questions", ProductQuestionViewSet, basename="product-question"
-)
+products_router.register(r"questions", ProductQuestionViewSet, basename="product-question")
 
 
 # Cart 관련 ViewSet 등록
@@ -196,9 +194,7 @@ urlpatterns = [
     path("payments/fail/", payment_fail, name="payment-fail"),
     # 결제 조회
     path("payments/", PaymentListView.as_view(), name="payment-list"),
-    path(
-        "payments/<int:payment_id>/", PaymentDetailView.as_view(), name="payment-detail"
-    ),
+    path("payments/<int:payment_id>/", PaymentDetailView.as_view(), name="payment-detail"),
     # 포인트 관련 URL
     path("points/my/", point_views.MyPointView.as_view(), name="my_points"),
     path(
@@ -222,9 +218,7 @@ urlpatterns = [
         WishlistViewSet.as_view({"post": "toggle"}),
         name="wishlist-toggle",
     ),
-    path(
-        "wishlist/add/", WishlistViewSet.as_view({"post": "add"}), name="wishlist-add"
-    ),
+    path("wishlist/add/", WishlistViewSet.as_view({"post": "add"}), name="wishlist-add"),
     path(
         "wishlist/remove/",
         WishlistViewSet.as_view({"delete": "remove"}),

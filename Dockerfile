@@ -7,11 +7,17 @@ WORKDIR /code
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Python 의존성 파일 복사 및 설치
+# Python 의존성 파일 복사
 COPY requirements.txt /code/
-RUN pip install --upgrade pip && pip install -r requirements.txt
+COPY requirements-dev.txt /code/
+
+# Python 패키지 설치
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt && \
+    pip install -r requirements-dev.txt
 
 # 프로젝트 파일 복사
 COPY . /code/

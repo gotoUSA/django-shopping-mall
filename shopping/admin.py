@@ -1,34 +1,18 @@
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from django.utils.html import format_html
-from django.db.models import Count, Avg, Q
-from mptt.admin import DraggableMPTTAdmin
 from django.urls import reverse
 from django.utils import timezone
-from datetime import timedelta
+from django.utils.html import format_html
 
-
-from .models import (
-    Product,
-    Category,
-    ProductImage,
-    ProductReview,
-    Order,
-    OrderItem,
-    User,
-    Cart,
-    CartItem,
-)
-
-from .models.notification import Notification
-from .models.product_qa import ProductQuestion, ProductAnswer
-
-from .models.payment import Payment, PaymentLog
-
-from .models.point import PointHistory
+from mptt.admin import DraggableMPTTAdmin
 
 # 이메일 인증 모델
-from shopping.models.email_verification import EmailVerificationToken, EmailLog
+from shopping.models.email_verification import EmailLog, EmailVerificationToken
+
+from .models import Cart, CartItem, Category, Order, OrderItem, Product, ProductImage, ProductReview, User
+from .models.notification import Notification
+from .models.payment import Payment, PaymentLog
+from .models.point import PointHistory
+from .models.product_qa import ProductAnswer, ProductQuestion
 
 # ==========================================
 # 소셜 로그인 Admin 설정
@@ -203,9 +187,7 @@ class CategoryAdmin(DraggableMPTTAdmin):
 
     def related_products_cumulative_count(self, obj):
         """현재 카테고리와 하위 카테고리의 모든 제품 수"""
-        return Product.objects.filter(
-            category__in=obj.get_descendants(include_self=True)
-        ).count()
+        return Product.objects.filter(category__in=obj.get_descendants(include_self=True)).count()
 
     related_products_cumulative_count.short_description = "전체 제품 수"
 
@@ -389,27 +371,21 @@ class OrderAdmin(admin.ModelAdmin):
     def mark_as_paid(self, request, queryset):
         """선택된 주문을 결제완료로 변경"""
         queryset.update(status="paid")
-        self.message_user(
-            request, f"{queryset.count()}개 주문이 결제완료로 변경되었습니다."
-        )
+        self.message_user(request, f"{queryset.count()}개 주문이 결제완료로 변경되었습니다.")
 
     mark_as_paid.short_description = "선택된 주문을 결제완료로 변경"
 
     def mark_as_shipped(self, request, queryset):
         """선택된 주문을 배송중으로 변경"""
         queryset.update(status="shipped")
-        self.message_user(
-            request, f"{queryset.count()}개 주문이 배송중으로 변경되었습니다."
-        )
+        self.message_user(request, f"{queryset.count()}개 주문이 배송중으로 변경되었습니다.")
 
     mark_as_shipped.short_description = "선택된 주문을 배송중으로 변경"
 
     def mark_as_delivered(self, request, queryset):
         """선택된 주문을 배송완료로 변경"""
         queryset.update(status="delivered")
-        self.message_user(
-            request, f"{queryset.count()}개 주문이 배송완료로 변경되었습니다."
-        )
+        self.message_user(request, f"{queryset.count()}개 주문이 배송완료로 변경되었습니다.")
 
     mark_as_delivered.short_description = "선택된 주문을 배송완료로 변경"
 
@@ -615,9 +591,7 @@ class PaymentAdmin(admin.ModelAdmin):
     def receipt_url_link(self, obj):
         """영수증 링크"""
         if obj.receipt_url:
-            return format_html(
-                '<a href="{}" target="_blank">영수증 보기</a>', obj.receipt_url
-            )
+            return format_html('<a href="{}" target="_blank">영수증 보기</a>', obj.receipt_url)
         return "-"
 
     receipt_url_link.short_description = "영수증"
@@ -924,9 +898,7 @@ class EmailLogAdmin(admin.ModelAdmin):
     actions = ["mark_as_sent", "mark_as_failed"]
 
     def mark_as_sent(self, request, queryset):
-        updated = queryset.filter(status="pending").update(
-            status="sent", sent_at=timezone.now()
-        )
+        updated = queryset.filter(status="pending").update(status="sent", sent_at=timezone.now())
         self.message_user(request, f"{updated}개의 이메일을 발송 완료로 표시했습니다.")
 
     mark_as_sent.short_description = "선택한 이메일을 발송 완료로 표시"
@@ -943,9 +915,7 @@ class EmailLogAdmin(admin.ModelAdmin):
 
         # 오늘 통계
         today = timezone.now().date()
-        today_logs = EmailLog.objects.filter(
-            created_at__date=today, email_type="verification"
-        )
+        today_logs = EmailLog.objects.filter(created_at__date=today, email_type="verification")
 
         # 전체 통계
         total_logs = EmailLog.objects.filter(email_type="verification")

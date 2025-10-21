@@ -1,25 +1,17 @@
 # shopping/management/commands/create_test_data.py
 
-from django.core.management.base import BaseCommand
-from django.contrib.auth import get_user_model
-from django.utils import timezone
-from django.db import transaction
-from decimal import Decimal
-import random
 import os
-from datetime import datetime, timedelta
+import random
+from decimal import Decimal
+
+from django.contrib.auth import get_user_model
+from django.core.management.base import BaseCommand
+from django.db import transaction
+from django.utils import timezone
+
 from dotenv import load_dotenv
 
-from shopping.models import (
-    Category,
-    Product,
-    ProductImage,
-    ProductReview,
-    Cart,
-    CartItem,
-    Order,
-    OrderItem,
-)
+from shopping.models import Cart, CartItem, Category, Order, OrderItem, Product, ProductImage, ProductReview
 
 # 환경변수 로드
 load_dotenv()
@@ -126,13 +118,9 @@ class Command(BaseCommand):
         self.test_admin_password = os.environ.get("TEST_ADMIN_PASSWORD", "admin123!")
 
         self.stdout.write("🚀 테스트 데이터 생성을 시작합니다...")
-        self.stdout.write(
-            self.style.SUCCESS(f"📋 프리셋: {preset_name} - {preset['description']}")
-        )
+        self.stdout.write(self.style.SUCCESS(f"📋 프리셋: {preset_name} - {preset['description']}"))
         self.stdout.write(f"   - 카테고리: {preset['categories']}개 (메인)")
-        self.stdout.write(
-            f"   - 상품: 약 {preset['categories'] * preset['products_per_category']}개"
-        )
+        self.stdout.write(f"   - 상품: 약 {preset['categories'] * preset['products_per_category']}개")
         self.stdout.write(f"   - 사용자: {preset['users']}명")
         self.stdout.write(f"   - 리뷰: {'생성' if preset['reviews'] else '생성 안함'}")
         self.stdout.write("")
@@ -162,9 +150,7 @@ class Command(BaseCommand):
             # 6. 주문 샘플 생성
             self.create_sample_orders(users, products, preset)
 
-        self.stdout.write(
-            self.style.SUCCESS("\n✅ 테스트 데이터 생성이 완료되었습니다!")
-        )
+        self.stdout.write(self.style.SUCCESS("\n✅ 테스트 데이터 생성이 완료되었습니다!"))
         self.print_summary()
         self.print_test_accounts()
 
@@ -177,13 +163,9 @@ class Command(BaseCommand):
         for name, preset in self.PRESETS.items():
             self.stdout.write(f"\n🏷️  {name}: {preset['description']}")
             self.stdout.write(f"   - 메인 카테고리: {preset['categories']}개")
-            self.stdout.write(
-                f"   - 상품: 약 {preset['categories'] * preset['products_per_category']}개"
-            )
+            self.stdout.write(f"   - 상품: 약 {preset['categories'] * preset['products_per_category']}개")
             self.stdout.write(f"   - 사용자: {preset['users']}명")
-            self.stdout.write(
-                f"   - 리뷰: {'생성' if preset['reviews'] else '생성 안함'}"
-            )
+            self.stdout.write(f"   - 리뷰: {'생성' if preset['reviews'] else '생성 안함'}")
             self.stdout.write(f"   - 장바구니: {preset['carts']}개")
             self.stdout.write(f"   - 주문: {preset['orders']}건")
 
@@ -268,9 +250,7 @@ class Command(BaseCommand):
         }
 
         # 프리셋에 따라 생성할 카테고리 선택
-        categories_to_create = dict(
-            list(all_categories_data.items())[: preset["categories"]]
-        )
+        categories_to_create = dict(list(all_categories_data.items())[: preset["categories"]])
 
         created_categories = {}
 
@@ -319,10 +299,10 @@ class Command(BaseCommand):
                     "email": f"test{i}@example.com",
                     "first_name": f"테스트{i}",
                     "last_name": "사용자",
-                    "phone_number": f"010-{1000+i:04d}-{1000+i:04d}",
+                    "phone_number": f"010-{1000 + i:04d}-{1000 + i:04d}",
                     "postal_code": "12345",
                     "address": f"서울시 강남구 테스트로 {i}",
-                    "address_detail": f"{100+i}호",
+                    "address_detail": f"{100 + i}호",
                     "is_email_verified": True,
                     "is_phone_verified": True,
                     "membership_level": random.choice(membership_levels),
@@ -352,7 +332,7 @@ class Command(BaseCommand):
         if created:
             admin.set_password(self.test_admin_password)
             admin.save()
-            self.stdout.write(self.style.SUCCESS(f"  ✓ 관리자 계정 생성 (admin)"))
+            self.stdout.write(self.style.SUCCESS("  ✓ 관리자 계정 생성 (admin)"))
 
         self.stdout.write(f"  ✓ {len(users)}명 사용자 생성 완료")
         return users
@@ -424,14 +404,10 @@ class Command(BaseCommand):
                 continue
 
             # 해당 카테고리의 상품 템플릿 선택
-            templates = product_templates.get(
-                category_name, product_templates["default"]
-            )
+            templates = product_templates.get(category_name, product_templates["default"])
 
             # 프리셋에 따라 생성할 상품 수 결정
-            products_to_create = min(
-                len(templates), preset["products_per_category"] // 3
-            )
+            products_to_create = min(len(templates), preset["products_per_category"] // 3)
 
             for i in range(products_to_create):
                 template = templates[i % len(templates)]
@@ -470,9 +446,7 @@ class Command(BaseCommand):
                         "description": f"{name}의 상세 설명입니다. 최고 품질의 제품으로 고객 만족도가 매우 높습니다.",
                         "short_description": f"{name} - 프리미엄 품질 보장",
                         "price": Decimal(str(price)),
-                        "compare_price": (
-                            Decimal(str(compare_price)) if compare_price else None
-                        ),
+                        "compare_price": (Decimal(str(compare_price)) if compare_price else None),
                         "stock": stock,
                         "is_available": True,
                         "is_active": True,
@@ -532,7 +506,7 @@ class Command(BaseCommand):
                     )
                     if created:
                         reviews_created += 1
-                except:
+                except Exception:
                     pass  # 중복 리뷰 무시
 
         self.stdout.write(f"  ✓ {reviews_created}개 리뷰 생성 완료")
@@ -641,13 +615,9 @@ class Command(BaseCommand):
 
         self.stdout.write(f"카테고리: {Category.objects.count()}개")
         self.stdout.write(f"상품: {Product.objects.count()}개")
-        self.stdout.write(
-            f'사용자: {User.objects.filter(username__startswith="test_").count()}명'
-        )
+        self.stdout.write(f'사용자: {User.objects.filter(username__startswith="test_").count()}명')
         self.stdout.write(f"리뷰: {ProductReview.objects.count()}개")
-        self.stdout.write(
-            f"활성 장바구니: {Cart.objects.filter(is_active=True).count()}개"
-        )
+        self.stdout.write(f"활성 장바구니: {Cart.objects.filter(is_active=True).count()}개")
         self.stdout.write(f"주문: {Order.objects.count()}건")
         self.stdout.write("=" * 50)
 
@@ -672,11 +642,9 @@ class Command(BaseCommand):
             self.stdout.write(f"  {user_pwd_info}")
 
         if User.objects.filter(username="admin").exists():
-            self.stdout.write(f"  관리자: admin")
+            self.stdout.write("  관리자: admin")
             self.stdout.write(f"  {admin_pwd_info}")
 
         self.stdout.write("\n💡 팁: .env 파일에서 TEST_USER_PASSWORD와")
-        self.stdout.write(
-            "  TEST_ADMIN_PASSWORD를 설정하여 비밀번호를 변경할 수 있습니다."
-        )
+        self.stdout.write("  TEST_ADMIN_PASSWORD를 설정하여 비밀번호를 변경할 수 있습니다.")
         self.stdout.write("=" * 50)

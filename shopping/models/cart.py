@@ -1,7 +1,8 @@
-from django.db import models
+from decimal import Decimal
+
 from django.conf import settings
 from django.core.validators import MinValueValidator
-from decimal import Decimal
+from django.db import models
 from django.utils import timezone
 
 
@@ -83,9 +84,7 @@ class Cart(models.Model):
     @classmethod
     def get_or_create_active_cart(cls, user):
         """사용자의 활성 장바구니 가져오기 또는 생성"""
-        cart, created = cls.objects.get_or_create(
-            user=user, is_active=True, defaults={"user": user}
-        )
+        cart, created = cls.objects.get_or_create(user=user, is_active=True, defaults={"user": user})
         return cart, created
 
 
@@ -96,19 +95,13 @@ class CartItem(models.Model):
     """
 
     # 장바구니 참조
-    cart = models.ForeignKey(
-        Cart, on_delete=models.CASCADE, related_name="items", verbose_name="장바구니"
-    )
+    cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name="items", verbose_name="장바구니")
 
     # 상품 참조
-    product = models.ForeignKey(
-        "Product", on_delete=models.CASCADE, verbose_name="상품"
-    )
+    product = models.ForeignKey("Product", on_delete=models.CASCADE, verbose_name="상품")
 
     # 수량
-    quantity = models.PositiveIntegerField(
-        default=1, validators=[MinValueValidator(1)], verbose_name="수량"
-    )
+    quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)], verbose_name="수량")
 
     # 시간 정보
     added_at = models.DateTimeField(auto_now_add=True, verbose_name="추가일시")
@@ -148,9 +141,7 @@ class CartItem(models.Model):
         """수량 직접 설정"""
         if quantity > 0:
             # F() 객체 사용하지 않고 직접 값 설정 (이미 lock이 걸려있다고 가정)
-            CartItem.objects.filter(pk=self.pk).update(
-                quantity=quantity, updated_at=timezone.now()
-            )
+            CartItem.objects.filter(pk=self.pk).update(quantity=quantity, updated_at=timezone.now())
             self.refresh_from_db()
         else:
             self.delete()
@@ -164,9 +155,7 @@ class CartItem(models.Model):
         from django.core.exceptions import ValidationError
 
         if self.quantity > self.product.stock:
-            raise ValidationError(
-                {"quantity": f"재고가 부족합니다. 현재 재고: {self.product.stock}개"}
-            )
+            raise ValidationError({"quantity": f"재고가 부족합니다. 현재 재고: {self.product.stock}개"})
 
     def save(self, *args, **kwargs):
         """저장 전 유효성 검사"""

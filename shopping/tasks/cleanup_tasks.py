@@ -1,11 +1,12 @@
 import logging
-from celery import shared_task
-from django.utils import timezone
 from datetime import timedelta
-from django.db.models import Q
 
+from django.utils import timezone
+
+from celery import shared_task
+
+from shopping.models.email_verification import EmailLog, EmailVerificationToken
 from shopping.models.user import User
-from shopping.models.email_verification import EmailVerificationToken, EmailLog
 
 logger = logging.getLogger(__name__)
 

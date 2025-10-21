@@ -10,7 +10,7 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -20,7 +20,7 @@
             align-items: center;
             padding: 20px;
         }
-        
+
         .container {
             background: white;
             border-radius: 20px;
@@ -29,21 +29,21 @@
             max-width: 500px;
             width: 100%;
         }
-        
+
         h1 {
             color: #333;
             text-align: center;
             margin-bottom: 10px;
             font-size: 28px;
         }
-        
+
         .subtitle {
             text-align: center;
             color: #666;
             margin-bottom: 30px;
             font-size: 14px;
         }
-        
+
         .warning {
             background: #fff3cd;
             border-left: 4px solid #ffc107;
@@ -51,25 +51,25 @@
             margin-bottom: 30px;
             border-radius: 5px;
         }
-        
+
         .warning strong {
             color: #856404;
             display: block;
             margin-bottom: 5px;
         }
-        
+
         .warning p {
             color: #856404;
             font-size: 14px;
             line-height: 1.6;
         }
-        
+
         .social-buttons {
             display: flex;
             flex-direction: column;
             gap: 15px;
         }
-        
+
         .social-btn {
             display: flex;
             align-items: center;
@@ -84,64 +84,64 @@
             text-decoration: none;
             color: white;
         }
-        
+
         .social-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
         }
-        
+
         .social-btn svg {
             width: 24px;
             height: 24px;
             margin-right: 12px;
         }
-        
+
         .google {
             background: #fff;
             color: #333;
             border: 1px solid #ddd;
         }
-        
+
         .google:hover {
             background: #f8f9fa;
         }
-        
+
         .kakao {
             background: #FEE500;
             color: #000000;
         }
-        
+
         .kakao:hover {
             background: #e6ce00;
         }
-        
+
         .naver {
             background: #03C75A;
             color: white;
         }
-        
+
         .naver:hover {
             background: #02b350;
         }
-        
+
         .info {
             margin-top: 30px;
             padding: 20px;
             background: #f8f9fa;
             border-radius: 10px;
         }
-        
+
         .info h3 {
             color: #333;
             margin-bottom: 10px;
             font-size: 16px;
         }
-        
+
         .info ul {
             list-style: none;
             padding-left: 0;
         }
-        
+
         .info li {
             color: #666;
             font-size: 14px;
@@ -149,7 +149,7 @@
             padding-left: 20px;
             position: relative;
         }
-        
+
         .info li:before {
             content: "✓";
             position: absolute;
@@ -157,7 +157,7 @@
             color: #28a745;
             font-weight: bold;
         }
-        
+
         .response-section {
             margin-top: 30px;
             padding: 20px;
@@ -165,16 +165,16 @@
             border-radius: 10px;
             display: none;
         }
-        
+
         .response-section.show {
             display: block;
         }
-        
+
         .response-section h3 {
             color: #333;
             margin-bottom: 15px;
         }
-        
+
         .response-content {
             background: #fff;
             padding: 15px;
@@ -184,11 +184,11 @@
             overflow-x: auto;
             border: 1px solid #ddd;
         }
-        
+
         .error {
             color: #dc3545;
         }
-        
+
         .success {
             color: #28a745;
         }
@@ -198,16 +198,16 @@
     <div class="container">
         <h1>🔐 소셜 로그인 테스트</h1>
         <p class="subtitle">OAuth 앱 등록 후 테스트하세요</p>
-        
+
         <div class="warning">
             <strong>⚠️ 주의사항</strong>
             <p>
-                이 페이지는 테스트용입니다. 소셜 로그인을 사용하려면 먼저 
-                각 플랫폼에서 OAuth 앱을 등록하고 .env 파일에 
+                이 페이지는 테스트용입니다. 소셜 로그인을 사용하려면 먼저
+                각 플랫폼에서 OAuth 앱을 등록하고 .env 파일에
                 클라이언트 ID/Secret을 설정해야 합니다.
             </p>
         </div>
-        
+
         <div class="social-buttons">
             <button class="social-btn google" onclick="loginWithGoogle()">
                 <svg viewBox="0 0 24 24">
@@ -218,14 +218,14 @@
                 </svg>
                 Google로 로그인
             </button>
-            
+
             <button class="social-btn kakao" onclick="loginWithKakao()">
                 <svg viewBox="0 0 24 24">
                     <path fill="currentColor" d="M12 3C6.477 3 2 6.477 2 10.75c0 2.722 1.789 5.11 4.475 6.533l-1.165 4.286c-.097.356.338.637.633.408l4.74-3.687c.49.068.99.103 1.497.103 5.523 0 10-3.477 10-7.75S17.523 3 12 3z"/>
                 </svg>
                 Kakao로 로그인
             </button>
-            
+
             <button class="social-btn naver" onclick="loginWithNaver()">
                 <svg viewBox="0 0 24 24">
                     <path fill="currentColor" d="M16.273 12.845L7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727v12.845z"/>
@@ -233,7 +233,7 @@
                 Naver로 로그인
             </button>
         </div>
-        
+
         <div class="info">
             <h3>💡 자동 처리되는 기능</h3>
             <ul>
@@ -243,43 +243,43 @@
                 <li>기존 계정 자동 연결</li>
             </ul>
         </div>
-        
+
         <div class="response-section" id="responseSection">
             <h3>응답 결과</h3>
             <div class="response-content" id="responseContent"></div>
         </div>
     </div>
-    
+
     <script>
         const API_BASE_URL = window.location.origin + '/api';
-        
+
         async function loginWithGoogle() {
             alert('Google OAuth 앱 등록이 필요합니다.\n\n1. Google Cloud Console에서 프로젝트 생성\n2. OAuth 2.0 클라이언트 ID 발급\n3. .env에 GOOGLE_CLIENT_ID/SECRET 설정\n4. 리다이렉트 URI: ' + window.location.origin + '/social/test/');
-            
+
             // 실제 구현 시:
             // window.location.href = API_BASE_URL + '/auth/social/google/';
         }
-        
+
         async function loginWithKakao() {
             alert('Kakao Developers에서 앱 등록이 필요합니다.\n\n1. Kakao Developers에서 애플리케이션 추가\n2. REST API 키 발급\n3. .env에 KAKAO_REST_API_KEY/SECRET 설정\n4. Redirect URI: ' + window.location.origin + '/social/test/');
-            
+
             // 실제 구현 시:
             // window.location.href = API_BASE_URL + '/auth/social/kakao/';
         }
-        
+
         async function loginWithNaver() {
             alert('Naver Developers에서 앱 등록이 필요합니다.\n\n1. Naver Developers에서 애플리케이션 등록\n2. Client ID/Secret 발급\n3. .env에 NAVER_CLIENT_ID/SECRET 설정\n4. Callback URL: ' + window.location.origin + '/social/test/');
-            
+
             // 실제 구현 시:
             // window.location.href = API_BASE_URL + '/auth/social/naver/';
         }
-        
+
         // URL 파라미터에서 토큰 확인 (리다이렉트 후)
         window.addEventListener('DOMContentLoaded', () => {
             const urlParams = new URLSearchParams(window.location.search);
             const access = urlParams.get('access_token');
             const refresh = urlParams.get('refresh_token');
-            
+
             if (access) {
                 showResponse({
                     success: true,
@@ -288,7 +288,7 @@
                     refresh_token: refresh
                 });
             }
-            
+
             const error = urlParams.get('error');
             if (error) {
                 showResponse({
@@ -298,14 +298,14 @@
                 });
             }
         });
-        
+
         function showResponse(data) {
             const section = document.getElementById('responseSection');
             const content = document.getElementById('responseContent');
-            
+
             section.classList.add('show');
             content.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
-            
+
             if (data.success) {
                 content.classList.add('success');
                 content.classList.remove('error');

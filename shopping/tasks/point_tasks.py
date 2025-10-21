@@ -1,10 +1,12 @@
+import traceback
+from typing import Optional
+
+from django.conf import settings
+from django.core.mail import send_mail
+from django.utils import timezone
+
 from celery import shared_task
 from celery.utils.log import get_task_logger
-from django.core.mail import send_mail
-from django.conf import settings
-from django.utils import timezone
-from typing import Optional
-import traceback
 
 logger = get_task_logger(__name__)
 
@@ -89,9 +91,7 @@ def send_expiry_notification_task() -> dict:
     max_retries=5,
     default_retry_delay=120,  # 2분 후 재시도
 )
-def send_email_notification(
-    email: str, subject: str, message: str, html_message: Optional[str] = None
-) -> bool:
+def send_email_notification(email: str, subject: str, message: str, html_message: Optional[str] = None) -> bool:
     """
     이메일 알림 발송 태스크
 
@@ -108,11 +108,7 @@ def send_email_notification(
         send_mail(
             subject=subject,
             message=message,
-            from_email=(
-                settings.DEFAULT_FROM_EMAIL
-                if hasattr(settings, "DEFAULT_FROM_EMAIL")
-                else "noreply@shopping.com"
-            ),
+            from_email=(settings.DEFAULT_FROM_EMAIL if hasattr(settings, "DEFAULT_FROM_EMAIL") else "noreply@shopping.com"),
             recipient_list=[email],
             html_message=html_message,
             fail_silently=False,

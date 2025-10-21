@@ -1,6 +1,5 @@
-from django.db import models
 from django.conf import settings
-from decimal import Decimal
+from django.db import models
 
 
 class PointHistory(models.Model):
@@ -30,14 +29,10 @@ class PointHistory(models.Model):
     )
 
     # 포인트 변동량 (양수: 적립, 음수: 사용/차감)
-    points = models.IntegerField(
-        verbose_name="포인트", help_text="양수는 적립, 음수는 사용/차감"
-    )
+    points = models.IntegerField(verbose_name="포인트", help_text="양수는 적립, 음수는 사용/차감")
 
     # 변경 후 잔액
-    balance = models.PositiveIntegerField(
-        verbose_name="잔액", help_text="변경 후 포인트 잔액"
-    )
+    balance = models.PositiveIntegerField(verbose_name="잔액", help_text="변경 후 포인트 잔액")
 
     # 포인트 타입
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, verbose_name="타입")
@@ -53,9 +48,7 @@ class PointHistory(models.Model):
     )
 
     # 설명
-    description = models.CharField(
-        max_length=255, verbose_name="설명", help_text="포인트 변동 사유"
-    )
+    description = models.CharField(max_length=255, verbose_name="설명", help_text="포인트 변동 사유")
 
     # 유효기간 (적립 포인트의 경우)
     expires_at = models.DateTimeField(
@@ -125,8 +118,9 @@ class PointHistory(models.Model):
         # 유효기간 설정 (적립의 경우 1년)
         expires_at = kwargs.pop("expires_at", None)
         if type == "earn" and not expires_at:
-            from django.utils import timezone
             from datetime import timedelta
+
+            from django.utils import timezone
 
             expires_at = timezone.now() + timedelta(days=365)
 

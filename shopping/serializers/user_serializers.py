@@ -1,6 +1,8 @@
-from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
+
+from rest_framework import serializers
+
 from shopping.models.user import User
 
 
@@ -123,9 +125,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         """비밀번호 일치 검사"""
         if attrs["password"] != attrs["password2"]:
-            raise serializers.ValidationError(
-                {"password": "비밀번호가 일치하지 않습니다."}
-            )
+            raise serializers.ValidationError({"password": "비밀번호가 일치하지 않습니다."})
         return attrs
 
     def create(self, validated_data):
@@ -168,9 +168,7 @@ class LoginSerializer(serializers.Serializer):
             )
 
             if not user:
-                raise serializers.ValidationError(
-                    "아이디 또는 비밀번호가 올바르지 않습니다."
-                )
+                raise serializers.ValidationError("아이디 또는 비밀번호가 올바르지 않습니다.")
 
             if not user.is_active:
                 raise serializers.ValidationError("비활성화된 계정입니다.")
@@ -222,9 +220,7 @@ class PasswordChangeSerializer(serializers.Serializer):
     def validate(self, attrs):
         """새 비밀번호 일치 검사"""
         if attrs["new_password"] != attrs["new_password2"]:
-            raise serializers.ValidationError(
-                {"new_password": "새 비밀번호가 일치하지 않습니다"}
-            )
+            raise serializers.ValidationError({"new_password": "새 비밀번호가 일치하지 않습니다"})
         return attrs
 
     def save(self):

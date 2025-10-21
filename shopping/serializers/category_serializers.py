@@ -1,6 +1,6 @@
 from rest_framework import serializers
-from django.db.models import Count, Q
-from ..models.product import Category, Product
+
+from ..models.product import Category
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -25,19 +25,13 @@ class CategorySerializer(serializers.ModelSerializer):
     )
 
     # 해당 카테고리의 활성 상품 수
-    product_count = serializers.SerializerMethodField(
-        help_text="카테고리에 속한 활성 상품 수"
-    )
+    product_count = serializers.SerializerMethodField(help_text="카테고리에 속한 활성 상품 수")
 
     # 하위 카테고리 수
-    children_count = serializers.SerializerMethodField(
-        help_text="직계 하위 카테고리 수"
-    )
+    children_count = serializers.SerializerMethodField(help_text="직계 하위 카테고리 수")
 
     # 전체 경로 (예: "전자제품 > 컴퓨터 > 노트북")
-    full_path = serializers.SerializerMethodField(
-        help_text="최상위부터 현재까지의 전체 경로"
-    )
+    full_path = serializers.SerializerMethodField(help_text="최상위부터 현재까지의 전체 경로")
 
     class Meta:
         model = Category
@@ -182,9 +176,7 @@ class CategoryCreateUpdateSerializer(serializers.ModelSerializer):
         if self.instance and value:
             # 자기 자신인지 확인
             if value.pk == self.instance.pk:
-                raise serializers.ValidationError(
-                    "자기 자신을 부모 카테고리로 설정할 수 없습니다."
-                )
+                raise serializers.ValidationError("자기 자신을 부모 카테고리로 설정할 수 없습니다.")
 
             # 자신의 하위 카테고리인지 확인
             # get_descendants 메서드가 있다고 가정 (django-mptt 사용 시)
@@ -192,9 +184,7 @@ class CategoryCreateUpdateSerializer(serializers.ModelSerializer):
             current = value
             while current.parent:
                 if current.parent.pk == self.instance.pk:
-                    raise serializers.ValidationError(
-                        "하위 카테고리를 부모로 설정할 수 없습니다."
-                    )
+                    raise serializers.ValidationError("하위 카테고리를 부모로 설정할 수 없습니다.")
                 current = current.parent
 
         return value
@@ -205,17 +195,11 @@ class CategoryCreateUpdateSerializer(serializers.ModelSerializer):
         if self.instance and not attrs.get("is_active", True):
             # 활성화된 하위 카테고리가 있는지 확인
             if self.instance.children.filter(is_active=True).exists():
-                raise serializers.ValidationError(
-                    {
-                        "is_active": "활성화된 하위 카테고리가 있는 경우 비활성화할 수 없습니다."
-                    }
-                )
+                raise serializers.ValidationError({"is_active": "활성화된 하위 카테고리가 있는 경우 비활성화할 수 없습니다."})
 
             # 활성화된 상품이 있는지 확인
             if self.instance.products.filter(is_active=True).exists():
-                raise serializers.ValidationError(
-                    {"is_active": "활성화된 상품이 있는 경우 비활성화할 수 없습니다."}
-                )
+                raise serializers.ValidationError({"is_active": "활성화된 상품이 있는 경우 비활성화할 수 없습니다."})
 
         return attrs
 

@@ -1,6 +1,6 @@
 from rest_framework import serializers
+
 from shopping.models.product import Product
-from shopping.models.user import User
 
 
 class WishlistProductSerializer(serializers.ModelSerializer):
@@ -49,19 +49,13 @@ class WishlistProductSerializer(serializers.ModelSerializer):
             return primary.image.url if hasattr(primary.image, "url") else None
         # 대표 이미지가 없으면 첫 번째 이미지
         first_image = obj.images.first()
-        return (
-            first_image.image.url
-            if first_image and hasattr(first_image.image, "url")
-            else None
-        )
+        return first_image.image.url if first_image and hasattr(first_image.image, "url") else None
 
 
 class WishlistToggleSerializer(serializers.Serializer):
     """찜하기 토글 요청 Serializer"""
 
-    product_id = serializers.IntegerField(
-        required=True, help_text="찜하기/취소할 상품 ID"
-    )
+    product_id = serializers.IntegerField(required=True, help_text="찜하기/취소할 상품 ID")
 
     def validate_product_id(self, value):
         """상품 존재 여부 확인"""
@@ -89,15 +83,11 @@ class WishlistBulkAddSerializer(serializers.Serializer):
         unique_ids = list(set(value))
 
         # 존재하는 상품인지 확인
-        existing_ids = Product.objects.filter(id__in=unique_ids).values_list(
-            "id", flat=True
-        )
+        existing_ids = Product.objects.filter(id__in=unique_ids).values_list("id", flat=True)
 
         not_found = set(unique_ids) - set(existing_ids)
         if not_found:
-            raise serializers.ValidationError(
-                f"다음 상품을 찾을 수 없습니다: {list(not_found)}"
-            )
+            raise serializers.ValidationError(f"다음 상품을 찾을 수 없습니다: {list(not_found)}")
 
         return unique_ids
 
@@ -117,12 +107,6 @@ class WishlistStatsSerializer(serializers.Serializer):
     available_count = serializers.IntegerField(read_only=True)
     out_of_stock_count = serializers.IntegerField(read_only=True)
     on_sale_count = serializers.IntegerField(read_only=True)
-    total_price = serializers.DecimalField(
-        max_digits=10, decimal_places=0, read_only=True
-    )
-    total_sale_price = serializers.DecimalField(
-        max_digits=10, decimal_places=0, read_only=True
-    )
-    total_discount = serializers.DecimalField(
-        max_digits=10, decimal_places=0, read_only=True
-    )
+    total_price = serializers.DecimalField(max_digits=10, decimal_places=0, read_only=True)
+    total_sale_price = serializers.DecimalField(max_digits=10, decimal_places=0, read_only=True)
+    total_discount = serializers.DecimalField(max_digits=10, decimal_places=0, read_only=True)

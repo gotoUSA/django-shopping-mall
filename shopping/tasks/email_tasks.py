@@ -1,12 +1,14 @@
 import logging
-from celery import shared_task
-from django.core.mail import send_mail
-from django.template.loader import render_to_string
-from django.conf import settings
-from django.utils import timezone
 from datetime import timedelta
 
-from shopping.models.email_verification import EmailVerificationToken, EmailLog
+from django.conf import settings
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.utils import timezone
+
+from celery import shared_task
+
+from shopping.models.email_verification import EmailLog, EmailVerificationToken
 from shopping.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -43,8 +45,7 @@ def send_verification_email_task(self, user_id, token_id, is_resend=False):
                 "user": user,
                 "email_type": "verification",
                 "recipient_email": user.email,
-                "subject": "[쇼핑몰] 이메일 인증을 완료해주세요"
-                + (" (재발송)" if is_resend else ""),
+                "subject": "[쇼핑몰] 이메일 인증을 완료해주세요" + (" (재발송)" if is_resend else ""),
                 "status": "pending",
             },
         )
@@ -104,9 +105,7 @@ def send_verification_email_task(self, user_id, token_id, is_resend=False):
         # 발송 성공 처리
         email_log.mark_as_sent()
 
-        logger.info(
-            f"✅ 이메일 발송 성공: {user.email} (토큰: {token.verification_code})"
-        )
+        logger.info(f"✅ 이메일 발송 성공: {user.email} (토큰: {token.verification_code})")
 
         return {
             "success": True,
@@ -130,9 +129,7 @@ def send_verification_email_task(self, user_id, token_id, is_resend=False):
         }
 
     except Exception as e:
-        logger.error(
-            f"❌ 이메일 발송 실패: {user.email if 'user' in locals() else 'unknown'} - {str(e)}"
-        )
+        logger.error(f"❌ 이메일 발송 실패: {user.email if 'user' in locals() else 'unknown'} - {str(e)}")
 
         # 이메일 로그 실패 처리
         if "email_log" in locals():
@@ -190,9 +187,7 @@ def retry_failed_emails_task(self):
                 logger.info(f"🔄 재발송 예약 성공: {email_log.recipient_email}")
 
             except Exception as e:
-                logger.error(
-                    f"❌ 재발송 예약 실패: {email_log.recipient_email} - {str(e)}"
-                )
+                logger.error(f"❌ 재발송 예약 실패: {email_log.recipient_email} - {str(e)}")
 
         result = {
             "success": True,

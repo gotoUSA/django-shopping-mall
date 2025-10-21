@@ -1,15 +1,16 @@
-from django.test import TestCase
-from django.urls import reverse
-from rest_framework.test import APIClient
-from rest_framework import status
 from decimal import Decimal
 
-from shopping.models.user import User
-from shopping.models.product import Product, Category
-from shopping.models.cart import Cart, CartItem
+from django.test import TestCase
+from django.urls import reverse
+
+from rest_framework import status
+from rest_framework.test import APIClient
+
+from shopping.models.email_verification import EmailVerificationToken
 from shopping.models.order import Order
 from shopping.models.payment import Payment
-from shopping.models.email_verification import EmailVerificationToken
+from shopping.models.product import Category, Product
+from shopping.models.user import User
 
 
 class UserIntegrationTest(TestCase):
@@ -59,7 +60,7 @@ class UserIntegrationTest(TestCase):
         self.assertFalse(user.is_email_verified)  # 아직 미인증 상태
 
         # 2. 이메일 인증
-        token = EmailVerificationToken.objects.create(user=user)
+        EmailVerificationToken.objects.create(user=user)
         user.is_email_verified = True
         user.save()
 
@@ -73,9 +74,7 @@ class UserIntegrationTest(TestCase):
 
         # 4. 장바구니에 상품 추가
         cart_data = {"product_id": self.product.id, "quantity": 1}
-        response = self.client.post(
-            f"{self.cart_url}add_item/", cart_data, format="json"
-        )
+        response = self.client.post(f"{self.cart_url}add_item/", cart_data, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         # 5. 주문 생성
@@ -96,9 +95,7 @@ class UserIntegrationTest(TestCase):
 
         # 6. 결제 요청 (성공)
         payment_data = {"order_id": order.id, "payment_method": "card"}
-        response = self.client.post(
-            self.payment_request_url, payment_data, format="json"
-        )
+        response = self.client.post(self.payment_request_url, payment_data, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("payment_id", response.data)
 
@@ -128,9 +125,7 @@ class UserIntegrationTest(TestCase):
 
         # 2. 장바구니에 상품 추가 (허용)
         cart_data = {"product_id": self.product.id, "quantity": 1}
-        response = self.client.post(
-            f"{self.cart_url}add_item/", cart_data, format="json"
-        )
+        response = self.client.post(f"{self.cart_url}add_item/", cart_data, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         # 3. 주문 생성 시도 (차단되어야함)
@@ -179,9 +174,7 @@ class UserIntegrationTest(TestCase):
 
         # 3. 결제 요청 시도 (차단되어야 함)
         payment_data = {"order_id": order.id, "payment_method": "card"}
-        response = self.client.post(
-            self.payment_request_url, payment_data, format="json"
-        )
+        response = self.client.post(self.payment_request_url, payment_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn("이메일 인증", response.data["error"])
@@ -205,9 +198,7 @@ class UserIntegrationTest(TestCase):
 
         # 장바구니 → 주문 → 결제 요청까지 모두 성공해야 함
         cart_data = {"product_id": self.product.id, "quantity": 1}
-        response = self.client.post(
-            f"{self.cart_url}add_item/", cart_data, format="json"
-        )
+        response = self.client.post(f"{self.cart_url}add_item/", cart_data, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         order_data = {
@@ -223,7 +214,5 @@ class UserIntegrationTest(TestCase):
         order = Order.objects.get(user=user)
 
         payment_data = {"order_id": order.id, "payment_method": "card"}
-        response = self.client.post(
-            self.payment_request_url, payment_data, format="json"
-        )
+        response = self.client.post(self.payment_request_url, payment_data, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)

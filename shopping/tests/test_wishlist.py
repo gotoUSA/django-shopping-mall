@@ -1,10 +1,13 @@
 from decimal import Decimal
+
 from django.test import TestCase
 from django.urls import reverse
+
 from rest_framework import status
 from rest_framework.test import APIClient
+
+from shopping.models.product import Category, Product
 from shopping.models.user import User
-from shopping.models.product import Product, Category
 
 
 class WishlistTestCase(TestCase):
@@ -80,9 +83,7 @@ class WishlistTestCase(TestCase):
 
     def _login(self):
         """로그인 헬퍼 메서드"""
-        response = self.client.post(
-            reverse("auth-login"), {"username": "testuser", "password": "testpass123"}
-        )
+        response = self.client.post(reverse("auth-login"), {"username": "testuser", "password": "testpass123"})
         token = response.json()["access"]
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
         return token
@@ -235,9 +236,7 @@ class WishlistTestCase(TestCase):
         # 하나는 미리 찜하기
         self.user.add_to_wishlist(self.product1)
 
-        response = self.client.post(
-            self.bulk_add_url, {"product_ids": [self.product1.id, self.product2.id]}
-        )
+        response = self.client.post(self.bulk_add_url, {"product_ids": [self.product1.id, self.product2.id]})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["added_count"], 1)  # product2만 추가
         self.assertEqual(response.data["skipped_count"], 1)  # product1은 스킵
@@ -297,15 +296,9 @@ class WishlistTestCase(TestCase):
         # product1: compare_price=1000000, price=900000
         # product2: price=50000 (compare_price 없음)
         # product3: price=80000 (compare_price 없음)
-        self.assertEqual(
-            float(stats["total_price"]), 1130000
-        )  # total_price = 1000000 + 50000 + 80000
-        self.assertEqual(
-            float(stats["total_sale_price"]), 1030000
-        )  # total_sale_price 900000 + 50000 + 80000
-        self.assertEqual(
-            float(stats["total_discount"]), 100000
-        )  # total_discount = 1000000 - 900000 = 100000
+        self.assertEqual(float(stats["total_price"]), 1130000)  # total_price = 1000000 + 50000 + 80000
+        self.assertEqual(float(stats["total_sale_price"]), 1030000)  # total_sale_price 900000 + 50000 + 80000
+        self.assertEqual(float(stats["total_discount"]), 100000)  # total_discount = 1000000 - 900000 = 100000
 
     # 찜 목록 삭제 테스트
 
@@ -318,9 +311,7 @@ class WishlistTestCase(TestCase):
         self.assertEqual(self.user.get_wishlist_count(), 1)
 
         # 제거
-        response = self.client.delete(
-            f"{self.remove_url}?product_id={self.product1.id}"
-        )
+        response = self.client.delete(f"{self.remove_url}?product_id={self.product1.id}")
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
         # 확인
@@ -351,7 +342,7 @@ class WishlistTestCase(TestCase):
 
     def test_move_to_cart(self):
         """찜 목록에서 장바구니로 이동"""
-        from shopping.models.cart import Cart, CartItem
+        from shopping.models.cart import Cart
 
         self._login()
 
@@ -449,9 +440,7 @@ class WishlistTestCase(TestCase):
 
         # 두 번째 사용자로 로그인
         self.client.credentials()  # 인증 초기화
-        response = self.client.post(
-            reverse("auth-login"), {"username": "otheruser", "password": "otherpass123"}
-        )
+        response = self.client.post(reverse("auth-login"), {"username": "otheruser", "password": "otherpass123"})
         token = response.json()["access"]
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 

@@ -1,18 +1,19 @@
 """
 JWT 인증 시스템 테스트
 
-이 파일은 회원가입, 로그인, 토큰 갱신 등 
+이 파일은 회원가입, 로그인, 토큰 갱신 등
 인증 관련 모든 기능을 테스트합니다.
 """
 
-import json
 from datetime import timedelta
+
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
+
 from rest_framework import status
 from rest_framework.test import APIClient
-from rest_framework_simplejwt.tokens import RefreshToken
+
 from shopping.models.user import User
 
 
@@ -71,9 +72,7 @@ class AuthenticationTestCase(TestCase):
         4. 데이터베이스에 사용자 생성 확인
         """
         # API 요청 보내기
-        response = self.client.post(
-            self.register_url, data=self.test_user_data, format="json"
-        )
+        response = self.client.post(self.register_url, data=self.test_user_data, format="json")
 
         # 응답 상태 코드 확인 (201 = created)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -115,9 +114,7 @@ class AuthenticationTestCase(TestCase):
         duplicate_data["username"] = "newusername"  # 다른 username
 
         # API 요청
-        response = self.client.post(
-            self.register_url, data=duplicate_data, format="json"
-        )
+        response = self.client.post(self.register_url, data=duplicate_data, format="json")
 
         # 실패 응답 확인 (400 = Bad Request)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -140,9 +137,7 @@ class AuthenticationTestCase(TestCase):
         mismatch_data = self.test_user_data.copy()
         mismatch_data["password2"] = "DifferentPass123!"
 
-        response = self.client.post(
-            self.register_url, data=mismatch_data, format="json"
-        )
+        response = self.client.post(self.register_url, data=mismatch_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
@@ -161,9 +156,7 @@ class AuthenticationTestCase(TestCase):
         weak_password_data["password"] = "1234"
         weak_password_data["password2"] = "1234"
 
-        response = self.client.post(
-            self.register_url, data=weak_password_data, format="json"
-        )
+        response = self.client.post(self.register_url, data=weak_password_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("password", response.json())
@@ -283,9 +276,7 @@ class AuthenticationTestCase(TestCase):
         """
         invalid_refresh_data = {"refresh": "invalid_token_string"}
 
-        response = self.client.post(
-            self.refresh_url, data=invalid_refresh_data, format="json"
-        )
+        response = self.client.post(self.refresh_url, data=invalid_refresh_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -316,9 +307,7 @@ class AuthenticationTestCase(TestCase):
         self.assertIn("로그아웃 되었습니다", response.json()["message"])
 
         # 블랙리스트된 refresh token으로 갱신 시도 (실패해야함)
-        refresh_response = self.client.post(
-            self.refresh_url, data={"refresh": tokens["refresh"]}, format="json"
-        )
+        refresh_response = self.client.post(self.refresh_url, data={"refresh": tokens["refresh"]}, format="json")
         self.assertEqual(refresh_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_user_logout_without_token(self):
@@ -411,9 +400,7 @@ class AuthenticationTestCase(TestCase):
             "new_password2": "NewSecurePass456!",
         }
 
-        response = self.client.post(
-            self.password_change_url, data=password_data, format="json"
-        )
+        response = self.client.post(self.password_change_url, data=password_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -437,9 +424,7 @@ class AuthenticationTestCase(TestCase):
             "new_password2": "NewSecurePass456!",
         }
 
-        response = self.client.post(
-            self.password_change_url, data=password_data, format="json"
-        )
+        response = self.client.post(self.password_change_url, data=password_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("현재 비밀번호가 올바르지 않습니다", str(response.json()))
@@ -454,9 +439,7 @@ class AuthenticationTestCase(TestCase):
 
         withdrawal_data = {"password": "ExistingPass123!"}
 
-        response = self.client.post(
-            self.withdraw_url, data=withdrawal_data, format="json"
-        )
+        response = self.client.post(self.withdraw_url, data=withdrawal_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -482,9 +465,7 @@ class AuthenticationTestCase(TestCase):
 
         withdrawal_data = {"password": "WrongPassword!"}
 
-        response = self.client.post(
-            self.withdraw_url, data=withdrawal_data, format="json"
-        )
+        response = self.client.post(self.withdraw_url, data=withdrawal_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("비밀번호가 올바르지 않습니다", str(response.json()))
@@ -514,9 +495,7 @@ class TokenExpiryTestCase(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create_user(
-            username="token_test_user", email="token@test.com", password="TokenTest123!"
-        )
+        self.user = User.objects.create_user(username="token_test_user", email="token@test.com", password="TokenTest123!")
 
     def test_expired_access_token(self):
         """

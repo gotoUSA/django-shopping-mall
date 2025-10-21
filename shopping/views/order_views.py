@@ -1,17 +1,13 @@
-from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from django.db import transaction
 import logging
 
+from django.db import transaction
 
-from ..models.order import Order, OrderItem
-from ..serializers.order_serializers import (
-    OrderListSerializer,
-    OrderDetailSerializer,
-    OrderCreateSerializer,
-)
+from rest_framework import permissions, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
+from ..models.order import Order
+from ..serializers.order_serializers import OrderCreateSerializer, OrderDetailSerializer, OrderListSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +24,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Order.objects.all().prefetch_related("order_items__product")
         else:
             # 일반 사용자는 본인 주문만 조회 가능
-            return Order.objects.filter(user=self.request.user).prefetch_related(
-                "order_items__product"
-            )
+            return Order.objects.filter(user=self.request.user).prefetch_related("order_items__product")
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -48,10 +42,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         """
         # 이메일 인증 체크
         if not request.user.is_email_verified:
-            logger.warning(
-                f"미인증 사용자 주문 생성 시도: user_id={request.user.id}, "
-                f"email={request.user.email}"
-            )
+            logger.warning(f"미인증 사용자 주문 생성 시도: user_id={request.user.id}, " f"email={request.user.email}")
             return Response(
                 {
                     "error": "이메일 인증이 필요합니다.",

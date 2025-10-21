@@ -1,17 +1,15 @@
-from rest_framework import status, permissions
+from datetime import timedelta
+
+from django.db.models import Count, Sum
+from django.utils import timezone
+
+from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.db.models import Q, Sum, Count
-from django.utils import timezone
-from datetime import timedelta
 
 from ..models.point import PointHistory
-from ..serializers.point_serializers import (
-    PointHistorySerializer,
-    UserPointSerializer,
-    PointCheckSerializer,
-)
+from ..serializers.point_serializers import PointCheckSerializer, PointHistorySerializer, UserPointSerializer
 
 
 class MyPointView(APIView):
@@ -27,15 +25,11 @@ class MyPointView(APIView):
         serializer = UserPointSerializer(user)
 
         # 최근 포인트 이력 5개
-        recent_histories = PointHistory.objects.filter(user=user).order_by(
-            "-created_at"
-        )[:5]
+        recent_histories = PointHistory.objects.filter(user=user).order_by("-created_at")[:5]
 
         recent_serializer = PointHistorySerializer(recent_histories, many=True)
 
-        return Response(
-            {"point_info": serializer.data, "recent_histories": recent_serializer.data}
-        )
+        return Response({"point_info": serializer.data, "recent_histories": recent_serializer.data})
 
 
 class PointHistoryListView(APIView):
@@ -90,14 +84,8 @@ class PointHistoryListView(APIView):
         # 요약 정보
         summary = {
             "current_points": user.points,
-            "total_earned": queryset.filter(points__gt=0).aggregate(
-                total=Sum("points")
-            )["total"]
-            or 0,
-            "total_used": abs(
-                queryset.filter(points__lt=0).aggregate(total=Sum("points"))["total"]
-                or 0
-            ),
+            "total_earned": queryset.filter(points__gt=0).aggregate(total=Sum("points"))["total"] or 0,
+            "total_used": abs(queryset.filter(points__lt=0).aggregate(total=Sum("points"))["total"] or 0),
         }
 
         return Response(
@@ -138,9 +126,7 @@ class PointCheckView(APIView):
             "message": "500포인트 사용 가능합니다."
         }
         """
-        serializer = PointCheckSerializer(
-            data=request.data, context={"request": request}
-        )
+        serializer = PointCheckSerializer(data=request.data, context={"request": request})
 
         if serializer.is_valid():
             return Response(serializer.validated_data["result"])
@@ -212,40 +198,26 @@ def point_statistics(request):
     this_month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0)
 
     this_month_earned = (
-        PointHistory.objects.filter(
-            user=user, points__gt=0, created_at__gte=this_month_start
-        ).aggregate(total=Sum("points"))["total"]
+        PointHistory.objects.filter(user=user, points__gt=0, created_at__gte=this_month_start).aggregate(total=Sum("points"))[
+            "total"
+        ]
         or 0
     )
 
     this_month_used = abs(
-        PointHistory.objects.filter(
-            user=user, points__lt=0, created_at__gte=this_month_start
-        ).aggregate(total=Sum("points"))["total"]
+        PointHistory.objects.filter(user=user, points__lt=0, created_at__gte=this_month_start).aggregate(total=Sum("points"))[
+            "total"
+        ]
         or 0
     )
 
     # 전체 통계
-    total_earned = (
-        PointHistory.objects.filter(user=user, points__gt=0).aggregate(
-            total=Sum("points")
-        )["total"]
-        or 0
-    )
+    total_earned = PointHistory.objects.filter(user=user, points__gt=0).aggregate(total=Sum("points"))["total"] or 0
 
-    total_used = abs(
-        PointHistory.objects.filter(user=user, points__lt=0).aggregate(
-            total=Sum("points")
-        )["total"]
-        or 0
-    )
+    total_used = abs(PointHistory.objects.filter(user=user, points__lt=0).aggregate(total=Sum("points"))["total"] or 0)
 
     # 타입별 통계
-    type_stats = (
-        PointHistory.objects.filter(user=user)
-        .values("type")
-        .annotate(count=Count("id"), total=Sum("points"))
-    )
+    type_stats = PointHistory.objects.filter(user=user).values("type").annotate(count=Count("id"), total=Sum("points"))
 
     return Response(
         {

@@ -1,14 +1,12 @@
+from datetime import timedelta
+from unittest.mock import patch
+
 from django.test import TestCase
 from django.utils import timezone
-from datetime import timedelta
-from unittest.mock import patch, MagicMock
 
+from shopping.models.email_verification import EmailLog, EmailVerificationToken
 from shopping.models.user import User
-from shopping.models.email_verification import EmailVerificationToken, EmailLog
-from shopping.tasks.email_tasks import (
-    send_verification_email_task,
-    retry_failed_emails_task,
-)
+from shopping.tasks.email_tasks import retry_failed_emails_task, send_verification_email_task
 
 
 class SendVerificationEmailTaskTest(TestCase):
@@ -56,7 +54,7 @@ class SendVerificationEmailTaskTest(TestCase):
     def test_send_verification_email_resend(self, mock_send_mail):
         """재발송 테스트"""
         # 기존 로그 생성
-        existing_log = EmailLog.objects.create(
+        EmailLog.objects.create(
             user=self.user,
             token=self.token,
             email_type="verification",
@@ -139,7 +137,7 @@ class RetryFailedEmailsTaskTest(TestCase):
         # 실패한 이메일 로그 생성
         token = EmailVerificationToken.objects.create(user=self.user)
 
-        failed_log = EmailLog.objects.create(
+        EmailLog.objects.create(
             user=self.user,
             token=token,
             email_type="verification",
@@ -166,7 +164,7 @@ class RetryFailedEmailsTaskTest(TestCase):
         token.created_at = timezone.now() - timedelta(hours=25)
         token.save()
 
-        failed_log = EmailLog.objects.create(
+        EmailLog.objects.create(
             user=self.user,
             token=token,
             email_type="verification",
@@ -189,7 +187,7 @@ class RetryFailedEmailsTaskTest(TestCase):
 
         token = EmailVerificationToken.objects.create(user=self.user)
 
-        failed_log = EmailLog.objects.create(
+        EmailLog.objects.create(
             user=self.user,
             token=token,
             email_type="verification",

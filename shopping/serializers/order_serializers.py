@@ -1,12 +1,13 @@
-from rest_framework import serializers
-from django.db import transaction
 from decimal import Decimal
-from django.db.models import F
 
+from django.db import transaction
+
+from rest_framework import serializers
+
+from ..models.cart import Cart
 from ..models.order import Order, OrderItem
-from ..models.cart import Cart, CartItem
-from ..models.product import Product
 from ..models.point import PointHistory
+from ..models.product import Product
 from .product_serializers import ProductListSerializer
 
 
@@ -141,9 +142,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
         # 이메일 인증 확인
         if not user.is_email_verified:
-            raise serializers.ValidationError(
-                "이메일 인증이 필요합니다. 먼저 이메일을 인증해주세요."
-            )
+            raise serializers.ValidationError("이메일 인증이 필요합니다. 먼저 이메일을 인증해주세요.")
         # 장바구니 확인
         cart = Cart.objects.filter(user=user, is_active=True).first()
         if not cart or not cart.items.exists():
@@ -153,8 +152,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         for item in cart.items.all():
             if item.product.stock < item.quantity:
                 raise serializers.ValidationError(
-                    f"{item.product.name}의 재고가 부족합니다. "
-                    f"(현재 재고: {item.product.stock}개)"
+                    f"{item.product.name}의 재고가 부족합니다. " f"(현재 재고: {item.product.stock}개)"
                 )
 
         # 배송비 미리 계산
@@ -163,9 +161,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         # 도서 산간 지역 체크 (우편번호 기반)
         shipping_postal_code = attrs.get("shipping_postal_code", "")
         remote_area_postal_codes = ["63", "59", "52"]  # 제주, 울릉도 등
-        is_remote = any(
-            shipping_postal_code.startswith(code) for code in remote_area_postal_codes
-        )
+        is_remote = any(shipping_postal_code.startswith(code) for code in remote_area_postal_codes)
 
         # 배송비 계산
         FREE_SHIPPING_THRESHOLD = Decimal("30000")
@@ -186,9 +182,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         if use_points > 0:
             # 최소 사용 포인트 체크 (100포인트)
             if use_points < 100:
-                raise serializers.ValidationError(
-                    "포인트는 최소 100포인트 이상 사용 가능합니다."
-                )
+                raise serializers.ValidationError("포인트는 최소 100포인트 이상 사용 가능합니다.")
 
             # 보유 포인트 체크
             if use_points > user.points:
@@ -236,10 +230,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
         # 도서 산간 지역 체크 (우편번호 기반)
         remote_area_postal_codes = ["63", "59", "52"]  # 제주, 울릉도 등
-        is_remote = any(
-            order.shipping_postal_code.startswith(code)
-            for code in remote_area_postal_codes
-        )
+        is_remote = any(order.shipping_postal_code.startswith(code) for code in remote_area_postal_codes)
 
         # 배송비 적용 (이미 생성된 order 객체에 적용)
         order.apply_shipping_fee(is_remote_area=is_remote)
@@ -251,8 +242,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
             if product.stock < cart_item.quantity:
                 raise serializers.ValidationError(
-                    f"{product.name}의 재고가 부족합니다. "
-                    f"(요청: {cart_item.quantity}개, 재고: {product.stock}개)"
+                    f"{product.name}의 재고가 부족합니다. " f"(요청: {cart_item.quantity}개, 재고: {product.stock}개)"
                 )
 
             # OrderItem 생성 (재고는 차감하지 않음)

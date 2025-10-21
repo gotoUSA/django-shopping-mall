@@ -1,23 +1,22 @@
-from rest_framework import status, permissions
+from decimal import Decimal
+
+from django.db.models import F, Q
+from django.shortcuts import get_object_or_404
+
+from rest_framework import permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
-from django.shortcuts import get_object_or_404
-from django.db.models import Count, Q, Sum, F
-from decimal import Decimal
 
 # 모델 import
 from shopping.models.product import Product
-from shopping.models.user import User
 
 # Serializer import
 from shopping.serializers.wishlist_serializers import (
-    WishlistProductSerializer,
-    WishlistToggleSerializer,
     WishlistBulkAddSerializer,
-    WishlistStatusSerializer,
+    WishlistProductSerializer,
     WishlistStatsSerializer,
+    WishlistToggleSerializer,
 )
 
 
@@ -32,9 +31,7 @@ class WishlistViewSet(GenericViewSet):
 
     def get_queryset(self):
         """현재 사용자의 찜한 상품 쿼리셋 반환"""
-        return self.request.user.wishlist_products.select_related(
-            "category"
-        ).prefetch_related("images")
+        return self.request.user.wishlist_products.select_related("category").prefetch_related("images")
 
     @action(detail=False, methods=["get"])
     def list(self, request):
@@ -58,9 +55,7 @@ class WishlistViewSet(GenericViewSet):
 
         on_sale = request.query_params.get("on_sale")
         if on_sale == "true":
-            queryset = queryset.filter(
-                compare_price__isnull=False, compare_price__gt=F("price")
-            )
+            queryset = queryset.filter(compare_price__isnull=False, compare_price__gt=F("price"))
 
         # 정렬
         ordering = request.query_params.get("ordering", "-created_at")
@@ -374,9 +369,7 @@ class WishlistViewSet(GenericViewSet):
         remove_from_wishlist = request.data.get("remove_from_wishlist", False)
 
         if not products_ids:
-            return Response(
-                {"error": "상품을 선택해주세요."}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "상품을 선택해주세요."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Boolean으로 명시적 변환
         if isinstance(remove_from_wishlist, str):
@@ -389,9 +382,7 @@ class WishlistViewSet(GenericViewSet):
 
         if not products.exists():
             # 왜 못 찾는지 상세 정보 반환
-            user_wishlist_ids = list(
-                request.user.wishlist_products.values_list("id", flat=True)
-            )
+            user_wishlist_ids = list(request.user.wishlist_products.values_list("id", flat=True))
             return Response(
                 {
                     "error": "찜 목록에 해당 상품이 없습니다.",
@@ -414,9 +405,7 @@ class WishlistViewSet(GenericViewSet):
                 continue
 
             # 장바구니에 추가
-            cart_item, created = CartItem.objects.get_or_create(
-                cart=cart, product=product, defaults={"quantity": 1}
-            )
+            cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product, defaults={"quantity": 1})
 
             if created:
                 added_items.append(product.name)
@@ -431,23 +420,15 @@ class WishlistViewSet(GenericViewSet):
         # 응답 메시지 생성
         message_parts = []
         if added_items:
-            message_parts.append(
-                f"{len(added_items)}개 상품이 장바구니에 추가되었습니다."
-            )
+            message_parts.append(f"{len(added_items)}개 상품이 장바구니에 추가되었습니다.")
         if already_in_cart:
-            message_parts.append(
-                f"{len(already_in_cart)}개 상품은 이미 장바구니에 있습니다."
-            )
+            message_parts.append(f"{len(already_in_cart)}개 상품은 이미 장바구니에 있습니다.")
         if out_of_stock:
             message_parts.append(f"{len(out_of_stock)}개 상품은 품절입니다.")
 
         return Response(
             {
-                "message": (
-                    " ".join(message_parts)
-                    if message_parts
-                    else "처리할 상품이 없습니다."
-                ),
+                "message": (" ".join(message_parts) if message_parts else "처리할 상품이 없습니다."),
                 "added_items": added_items,
                 "already_in_cart": already_in_cart,
                 "out_of_stock": out_of_stock,

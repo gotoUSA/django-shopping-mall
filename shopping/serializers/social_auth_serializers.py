@@ -1,5 +1,6 @@
 from dj_rest_auth.registration.serializers import SocialLoginSerializer
 from rest_framework import serializers
+
 from shopping.serializers.user_serializers import UserSerializer
 
 
@@ -23,9 +24,7 @@ class SocialAccountSerializer(serializers.Serializer):
     연결된 소셜 계정 목록을 보여줍니다.
     """
 
-    provider = serializers.CharField(
-        help_text="소셜 로그인 제공자 (google/kakao/naver)"
-    )
+    provider = serializers.CharField(help_text="소셜 로그인 제공자 (google/kakao/naver)")
     uid = serializers.CharField(help_text="소셜 계정 고유 ID")
     extra_data = serializers.JSONField(help_text="추가 정보 (이름, 프로필 사진 등)")
     date_joined = serializers.DateTimeField(source="date_joined", help_text="연결 날짜")

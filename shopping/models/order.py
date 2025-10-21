@@ -1,7 +1,8 @@
-from django.db import models
-from django.core.validators import MinValueValidator
 from decimal import Decimal
+
 from django.conf import settings
+from django.core.validators import MinValueValidator
+from django.db import models
 from django.utils import timezone
 
 
@@ -70,14 +71,10 @@ class Order(models.Model):
         help_text="기본 주소 (도로명 또는 지번)",
     )
 
-    shipping_address_detail = models.CharField(
-        max_length=255, verbose_name="상세주소", help_text="동/호수 등 상세 주소"
-    )
+    shipping_address_detail = models.CharField(max_length=255, verbose_name="상세주소", help_text="동/호수 등 상세 주소")
 
     # 주문 메모
-    order_memo = models.TextField(
-        blank=True, verbose_name="주문메모", help_text="배송 시 요청사항"  # 빈 값 허용
-    )
+    order_memo = models.TextField(blank=True, verbose_name="주문메모", help_text="배송 시 요청사항")  # 빈 값 허용
 
     # 결제 정보
     payment_method = models.CharField(
@@ -97,9 +94,7 @@ class Order(models.Model):
     )
 
     # 포인트 사용 관련 필드
-    used_points = models.PositiveIntegerField(
-        default=0, verbose_name="사용 포인트", help_text="이 주문에서 사용한 포인트"
-    )
+    used_points = models.PositiveIntegerField(default=0, verbose_name="사용 포인트", help_text="이 주문에서 사용한 포인트")
 
     final_amount = models.DecimalField(
         max_digits=10,
@@ -110,9 +105,7 @@ class Order(models.Model):
         help_text="총 주문 금액 - 사용 포인트",
     )
 
-    earned_points = models.PositiveIntegerField(
-        default=0, verbose_name="적립 포인트", help_text="이 주문으로 적립된 포인트"
-    )
+    earned_points = models.PositiveIntegerField(default=0, verbose_name="적립 포인트", help_text="이 주문으로 적립된 포인트")
 
     # 배송비 관련 필드 추가
     shipping_fee = models.DecimalField(
@@ -148,13 +141,9 @@ class Order(models.Model):
     )
 
     # 시간 정보
-    created_at = models.DateTimeField(
-        auto_now_add=True, verbose_name="주문일시"  # 생성시 자동 설정
-    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="주문일시")  # 생성시 자동 설정
 
-    updated_at = models.DateTimeField(
-        auto_now=True, verbose_name="수정일시"  # 수정시 자동 갱신
-    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="수정일시")  # 수정시 자동 갱신
 
     class Meta:
         db_table = "shopping_orders"
@@ -181,14 +170,10 @@ class Order(models.Model):
         self.total_amount = self.calcultate_total_amount()
 
         # 배송비 포함한 최종 금액 계산
-        total_with_shipping = (
-            self.total_amount + self.shipping_fee + self.additional_shipping_fee
-        )
+        total_with_shipping = self.total_amount + self.shipping_fee + self.additional_shipping_fee
 
         # 포인트 차감 후 최종 금액
-        self.final_amount = max(
-            Decimal("0"), total_with_shipping - Decimal(str(self.used_points))
-        )
+        self.final_amount = max(Decimal("0"), total_with_shipping - Decimal(str(self.used_points)))
         self.save(update_fields=["total_amount", "final_amount"])
 
     def calcultate_final_amount(self):
@@ -214,9 +199,7 @@ class Order(models.Model):
 
             # 2. ID를 포함한 주문번호 생성
             date_str = timezone.now().strftime("%Y%m%d")
-            self.order_number = (
-                f"{date_str}{self.id:06d}"  # 이거 맞는건지 클로드한테 물어보기
-            )
+            self.order_number = f"{date_str}{self.id:06d}"  # 이거 맞는건지 클로드한테 물어보기
             # 3. 주문번호만 업데이트
             self.save(update_fields=["order_number"])
         else:
@@ -286,9 +269,7 @@ class Order(models.Model):
 
         # 최종 금액 재계산 (상품금액 + 배송비 - 포인트)
         total_with_shipping = self.total_amount + base_fee + additional_fee
-        self.final_amount = max(
-            Decimal("0"), total_with_shipping - Decimal(str(self.used_points))
-        )
+        self.final_amount = max(Decimal("0"), total_with_shipping - Decimal(str(self.used_points)))
 
         self.save(
             update_fields=[
@@ -331,9 +312,7 @@ class OrderItem(models.Model):
     product_name = models.CharField(max_length=255, verbose_name="상품명(주문당시)")
 
     # 주문 수량
-    quantity = models.PositiveIntegerField(
-        default=1, validators=[MinValueValidator(1)], verbose_name="수량"  # 최소 1개
-    )
+    quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)], verbose_name="수량")  # 최소 1개
 
     # 주문 당시 가격 (상품 가격이 변경되어도 주문 기록은 유지)
     price = models.DecimalField(

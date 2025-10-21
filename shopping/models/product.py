@@ -1,7 +1,8 @@
+from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.text import slugify
-from django.core.validators import MinValueValidator, MaxValueValidator
-from django.conf import settings
+
 from mptt.models import MPTTModel, TreeForeignKey
 
 
@@ -15,9 +16,7 @@ class Category(MPTTModel):
 
     name = models.CharField(max_length=100, unique=True, verbose_name="카테고리명")
 
-    slug = models.SlugField(
-        max_length=100, unique=True, help_text="URL에 사용될 짦은 이름 (자동생성됨)"
-    )
+    slug = models.SlugField(max_length=100, unique=True, help_text="URL에 사용될 짦은 이름 (자동생성됨)")
     parent = TreeForeignKey(
         "self",
         on_delete=models.SET_NULL,
@@ -89,12 +88,8 @@ class Product(models.Model):
     """상품 기본 정보"""
 
     # 기본 정보
-    name = models.CharField(
-        max_length=200, verbose_name="상품명", db_index=True  # 검색 속도 향상
-    )
-    slug = models.SlugField(
-        max_length=200, unique=True, help_text="URL용 이름 (자동생성)"
-    )
+    name = models.CharField(max_length=200, verbose_name="상품명", db_index=True)  # 검색 속도 향상
+    slug = models.SlugField(max_length=200, unique=True, help_text="URL용 이름 (자동생성)")
     category = models.ForeignKey(
         Category,
         on_delete=models.PROTECT,
@@ -103,9 +98,7 @@ class Product(models.Model):
     )
 
     # 상품 설명
-    description = models.TextField(
-        verbose_name="상품 설명", help_text="상품의 자세한 설명을 입력하세요."
-    )
+    description = models.TextField(verbose_name="상품 설명", help_text="상품의 자세한 설명을 입력하세요.")
     short_description = models.CharField(
         max_length=300,
         blank=True,
@@ -170,9 +163,7 @@ class Product(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     # 상품 활성화 상태 추가
-    is_active = models.BooleanField(
-        default=True, verbose_name="판매중", help_text="체크 해제시 상품이 숨겨집니다."
-    )
+    is_active = models.BooleanField(default=True, verbose_name="판매중", help_text="체크 해제시 상품이 숨겨집니다.")
 
     class Meta:
         verbose_name = "상품"
@@ -262,9 +253,7 @@ class Product(models.Model):
 class ProductImage(models.Model):
     """상품 이미지 (여러개 가능)"""
 
-    product = models.ForeignKey(
-        Product, on_delete=models.CASCADE, related_name="images", verbose_name="상품"
-    )
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="images", verbose_name="상품")
     image = models.ImageField(upload_to="product/%Y/%m/%d", verbose_name="이미지")
     alt_text = models.CharField(
         max_length=200,
@@ -287,24 +276,16 @@ class ProductImage(models.Model):
     def save(self, *args, **kwargs):
         # 대표 이미지는 1개만
         if self.is_primary:
-            ProductImage.objects.filter(product=self.product, is_primary=True).exclude(
-                pk=self.pk
-            ).update(is_primary=False)
+            ProductImage.objects.filter(product=self.product, is_primary=True).exclude(pk=self.pk).update(is_primary=False)
         super().save(*args, **kwargs)
 
 
 class ProductReview(models.Model):
     """상품 리뷰 (선택사항)"""
 
-    product = models.ForeignKey(
-        Product, on_delete=models.CASCADE, related_name="reviews", verbose_name="상품"
-    )
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name="작성자"
-    )
-    rating = models.IntegerField(
-        validators=[MinValueValidator(1), MaxValueValidator(5)], verbose_name="평점"
-    )
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="reviews", verbose_name="상품")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name="작성자")
+    rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)], verbose_name="평점")
     comment = models.TextField(verbose_name="리뷰 내용")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

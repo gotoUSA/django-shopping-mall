@@ -5,22 +5,19 @@
 상품 추가, 수량 변경, 삭제, 재고 관리 등을 포함합니다.
 """
 
-import json
-from decimal import Decimal
-from django.test import TestCase, TransactionTestCase
-from django.urls import reverse
-from django.utils import timezone
-from django.db import transaction
-from django.core.exceptions import ValidationError
-from rest_framework import status
-from rest_framework.test import APIClient
-from unittest.mock import patch, MagicMock
 import threading
 import time
+from decimal import Decimal
 
-from shopping.models.user import User
-from shopping.models.product import Product, Category
+from django.test import TestCase, TransactionTestCase
+from django.urls import reverse
+
+from rest_framework import status
+from rest_framework.test import APIClient
+
 from shopping.models.cart import Cart, CartItem
+from shopping.models.product import Category, Product
+from shopping.models.user import User
 
 
 class CartBasicTestCase(TestCase):
@@ -47,9 +44,7 @@ class CartBasicTestCase(TestCase):
         )
 
         # 카테고리 생성
-        self.category = Category.objects.create(
-            name="테스트 카테고리", slug="test-category"
-        )
+        self.category = Category.objects.create(name="테스트 카테고리", slug="test-category")
 
         # 테스트 상품들 생성
         self.product1 = Product.objects.create(
@@ -101,9 +96,7 @@ class CartBasicTestCase(TestCase):
         self.cart_add_url = reverse("cart-add-item")  # POST /api/cart/add_item/
         self.cart_items_url = reverse("cart-items")  # GET /api/cart/items/
         self.cart_clear_url = reverse("cart-clear")  # POST /api/cart/clear/
-        self.cart_check_stock_url = reverse(
-            "cart-check-stock"
-        )  # GET /api/cart/check_stock/
+        self.cart_check_stock_url = reverse("cart-check-stock")  # GET /api/cart/check_stock/
 
     def tearDown(self):
         """테스트 후 정리"""
@@ -369,12 +362,8 @@ class CartBasicTestCase(TestCase):
         self._login_user()
 
         # 여러 상품 추가
-        self.client.post(
-            self.cart_add_url, {"product_id": self.product1.id, "quantity": 2}
-        )
-        self.client.post(
-            self.cart_add_url, {"product_id": self.product2.id, "quantity": 1}
-        )
+        self.client.post(self.cart_add_url, {"product_id": self.product1.id, "quantity": 2})
+        self.client.post(self.cart_add_url, {"product_id": self.product2.id, "quantity": 1})
 
         # 장바구니 비우기
         clear_data = {"confirm": True}
@@ -391,9 +380,7 @@ class CartBasicTestCase(TestCase):
         self._login_user()
 
         # 상품 추가
-        self.client.post(
-            self.cart_add_url, {"product_id": self.product1.id, "quantity": 2}
-        )
+        self.client.post(self.cart_add_url, {"product_id": self.product1.id, "quantity": 2})
 
         # 확인 없이 비우기 시도
         clear_data = {"confirm": False}
@@ -412,12 +399,8 @@ class CartBasicTestCase(TestCase):
         self._login_user()
 
         # 여러 상품 추가
-        self.client.post(
-            self.cart_add_url, {"product_id": self.product1.id, "quantity": 2}
-        )
-        self.client.post(
-            self.cart_add_url, {"product_id": self.product2.id, "quantity": 3}
-        )
+        self.client.post(self.cart_add_url, {"product_id": self.product1.id, "quantity": 2})
+        self.client.post(self.cart_add_url, {"product_id": self.product2.id, "quantity": 3})
 
         # 요약 정보 조회
         response = self.client.get(self.cart_summary_url)
@@ -434,12 +417,8 @@ class CartBasicTestCase(TestCase):
         self._login_user()
 
         # 상품 추가
-        self.client.post(
-            self.cart_add_url, {"product_id": self.product1.id, "quantity": 3}
-        )
-        self.client.post(
-            self.cart_add_url, {"product_id": self.product2.id, "quantity": 2}
-        )
+        self.client.post(self.cart_add_url, {"product_id": self.product1.id, "quantity": 3})
+        self.client.post(self.cart_add_url, {"product_id": self.product2.id, "quantity": 2})
 
         # 전체 장바구니 조회
         response = self.client.get(self.cart_url)
@@ -466,33 +445,8 @@ class CartBasicTestCase(TestCase):
         self._login_user()
 
         # 재고 내에서 상품 추가
-        self.client.post(
-            self.cart_add_url, {"product_id": self.product1.id, "quantity": 5}
-        )
-        self.client.post(
-            self.cart_add_url, {"product_id": self.product2.id, "quantity": 3}
-        )
-
-        # 재고 확인
-        response = self.client.get(self.cart_check_stock_url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        data = response.json()
-        self.assertFalse(data["has_issues"])
-        self.assertEqual(data["message"], "모든 상품을 구매할 수 있습니다.")
-
-    def test_check_stock_all_available(self):
-        """모든 상품 재고 충분 테스트"""
-        self._login_user()
-
-        # 재고 내에서 상품 추가
-        self.client.post(
-            self.cart_add_url, {"product_id": self.product1.id, "quantity": 5}
-        )
-        self.client.post(
-            self.cart_add_url, {"product_id": self.product2.id, "quantity": 3}
-        )
+        self.client.post(self.cart_add_url, {"product_id": self.product1.id, "quantity": 5})
+        self.client.post(self.cart_add_url, {"product_id": self.product2.id, "quantity": 3})
 
         # 재고 확인
         response = self.client.get(self.cart_check_stock_url)
@@ -513,9 +467,7 @@ class CartBasicTestCase(TestCase):
         cart = Cart.get_or_create_active_cart(self.user)[0]
 
         # 먼저 정상적으로 CartItem 생성
-        cart_item = CartItem.objects.create(
-            cart=cart, product=self.product1, quantity=5  # 재고(10개) 내에서 생성
-        )
+        CartItem.objects.create(cart=cart, product=self.product1, quantity=5)  # 재고(10개) 내에서 생성
 
         # 그 후 상품의 재고를 줄여서 재고 부족 상황 만들기
         self.product1.stock = 3  # 재고를 3개로 줄임 (quantity=5보다 적게)
@@ -580,9 +532,7 @@ class CartConcurrencyTestCase(TransactionTestCase):
             password="testpass123",
         )
 
-        self.category = Category.objects.create(
-            name="테스트 카테고리", slug="test-category"
-        )
+        self.category = Category.objects.create(name="테스트 카테고리", slug="test-category")
 
         self.product = Product.objects.create(
             name="테스트 상품",
@@ -598,9 +548,7 @@ class CartConcurrencyTestCase(TransactionTestCase):
     def test_concurrent_add_same_product(self):
         """동시에 같은 상품을 추가할 때 정확한 수량 처리 테스트"""
         # 로그인
-        response = self.client.post(
-            reverse("auth-login"), {"username": "testuser", "password": "testpass123"}
-        )
+        response = self.client.post(reverse("auth-login"), {"username": "testuser", "password": "testpass123"})
         token = response.json()["access"]
 
         success_count = 0
@@ -652,13 +600,10 @@ class CartConcurrencyTestCase(TransactionTestCase):
         initial_quantity = cart_item.quantity
 
         # 로그인
-        response = self.client.post(
-            reverse("auth-login"), {"username": "testuser", "password": "testpass123"}
-        )
+        response = self.client.post(reverse("auth-login"), {"username": "testuser", "password": "testpass123"})
         token = response.json()["access"]
 
         results = []
-        update_times = []
 
         def update_quantity(new_quantity):
             """수량 변경 함수"""
@@ -668,9 +613,7 @@ class CartConcurrencyTestCase(TransactionTestCase):
             update_url = reverse("cart-item-detail", kwargs={"pk": cart_item.id})
 
             start_time = time.time()
-            response = client.patch(
-                update_url, {"quantity": new_quantity}, format="json"
-            )
+            response = client.patch(update_url, {"quantity": new_quantity}, format="json")
             end_time = time.time()
             results.append(
                 {
@@ -732,7 +675,7 @@ class CartConcurrencyTestCase(TransactionTestCase):
 
         # 디버깅 정보 출력 (실패 시 유용)
         if success_count != len(quantities):
-            print(f"\n업데이트 결과:")
+            print("\n업데이트 결과:")
             for r in sorted(results, key=lambda x: x["end"]):
                 print(f"  수량 {r['quantity']}: 상태 {r['status']}")
             print(f"최종 수량: {cart_item.quantity}")
@@ -755,9 +698,7 @@ class CartPerformanceTestCase(TestCase):
             password="testpass123",
         )
 
-        self.category = Category.objects.create(
-            name="테스트 카테고리", slug="test-category"
-        )
+        self.category = Category.objects.create(name="테스트 카테고리", slug="test-category")
 
         # 100개의 상품 생성
         self.products = []
@@ -775,9 +716,7 @@ class CartPerformanceTestCase(TestCase):
     def test_large_cart_performance(self):
         """많은 상품이 담긴 장바구니 조회 성능 테스트"""
         # 로그인
-        response = self.client.post(
-            reverse("auth-login"), {"username": "testuser", "password": "testpass123"}
-        )
+        response = self.client.post(reverse("auth-login"), {"username": "testuser", "password": "testpass123"})
         token = response.json()["access"]
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
@@ -786,9 +725,7 @@ class CartPerformanceTestCase(TestCase):
 
         cart_items = []
         for i in range(50):
-            cart_items.append(
-                CartItem(cart=cart, product=self.products[i], quantity=i + 1)
-            )
+            cart_items.append(CartItem(cart=cart, product=self.products[i], quantity=i + 1))
         CartItem.objects.bulk_create(cart_items)
 
         # 장바구니 조회 시간 측정

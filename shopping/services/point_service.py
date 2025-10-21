@@ -3,13 +3,13 @@
 FIFO 방식 포인트 사용 및 만료 처리
 """
 
-from django.db import transaction
-from django.db.models import Q, F, Sum
-from django.utils import timezone
-from django.contrib.auth import get_user_model
-from datetime import timedelta
-from typing import List, Dict, Optional
 import logging
+from datetime import timedelta
+from typing import Dict, List
+
+from django.contrib.auth import get_user_model
+from django.db import transaction
+from django.utils import timezone
 
 from shopping.models.point import PointHistory
 
@@ -111,15 +111,11 @@ class PointService:
                     expired_count += 1
 
                     logger.info(
-                        f"포인트 만료 처리: User={user.username}, "
-                        f"Amount={remaining}, HistoryID={point_history.id}"
+                        f"포인트 만료 처리: User={user.username}, " f"Amount={remaining}, HistoryID={point_history.id}"
                     )
 
             except Exception as e:
-                logger.error(
-                    f"포인트 만료 처리 실패: HistoryID={point_history.id}, "
-                    f"Error={str(e)}"
-                )
+                logger.error(f"포인트 만료 처리 실패: HistoryID={point_history.id}, " f"Error={str(e)}")
                 continue
 
         return expired_count
@@ -209,9 +205,7 @@ class PointService:
             # 사용 내역 추가
             if "usage_history" not in point_history.metadata:
                 point_history.metadata["usage_history"] = []
-            point_history.metadata["usage_history"].append(
-                {"amount": use_from_this, "used_at": timezone.now().isoformat()}
-            )
+            point_history.metadata["usage_history"].append({"amount": use_from_this, "used_at": timezone.now().isoformat()})
 
             point_history.metadata = metadata
             point_history.save()
@@ -235,7 +229,7 @@ class PointService:
             user=user,
             points=-amount,
             type="use",
-            description=f"포인트 사용 (FIFO)",
+            description="포인트 사용 (FIFO)",
             metadata={"used_details": used_details},
         )
 
@@ -276,9 +270,7 @@ class PointService:
             if total_expiring > 0:
                 # 이메일 발송
                 subject = f"포인트 만료 예정 안내 - {total_expiring:,} 포인트"
-                message = self._create_expiry_notification_message(
-                    user, user_data["points"], total_expiring
-                )
+                message = self._create_expiry_notification_message(user, user_data["points"], total_expiring)
 
                 try:
                     send_email_notification(user.email, subject, message)
@@ -291,20 +283,13 @@ class PointService:
 
                     notification_count += 1
 
-                    logger.info(
-                        f"포인트 만료 알림 발송: User={user.username}, "
-                        f"points={total_expiring}"
-                    )
+                    logger.info(f"포인트 만료 알림 발송: User={user.username}, " f"points={total_expiring}")
 
                 except Exception as e:
-                    logger.error(
-                        f"알림 발송 실패: User={user.username}, " f"Error={str(e)}"
-                    )
+                    logger.error(f"알림 발송 실패: User={user.username}, " f"Error={str(e)}")
         return notification_count
 
-    def _create_expiry_notification_message(
-        self, user, points: List[PointHistory], total: int
-    ) -> str:
+    def _create_expiry_notification_message(self, user, points: List[PointHistory], total: int) -> str:
         """
         만료 알림 메세지 생성
 
@@ -331,7 +316,7 @@ class PointService:
             expiry_date = point.expires_at.strftime("%Y년 %m월 %d일")
             message += f"- {remaining:,}P (만료일: {expiry_date})\n"
 
-        message += f"""
+        message += """
 
 만료되기 전에 사용해 주세요!
 

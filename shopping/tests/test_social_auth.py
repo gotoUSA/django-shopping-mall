@@ -1,13 +1,14 @@
+from unittest.mock import patch
+
+from django.contrib.sites.models import Site
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
-from rest_framework import status
-from rest_framework.test import APIClient
-from unittest.mock import patch, MagicMock
 
-from shopping.models.user import User
-from shopping.models.email_verification import EmailVerificationToken
 from allauth.socialaccount.models import SocialAccount, SocialApp
-from django.contrib.sites.models import Site
+from rest_framework.test import APIClient
+
+from shopping.models.email_verification import EmailVerificationToken
+from shopping.models.user import User
 
 
 # ✅ settings.py의 SOCIALACCOUNT_PROVIDERS를 빈 딕셔너리로 오버라이드
@@ -23,9 +24,7 @@ class SocialAuthTestCase(TestCase):
         SocialApp.objects.all().delete()
 
         # Site 확인
-        site, _ = Site.objects.get_or_create(
-            id=1, defaults={"domain": "example.com", "name": "example.com"}
-        )
+        site, _ = Site.objects.get_or_create(id=1, defaults={"domain": "example.com", "name": "example.com"})
 
         # 테스트용 소셜 앱 생성 (Google)
         self.social_app = SocialApp.objects.create(
@@ -63,9 +62,7 @@ class SocialAuthTestCase(TestCase):
         self.assertEqual(SocialApp.objects.count(), 1)
         self.assertEqual(self.social_app.provider, "google")
 
-    @patch(
-        "allauth.socialaccount.providers.google.views.GoogleOAuth2Adapter.complete_login"
-    )
+    @patch("allauth.socialaccount.providers.google.views.GoogleOAuth2Adapter.complete_login")
     def test_social_login_new_user(self, mock_complete_login):
         """
         소셜 로그인 신규 가입 테스트
@@ -131,15 +128,13 @@ class SocialAuthTestCase(TestCase):
 
         # 시그널이 작동하려면 pre_social_login 시그널을 직접 호출
         # 실제로는 allauth가 자동으로 호출함
-        from allauth.socialaccount.signals import pre_social_login
         from allauth.socialaccount.models import SocialLogin
+        from allauth.socialaccount.signals import pre_social_login
 
         social_login = SocialLogin(user=user, account=social_account)
 
         # 시그널 발생 (Mock)
-        pre_social_login.send(
-            sender=SocialLogin, request=None, sociallogin=social_login
-        )
+        pre_social_login.send(sender=SocialLogin, request=None, sociallogin=social_login)
 
         # 사용자 이메일 인증 상태 확인
         user.refresh_from_db()
@@ -228,11 +223,7 @@ class SocialAuthTestCase(TestCase):
         self.assertTrue(User.objects.filter(id=self.existing_user.id).exists())
 
         # 소셜 계정만 삭제됨
-        self.assertFalse(
-            SocialAccount.objects.filter(
-                user=self.existing_user, provider="google"
-            ).exists()
-        )
+        self.assertFalse(SocialAccount.objects.filter(user=self.existing_user, provider="google").exists())
 
     def test_duplicate_email_handling(self):
         """
@@ -267,9 +258,7 @@ class SocialAuthTestCase(TestCase):
         self.assertEqual(User.objects.filter(email="user@test.com").count(), 1)
 
         # 소셜 계정 연결 확인
-        self.assertTrue(
-            SocialAccount.objects.filter(user=user, provider="google").exists()
-        )
+        self.assertTrue(SocialAccount.objects.filter(user=user, provider="google").exists())
 
 
 # ✅ 다른 TestCase 클래스들도 동일하게 적용
@@ -314,13 +303,11 @@ class SocialAuthSignalTestCase(TransactionTestCase):
         )
 
         # 시그널 발생 (수동 호출)
-        from allauth.socialaccount.signals import pre_social_login
         from allauth.socialaccount.models import SocialLogin
+        from allauth.socialaccount.signals import pre_social_login
 
         social_login = SocialLogin(user=self.user, account=social_account)
-        pre_social_login.send(
-            sender=SocialLogin, request=None, sociallogin=social_login
-        )
+        pre_social_login.send(sender=SocialLogin, request=None, sociallogin=social_login)
 
         # 이메일 자동 인증 확인
         self.user.refresh_from_db()

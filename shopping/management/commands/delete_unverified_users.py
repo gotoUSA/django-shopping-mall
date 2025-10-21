@@ -1,7 +1,8 @@
-from django.core.management.base import BaseCommand, CommandError
-from django.utils import timezone
 from datetime import timedelta
+
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
 
 from shopping.models.user import User
 
@@ -39,9 +40,9 @@ class Command(BaseCommand):
         # 삭제 기준 날짜 계산
         cutoff_date = timezone.now() - timedelta(days=days)
 
-        self.stdout.write(self.style.WARNING(f'\n{"="*60}'))
-        self.stdout.write(self.style.WARNING(f"미인증 계정 삭제 작업 시작"))
-        self.stdout.write(self.style.WARNING(f'{"="*60}\n'))
+        self.stdout.write(self.style.WARNING(f'\n{"=" * 60}'))
+        self.stdout.write(self.style.WARNING("미인증 계정 삭제 작업 시작"))
+        self.stdout.write(self.style.WARNING(f'{"=" * 60}\n'))
 
         self.stdout.write(f'삭제 기준일: {cutoff_date.strftime("%Y-%m-%d %H:%M:%S")}')
         self.stdout.write(f"경과 일수: {days}일")
@@ -57,16 +58,10 @@ class Command(BaseCommand):
             total_count = unverified_users.count()
 
             if total_count == 0:
-                self.stdout.write(
-                    self.style.SUCCESS("✅ 삭제할 미인증 계정이 없습니다.")
-                )
+                self.stdout.write(self.style.SUCCESS("✅ 삭제할 미인증 계정이 없습니다."))
                 return
 
-            self.stdout.write(
-                self.style.WARNING(
-                    f"📊 총 {total_count}개의 미인증 계정을 발견했습니다.\n"
-                )
-            )
+            self.stdout.write(self.style.WARNING(f"📊 총 {total_count}개의 미인증 계정을 발견했습니다.\n"))
 
             # 주문 이력 확인
             users_to_delete = []
@@ -103,35 +98,23 @@ class Command(BaseCommand):
             if verbose and users_to_delete:
                 self.stdout.write(self.style.WARNING("삭제 대상 목록:"))
                 for i, user_info in enumerate(users_to_delete, 1):
-                    self.stdout.write(
-                        f"  {i}. {user_info['email']} "
-                        f"(가입일: {user_info['joined'].strftime('%Y-%m-%d')})"
-                    )
+                    self.stdout.write(f"  {i}. {user_info['email']} " f"(가입일: {user_info['joined'].strftime('%Y-%m-%d')})")
                 self.stdout.write("")
 
             if verbose and users_to_keep:
                 self.stdout.write(self.style.SUCCESS("유지 대상 목록:"))
                 for i, user_info in enumerate(users_to_keep, 1):
-                    self.stdout.write(
-                        f"  {i}. {user_info['email']} "
-                        f"(주문: {user_info['order_count']}건)"
-                    )
+                    self.stdout.write(f"  {i}. {user_info['email']} " f"(주문: {user_info['order_count']}건)")
                 self.stdout.write("")
 
             # Dry run 모드면 여기서 종료
             if dry_run:
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        "\n✅ Dry Run 모드: 실제 삭제는 수행하지 않았습니다."
-                    )
-                )
+                self.stdout.write(self.style.SUCCESS("\n✅ Dry Run 모드: 실제 삭제는 수행하지 않았습니다."))
                 return
 
             # 실제 삭제 확인
             if delete_count > 0:
-                confirm = input(
-                    f"\n⚠️  정말로 {delete_count}개의 계정을 삭제하시겠습니까? (yes/no): "
-                )
+                confirm = input(f"\n⚠️  정말로 {delete_count}개의 계정을 삭제하시겠습니까? (yes/no): ")
 
                 if confirm.lower() != "yes":
                     self.stdout.write(self.style.WARNING("\n❌ 삭제가 취소되었습니다."))
@@ -149,11 +132,7 @@ class Command(BaseCommand):
                     # 삭제 결과 로깅
                     print(f"삭제된 사용자 수: {delete_count[0]}")
 
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"\n✅ {delete_count}개의 미인증 계정이 삭제되었습니다."
-                    )
-                )
+                self.stdout.write(self.style.SUCCESS(f"\n✅ {delete_count}개의 미인증 계정이 삭제되었습니다."))
 
                 # 삭제된 계정 로그
                 if verbose:
@@ -163,15 +142,11 @@ class Command(BaseCommand):
 
             # 유지된 계정 안내
             if keep_count > 0:
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"\n📌 {keep_count}개의 계정은 주문 이력이 있어 유지되었습니다."
-                    )
-                )
+                self.stdout.write(self.style.SUCCESS(f"\n📌 {keep_count}개의 계정은 주문 이력이 있어 유지되었습니다."))
 
-            self.stdout.write(self.style.SUCCESS(f'\n{"="*60}'))
+            self.stdout.write(self.style.SUCCESS(f'\n{"=" * 60}'))
             self.stdout.write(self.style.SUCCESS("작업 완료"))
-            self.stdout.write(self.style.SUCCESS(f'{"="*60}\n'))
+            self.stdout.write(self.style.SUCCESS(f'{"=" * 60}\n'))
 
         except Exception as e:
             raise CommandError(f"오류 발생: {str(e)}")

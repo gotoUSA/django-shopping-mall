@@ -1,23 +1,22 @@
-from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.exceptions import NotFound, ValidationError
-from django.shortcuts import get_object_or_404
 from django.db import transaction
-from django.db.models import Prefetch, F
+from django.db.models import Prefetch
+
+from rest_framework import permissions, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound
+from rest_framework.response import Response
 
 # 모델 import
 from shopping.models.cart import Cart, CartItem
-from shopping.models.product import Product
 
 # Serializer import
 from shopping.serializers import (
-    CartSerializer,
-    CartItemSerializer,
-    CartItemCreateSerializer,
-    CartItemUpdateSerializer,
-    SimpleCartSerializer,
     CartClearSerializer,
+    CartItemCreateSerializer,
+    CartItemSerializer,
+    CartItemUpdateSerializer,
+    CartSerializer,
+    SimpleCartSerializer,
 )
 
 
@@ -74,9 +73,7 @@ class CartViewSet(viewsets.GenericViewSet):
         cart = Cart.objects.prefetch_related(
             Prefetch(
                 "items",
-                queryset=CartItem.objects.select_related("product").order_by(
-                    "-added_at"
-                ),  # 최근 추가된 순서로
+                queryset=CartItem.objects.select_related("product").order_by("-added_at"),  # 최근 추가된 순서로
             )
         ).get(pk=cart.pk)
 
@@ -126,9 +123,7 @@ class CartViewSet(viewsets.GenericViewSet):
         cart = self.get_cart()
 
         # Serializer에 cart 정보를 context로 전달
-        serializer = self.get_serializer(
-            data=request.data, context={"request": request, "cart": cart}
-        )
+        serializer = self.get_serializer(data=request.data, context={"request": request, "cart": cart})
 
         if serializer.is_valid():
             # 트랜잭션으로 처리 (동시성 문제 방지)
@@ -180,9 +175,7 @@ class CartViewSet(viewsets.GenericViewSet):
         except CartItem.DoesNotExist:
             raise NotFound("장바구니에 해당 상품이 없습니다.")
 
-        serializer = self.get_serializer(
-            cart_item, data=request.data, partial=True  # PATCH 요청이므로 부분 업데이트
-        )
+        serializer = self.get_serializer(cart_item, data=request.data, partial=True)  # PATCH 요청이므로 부분 업데이트
 
         if serializer.is_valid():
             # 수량이 0이면 삭제됨
@@ -296,9 +289,7 @@ class CartViewSet(viewsets.GenericViewSet):
         # 트랜잭션으로 전체 처리
         with transaction.atomic():
             for idx, items_data in enumerate(items_data):
-                serializer = CartItemCreateSerializer(
-                    data=items_data, context={"request": request, "cart": cart}
-                )
+                serializer = CartItemCreateSerializer(data=items_data, context={"request": request, "cart": cart})
 
                 if serializer.is_valid():
                     cart_item = serializer.save()
@@ -429,15 +420,11 @@ class CartItemViewSet(viewsets.GenericViewSet):
         """
         cart, created = Cart.get_or_create_active_cart(request.user)
 
-        serializer = CartItemCreateSerializer(
-            data=request.data, context={"request": request, "cart": cart}
-        )
+        serializer = CartItemCreateSerializer(data=request.data, context={"request": request, "cart": cart})
 
         if serializer.is_valid():
             cart_item = serializer.save()
-            return Response(
-                CartItemSerializer(cart_item).data, status=status.HTTP_201_CREATED
-            )
+            return Response(CartItemSerializer(cart_item).data, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -451,9 +438,7 @@ class CartItemViewSet(viewsets.GenericViewSet):
         except CartItem.DoesNotExist:
             raise NotFound("장바구니 아이템을 찾을 수 없습니다.")
 
-        serializer = CartItemUpdateSerializer(
-            cart_item, data=request.data, partial=True
-        )
+        serializer = CartItemUpdateSerializer(cart_item, data=request.data, partial=True)
 
         if serializer.is_valid():
             # quantity가 0이면 삭제됨

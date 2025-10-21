@@ -3,11 +3,11 @@
 python manage.py test_point_expiry
 """
 
+from datetime import timedelta
+
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.contrib.auth import get_user_model
-from datetime import timedelta
-import random
 
 from shopping.models.point import PointHistory
 from shopping.services.point_service import PointService
@@ -19,17 +19,11 @@ class Command(BaseCommand):
     help = "포인트 만료 기능 테스트"
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            "--create-test-data", action="store_true", help="테스트 데이터 생성"
-        )
+        parser.add_argument("--create-test-data", action="store_true", help="테스트 데이터 생성")
         parser.add_argument("--expire", action="store_true", help="만료 처리 실행")
         parser.add_argument("--notify", action="store_true", help="만료 예정 알림 발송")
-        parser.add_argument(
-            "--use-points", type=int, help="포인트 사용 테스트 (금액 지정)"
-        )
-        parser.add_argument(
-            "--username", type=str, default="testuser", help="테스트할 사용자명"
-        )
+        parser.add_argument("--use-points", type=int, help="포인트 사용 테스트 (금액 지정)")
+        parser.add_argument("--username", type=str, default="testuser", help="테스트할 사용자명")
 
     def handle(self, *args, **options):
         service = PointService()
@@ -70,7 +64,7 @@ class Command(BaseCommand):
 
         # 1. 이미 만료된 포인트
         with timezone.override(now - timedelta(days=400)):
-            history1 = PointHistory.create_history(
+            PointHistory.create_history(
                 user=user,
                 points=1000,
                 type="earn",
@@ -79,7 +73,7 @@ class Command(BaseCommand):
 
         # 2. 오늘 만료되는 포인트
         with timezone.override(now - timedelta(days=365)):
-            history2 = PointHistory.create_history(
+            PointHistory.create_history(
                 user=user,
                 points=2000,
                 type="earn",
@@ -88,7 +82,7 @@ class Command(BaseCommand):
 
         # 3. 7일 후 만료 예정
         with timezone.override(now - timedelta(days=358)):
-            history3 = PointHistory.create_history(
+            PointHistory.create_history(
                 user=user,
                 points=3000,
                 type="earn",
@@ -97,7 +91,7 @@ class Command(BaseCommand):
 
         # 4. 한 달 후 만료
         with timezone.override(now - timedelta(days=335)):
-            history4 = PointHistory.create_history(
+            PointHistory.create_history(
                 user=user,
                 points=4000,
                 type="earn",
@@ -105,7 +99,7 @@ class Command(BaseCommand):
             )
 
         # 5. 최근 적립 (만료까지 충분)
-        history5 = PointHistory.create_history(
+        PointHistory.create_history(
             user=user,
             points=5000,
             type="earn",
@@ -141,16 +135,11 @@ class Command(BaseCommand):
             self.stdout.write(f"만료 대상: {len(expired_points)}건")
             for point in expired_points:
                 remaining = service.get_remaining_points(point)
-                self.stdout.write(
-                    f"- {point.user.username}: {remaining:,}P "
-                    f"(적립일: {point.created_at.date()})"
-                )
+                self.stdout.write(f"- {point.user.username}: {remaining:,}P " f"(적립일: {point.created_at.date()})")
 
             # 만료 처리 실행
             expired_count = service.expire_points()
-            self.stdout.write(
-                self.style.SUCCESS(f"\n만료 처리 완료: {expired_count}건")
-            )
+            self.stdout.write(self.style.SUCCESS(f"\n만료 처리 완료: {expired_count}건"))
         else:
             self.stdout.write("만료할 포인트가 없습니다.")
 
@@ -166,15 +155,11 @@ class Command(BaseCommand):
             for point in expiring_points:
                 remaining = service.get_remaining_points(point)
                 days_left = (point.expires_at - timezone.now()).days
-                self.stdout.write(
-                    f"- {point.user.username}: {remaining:,}P " f"({days_left}일 남음)"
-                )
+                self.stdout.write(f"- {point.user.username}: {remaining:,}P " f"({days_left}일 남음)")
 
             # 알림 발송
             notification_count = service.send_expiry_notifications()
-            self.stdout.write(
-                self.style.SUCCESS(f"\n알림 발송 완료: {notification_count}명")
-            )
+            self.stdout.write(self.style.SUCCESS(f"\n알림 발송 완료: {notification_count}명"))
         else:
             self.stdout.write("만료 예정 포인트가 없습니다.")
 
@@ -193,10 +178,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"\n{result['message']}"))
                 self.stdout.write("\n사용 내역 (FIFO):")
                 for detail in result["used_details"]:
-                    self.stdout.write(
-                        f"- History #{detail['history_id']}: "
-                        f"{detail['amount']:,}P 사용"
-                    )
+                    self.stdout.write(f"- History #{detail['history_id']}: " f"{detail['amount']:,}P 사용")
 
                 user.refresh_from_db()
                 self.stdout.write(f"\n남은 포인트: {user.points:,}P")

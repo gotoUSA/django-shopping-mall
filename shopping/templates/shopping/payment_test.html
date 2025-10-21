@@ -12,7 +12,7 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -22,7 +22,7 @@
             align-items: center;
             padding: 20px;
         }
-        
+
         .payment-container {
             background: white;
             border-radius: 20px;
@@ -32,7 +32,7 @@
             padding: 40px;
             animation: slideUp 0.5s ease-out;
         }
-        
+
         @keyframes slideUp {
             from {
                 opacity: 0;
@@ -43,7 +43,7 @@
                 transform: translateY(0);
             }
         }
-        
+
         h1 {
             color: #333;
             margin-bottom: 30px;
@@ -59,49 +59,49 @@
         margin-bottom: 20px;
         animation: slideIn 0.3s ease-out;
         }
-        
+
         .alert-warning {
             background: #fff3cd;
             border: 2px solid #ffc107;
         }
-        
+
         .alert-success {
             background: #d4edda;
             border: 2px solid #28a745;
         }
-        
+
         .alert-icon {
             font-size: 28px;
             flex-shrink: 0;
         }
-        
+
         .alert-content {
             flex: 1;
         }
-        
+
         .alert-title {
             font-weight: 700;
             font-size: 16px;
             margin-bottom: 8px;
             color: #333;
         }
-        
+
         .alert-text {
             font-size: 14px;
             line-height: 1.6;
             color: #666;
         }
-        
+
         .alert-warning .alert-title,
         .alert-warning .alert-text {
             color: #856404;
         }
-        
+
         .alert-success .alert-title,
         .alert-success .alert-text {
             color: #155724;
         }
-        
+
         .alert-link {
             color: #667eea;
             font-weight: 600;
@@ -110,12 +110,12 @@
             margin-top: 8px;
             transition: color 0.2s;
         }
-        
+
         .alert-link:hover {
             color: #5568d3;
             text-decoration: underline;
         }
-        
+
         @keyframes slideIn {
             from {
                 opacity: 0;
@@ -132,7 +132,7 @@
             padding: 20px;
             margin-bottom: 30px;
         }
-        
+
         .info-row {
             display: flex;
             justify-content: space-between;
@@ -140,46 +140,46 @@
             padding-bottom: 15px;
             border-bottom: 1px solid #e9ecef;
         }
-        
+
         .info-row:last-child {
             margin-bottom: 0;
             padding-bottom: 0;
             border-bottom: none;
         }
-        
+
         .info-label {
             color: #6c757d;
             font-size: 14px;
         }
-        
+
         .info-value {
             color: #333;
             font-weight: 600;
             font-size: 16px;
         }
-        
+
         .total-amount {
             font-size: 24px;
             color: #667eea;
         }
-        
+
         .payment-methods {
             margin-bottom: 30px;
         }
-        
+
         .method-title {
             font-size: 16px;
             color: #333;
             margin-bottom: 15px;
             font-weight: 600;
         }
-        
+
         .method-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 10px;
         }
-        
+
         .method-btn {
             padding: 15px;
             border: 2px solid #e9ecef;
@@ -191,20 +191,20 @@
             font-size: 14px;
             color: #333;
         }
-        
+
         .method-btn:hover {
             border-color: #667eea;
             background: #f8f9ff;
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
         }
-        
+
         .method-btn.active {
             border-color: #667eea;
             background: #667eea;
             color: white;
         }
-        
+
         .pay-button {
             width: 100%;
             padding: 18px;
@@ -218,22 +218,22 @@
             transition: all 0.3s ease;
             box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
         }
-        
+
         .pay-button:hover {
             transform: translateY(-2px);
             box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
         }
-        
+
         .pay-button:active {
             transform: translateY(0);
         }
-        
+
         .pay-button:disabled {
             background: #6c757d;
             cursor: not-allowed;
             box-shadow: none;
         }
-        
+
         .test-info {
             background: #fff3cd;
             border: 1px solid #ffc107;
@@ -241,29 +241,29 @@
             padding: 15px;
             margin-bottom: 20px;
         }
-        
+
         .test-info-title {
             color: #856404;
             font-weight: 600;
             margin-bottom: 10px;
         }
-        
+
         .test-info-content {
             color: #856404;
             font-size: 14px;
             line-height: 1.6;
         }
-        
+
         .loading {
             display: none;
             text-align: center;
             margin-top: 20px;
         }
-        
+
         .loading.active {
             display: block;
         }
-        
+
         .spinner {
             border: 3px solid #f3f3f3;
             border-top: 3px solid #667eea;
@@ -273,7 +273,7 @@
             animation: spin 1s linear infinite;
             margin: 0 auto;
         }
-        
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -307,7 +307,7 @@
             </div>
         </div>
         {% endif %}
-        
+
         <div class="test-info">
             <div class="test-info-title">📌 테스트 결제 안내</div>
             <div class="test-info-content">
@@ -316,7 +316,7 @@
                 유효기간: 미래 날짜 / CVC: 임의 3자리
             </div>
         </div>
-        
+
         <div class="order-info">
             <div class="info-row">
                 <span class="info-label">주문번호</span>
@@ -335,7 +335,7 @@
                 <span class="info-value total-amount">{{ order.total_amount|floatformat:0 }}원</span>
             </div>
         </div>
-        
+
         <div class="payment-methods">
             <div class="method-title">결제 방법 선택</div>
             <div class="method-grid">
@@ -345,11 +345,11 @@
                 <button class="method-btn" data-method="휴대폰">휴대폰결제</button>
             </div>
         </div>
-        
+
         <button id="payment-button" class="pay-button">
             결제하기 ({{ order.total_amount|floatformat:0 }}원)
         </button>
-        
+
         <div class="loading">
             <div class="spinner"></div>
             <p style="margin-top: 15px; color: #6c757d;">결제창을 준비중입니다...</p>
@@ -360,10 +360,10 @@
         // 토스페이먼츠 초기화
         const clientKey = '{{ client_key }}';
         const tossPayments = TossPayments(clientKey);
-        
+
         // 현재 선택된 결제 방법
         let selectedMethod = '카드';
-        
+
         // 결제 방법 선택
         document.querySelectorAll('.method-btn').forEach(btn => {
             btn.addEventListener('click', function() {
@@ -372,17 +372,17 @@
                 selectedMethod = this.dataset.method;
             });
         });
-        
+
         // 결제 버튼 클릭
         // 결제 버튼 클릭
         document.getElementById('payment-button').addEventListener('click', async () => {
             const button = document.getElementById('payment-button');
             const loading = document.querySelector('.loading');
-            
+
             // 버튼 비활성화
             button.disabled = true;
             loading.classList.add('active');
-            
+
             try {
                 // 1. 먼저 백엔드에 결제 요청
                 const response = await fetch('/api/payments/request/', {
@@ -396,29 +396,29 @@
                         payment_method: selectedMethod.toLowerCase()
                     })
                 });
-                
+
                 // ========== 에러 핸들링 개선 ==========
                 if (!response.ok) {
                     const errorData = await response.json();
-                    
+
                     // 이메일 인증 필요 에러
                     if (errorData.verification_required) {
                         alert('⚠️ ' + errorData.error + '\n\n' + errorData.message);
-                        
+
                         // 인증 페이지로 리다이렉트 여부 확인
                         if (confirm('이메일 인증 페이지로 이동하시겠습니까?')) {
                             window.location.href = errorData.verification_url || '/api/email-verification/send/';
                         }
                         return;
                     }
-                    
+
                     // 기타 에러
                     throw new Error(errorData.error || '결제 요청 실패');
                 }
-                
+
                 const data = await response.json();
                 console.log('결제 요청 성공:', data);
-                
+
                 // 2. 토스페이먼츠 결제창 호출
                 await tossPayments.requestPayment(selectedMethod, {
                     amount: {{ order.total_amount|floatformat:0 }},
@@ -430,7 +430,7 @@
                     successUrl: window.location.origin + '/shopping/payment/success/',
                     failUrl: window.location.origin + '/shopping/payment/fail/'
                 });
-                
+
             } catch (error) {
                 console.error('결제 오류:', error);
                 alert('결제 처리 중 오류가 발생했습니다: ' + error.message);
@@ -438,7 +438,7 @@
                 loading.classList.remove('active');
             }
         });
-        
+
         // CSRF 토큰 가져오기
         function getCookie(name) {
             let cookieValue = null;

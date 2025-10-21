@@ -49,7 +49,7 @@
     <div class="success-container">
         <div class="success-icon">✅</div>
         <h1>결제가 완료되었습니다!</h1>
-        
+
         <div class="info">
             <p><strong>주문번호:</strong> {{ order.order_number }}</p>
             <p><strong>결제금액:</strong> {{ payment.amount|floatformat:0 }}원</p>
@@ -58,7 +58,7 @@
             <p><strong>카드사:</strong> {{ payment.card_company }}</p>
             {% endif %}
         </div>
-        
+
         <div>
             <a href="/shopping/orders/{{ order.id }}/" class="btn">주문 상세보기</a>
             <a href="/shopping/" class="btn">쇼핑 계속하기</a>

@@ -4,6 +4,7 @@ Redis를 브로커로 사용하여 비동기 작업 처리
 """
 
 import os
+
 from celery import Celery
 from celery.schedules import crontab
 

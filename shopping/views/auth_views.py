@@ -1,25 +1,18 @@
+from django.contrib.auth import update_session_auth_hash
+from django.utils import timezone
+
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
-from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
-from django.contrib.auth import update_session_auth_hash
-from django.utils import timezone
 
-from shopping.models.user import User
-from shopping.serializers.user_serializers import (
-    RegisterSerializer,
-    LoginSerializer,
-    UserSerializer,
-    PasswordChangeSerializer,
-    TokenResponseSerializer,
-)
-
-from shopping.tasks.email_tasks import send_verification_email_task
 from shopping.models.email_verification import EmailVerificationToken
+from shopping.serializers.user_serializers import LoginSerializer, PasswordChangeSerializer, RegisterSerializer, UserSerializer
+from shopping.tasks.email_tasks import send_verification_email_task
 
 
 class RegisterView(APIView):
@@ -168,9 +161,7 @@ class LogoutView(APIView):
             token = RefreshToken(refresh_token)
             token.blacklist()
 
-            return Response(
-                {"message": "로그아웃 되었습니다."}, status=status.HTTP_200_OK
-            )
+            return Response({"message": "로그아웃 되었습니다."}, status=status.HTTP_200_OK)
 
         except TokenError:
             return Response(
@@ -178,9 +169,7 @@ class LogoutView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception as e:
-            return Response(
-                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ProfileView(APIView):
@@ -233,9 +222,7 @@ class PasswordChangeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = PasswordChangeSerializer(
-            data=request.data, context={"request": request}
-        )
+        serializer = PasswordChangeSerializer(data=request.data, context={"request": request})
 
         if serializer.is_valid():
             serializer.save()
@@ -243,9 +230,7 @@ class PasswordChangeView(APIView):
             # 비밀번호 변경 후에도 로그인 유지
             update_session_auth_hash(request, request.user)
 
-            return Response(
-                {"message": "비밀번호가 변경되었습니다."}, status=status.HTTP_200_OK
-            )
+            return Response({"message": "비밀번호가 변경되었습니다."}, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -291,9 +276,7 @@ def withdraw(request):
     password = request.data.get("password")
 
     if not password:
-        return Response(
-            {"error": "비밀번호를 입력해주세요."}, status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": "비밀번호를 입력해주세요."}, status=status.HTTP_400_BAD_REQUEST)
 
     user = request.user
 
@@ -310,6 +293,4 @@ def withdraw(request):
     user.is_active = False  # 비활성화
     user.save()
 
-    return Response(
-        {"message": "회원 탈퇴가 완료되었습니다."}, status=status.HTTP_200_OK
-    )
+    return Response({"message": "회원 탈퇴가 완료되었습니다."}, status=status.HTTP_200_OK)

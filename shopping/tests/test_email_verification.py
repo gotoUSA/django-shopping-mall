@@ -1,13 +1,16 @@
+import re
+from datetime import timedelta
+
+from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
-from django.core import mail
+from django.utils import timezone
+
 from rest_framework import status
 from rest_framework.test import APIClient
-from shopping.models.user import User
+
 from shopping.models.email_verification import EmailVerificationToken
-from django.utils import timezone
-from datetime import timedelta
-import re
+from shopping.models.user import User
 
 
 class EmailVerificationModelTest(TestCase):
@@ -39,17 +42,16 @@ class EmailVerificationModelTest(TestCase):
         self.assertFalse(token.is_used)
         self.assertIsNotNone(token.created_at)
 
-    def test_token_expiry_check(self):
-        """토큰 만료 체크 테스트"""
+    def test_token_uniqueness(self):
+        """토큰 고유성 체크"""
         token1 = EmailVerificationToken.objects.create(user=self.user)
         token2 = EmailVerificationToken.objects.create(user=self.user)
 
         # UUID는 고유해야함
-        self.assertNotEqual(token1.token, token2.token)
         # 인증코드도 대부분 달라야함 (같을 확률은 매우 낮음)
-        # 테스트 안정성을 위해 이부분은 나중에
+        self.assertNotEqual(token1.token, token2.token)
 
-    def test_token_expiry_check(self):
+    def test_token_expiry_check_v2(self):
         """토큰 만료 체크 테스트"""
         # 24시간 전에 생성된 토큰
         old_token = EmailVerificationToken.objects.create(user=self.user)
@@ -100,9 +102,7 @@ class EmailVerificationAPITest(TestCase):
         self.assertIn("인증 이메일", response.data["message"])
 
         # 토큰 생성 확인
-        token_exists = EmailVerificationToken.objects.filter(
-            user=self.user, is_used=False
-        ).exists()
+        token_exists = EmailVerificationToken.objects.filter(user=self.user, is_used=False).exists()
         self.assertTrue(token_exists)
 
         # 이메일 발송 확인 (테스트 환경에서는 실제 발송 안함)
@@ -127,11 +127,7 @@ class EmailVerificationAPITest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         # ErrorDetail 처리
-        error_str = (
-            str(response.data["error"][0])
-            if isinstance(response.data["error"], list)
-            else str(response.data["error"])
-        )
+        error_str = str(response.data["error"][0]) if isinstance(response.data["error"], list) else str(response.data["error"])
         self.assertIn("이미 이메일 인증이 완료되었습니다", error_str)
 
     def test_verify_email_with_uuid_token(self):
@@ -175,9 +171,7 @@ class EmailVerificationAPITest(TestCase):
 
     def test_verify_email_with_invalid_token(self):
         """잘못된 토큰으로 인증 시도 테스트"""
-        response = self.client.get(
-            self.verify_url, {"token": "invalid-token-12345"}
-        )  # UUID 형식이 아닌 토큰
+        response = self.client.get(self.verify_url, {"token": "invalid-token-12345"})  # UUID 형식이 아닌 토큰
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("유효하지 않은 토큰입니다", response.data["error"])
@@ -218,9 +212,7 @@ class EmailVerificationAPITest(TestCase):
         self.assertEqual(response2.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         # ErrorDetail을 문자열로 변환
         error_str = (
-            str(response2.data["error"][0])
-            if isinstance(response2.data["error"], list)
-            else str(response2.data["error"])
+            str(response2.data["error"][0]) if isinstance(response2.data["error"], list) else str(response2.data["error"])
         )
         self.assertIn("1분", error_str)
 
@@ -245,9 +237,5 @@ class EmailVerificationAPITest(TestCase):
         self.assertTrue(token1.is_used)
 
         # 새 토큰이 생성되어야 함
-        new_token_exists = (
-            EmailVerificationToken.objects.filter(user=self.user, is_used=False)
-            .exclude(id=token1.id)
-            .exists()
-        )
+        new_token_exists = EmailVerificationToken.objects.filter(user=self.user, is_used=False).exclude(id=token1.id).exists()
         self.assertTrue(new_token_exists)

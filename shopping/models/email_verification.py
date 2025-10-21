@@ -1,10 +1,11 @@
-import uuid
 import random
 import string
-from django.db import models
-from django.conf import settings
-from django.utils import timezone
+import uuid
 from datetime import timedelta
+
+from django.conf import settings
+from django.db import models
+from django.utils import timezone
 
 
 class EmailVerificationToken(models.Model):
@@ -18,14 +19,10 @@ class EmailVerificationToken(models.Model):
     )
 
     # UUID 토큰 (링크용)
-    token = models.UUIDField(
-        default=uuid.uuid4, editable=False, unique=True, verbose_name="인증 토큰"
-    )
+    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True, verbose_name="인증 토큰")
 
     # 6자리 인증 코드 (직접 입력용)
-    verification_code = models.CharField(
-        max_length=6, editable=False, verbose_name="인증 코드"
-    )
+    verification_code = models.CharField(max_length=6, editable=False, verbose_name="인증 코드")
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="생성일시")
 
@@ -56,9 +53,7 @@ class EmailVerificationToken(models.Model):
         code = "".join(random.choices(characters, k=6))
 
         # 중복 체크 (같은 사용자의 유효한 코드)
-        while EmailVerificationToken.objects.filter(
-            user=self.user, verification_code=code, is_used=False
-        ).exists():
+        while EmailVerificationToken.objects.filter(user=self.user, verification_code=code, is_used=False).exists():
             code = "".join(random.choices(characters, k=6))
 
         return code
@@ -110,17 +105,13 @@ class EmailLog(models.Model):
         verbose_name="사용자",
     )
 
-    email_type = models.CharField(
-        max_length=20, choices=EMAIL_TYPE_CHOICES, verbose_name="이메일 유형"
-    )
+    email_type = models.CharField(max_length=20, choices=EMAIL_TYPE_CHOICES, verbose_name="이메일 유형")
 
     recipient_email = models.EmailField(verbose_name="수신자 이메일")
 
     subject = models.CharField(max_length=255, verbose_name="제목")
 
-    status = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default="pending", verbose_name="상태"
-    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending", verbose_name="상태")
 
     token = models.ForeignKey(
         EmailVerificationToken,
@@ -137,9 +128,7 @@ class EmailLog(models.Model):
 
     clicked_at = models.DateTimeField(null=True, blank=True, verbose_name="클릭일시")
 
-    verified_at = models.DateTimeField(
-        null=True, blank=True, verbose_name="인증완료일시"
-    )
+    verified_at = models.DateTimeField(null=True, blank=True, verbose_name="인증완료일시")
 
     error_message = models.TextField(blank=True, verbose_name="에러 메시지")
 

@@ -1,8 +1,11 @@
-from rest_framework import serializers
-from django.db.models import Avg, Count
-from django.contrib.auth import get_user_model
-from ..models.product import Product, Category, ProductImage, ProductReview
 import decimal
+
+from django.contrib.auth import get_user_model
+from django.db.models import Avg
+
+from rest_framework import serializers
+
+from ..models.product import Category, Product, ProductImage, ProductReview
 
 User = get_user_model()
 
@@ -17,9 +20,7 @@ class ProductListSerializer(serializers.ModelSerializer):
 
     # 카테고리 이름을 보여주기 위한 필드
     # source를 사용하여 관련 모델의 필드를 가져옵니다.
-    category_name = serializers.CharField(
-        source="category.name", read_only=True, help_text="상품이 속한 카테고리 이름"
-    )
+    category_name = serializers.CharField(source="category.name", read_only=True, help_text="상품이 속한 카테고리 이름")
 
     # 판매자 정보 (선택적 필드이므로 allow_null=True)
     seller_username = serializers.CharField(
@@ -31,28 +32,20 @@ class ProductListSerializer(serializers.ModelSerializer):
 
     # 대표 이미지 URL을 가져오는 커스텀 필드
     # SerializerMethodField를 사용하면 메서드로 값을 계산할 수 있습니다.
-    thumbnail_image = serializers.SerializerMethodField(
-        help_text="상품 대표 이미지 URL"
-    )
+    thumbnail_image = serializers.SerializerMethodField(help_text="상품 대표 이미지 URL")
 
     # 평균 평점 (리뷰가 없으면 0.0)
-    average_rating = serializers.SerializerMethodField(
-        help_text="평균 평점 (0.0 ~ 5.0)"
-    )
+    average_rating = serializers.SerializerMethodField(help_text="평균 평점 (0.0 ~ 5.0)")
 
     # 리뷰 개수
     review_count = serializers.SerializerMethodField(help_text="리뷰 총 개수")
 
     # 할인된 가격 (나중에 할인 기능 추가시 사용)
     # 지금은 원가와 동일하게 반환
-    discounted_price = serializers.SerializerMethodField(
-        help_text="할인가 (현재는 원가와 동일)"
-    )
+    discounted_price = serializers.SerializerMethodField(help_text="할인가 (현재는 원가와 동일)")
 
     # 재고 상태를 텍스트로 표시
-    stock_status = serializers.SerializerMethodField(
-        help_text="재고 상태 (품절/부족/충분)"
-    )
+    stock_status = serializers.SerializerMethodField(help_text="재고 상태 (품절/부족/충분)")
 
     # 찜 관련 필드
     wishlist_count = serializers.SerializerMethodField()
@@ -113,9 +106,7 @@ class ProductListSerializer(serializers.ModelSerializer):
         Django ORM의 집계(aggregate) 기능을 사용합니다.
         """
         # reviews는 Product 모델에서 related_name으로 정의된 역참조
-        avg_rating = obj.reviews.aggregate(
-            avg=Avg("rating")  # rating 필드의 평균 계산
-        )["avg"]
+        avg_rating = obj.reviews.aggregate(avg=Avg("rating"))["avg"]  # rating 필드의 평균 계산
 
         # 리뷰가 없으면 0.0 반환, 있으면 소수점 1자리로 반올림
         return round(avg_rating, 1) if avg_rating else 0.0
@@ -182,9 +173,7 @@ class ProductReviewSerializer(serializers.ModelSerializer):
     """상품 리뷰"""
 
     user_display_name = serializers.SerializerMethodField()
-    created_at_formatted = serializers.DateTimeField(
-        source="created_at", format="%Y년 %m월 %d일", read_only=True
-    )
+    created_at_formatted = serializers.DateTimeField(source="created_at", format="%Y년 %m월 %d일", read_only=True)
 
     class Meta:
         model = ProductReview
@@ -210,16 +199,12 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     category_id = serializers.IntegerField(source="category.id", read_only=True)
     category_name = serializers.CharField(source="category.name", read_only=True)
     category_slug = serializers.CharField(source="category.slug", read_only=True)
-    category_parent_name = serializers.CharField(
-        source="category.parent.name", read_only=True, default=None
-    )
+    category_parent_name = serializers.CharField(source="category.parent.name", read_only=True, default=None)
 
     # 판매자 정보 - 공개 가능한 정보만 직접 지정
     seller_id = serializers.IntegerField(source="seller.id", read_only=True)
     seller_username = serializers.CharField(source="seller.username", read_only=True)
-    seller_level = serializers.CharField(
-        source="seller.membership_level", read_only=True
-    )
+    seller_level = serializers.CharField(source="seller.membership_level", read_only=True)
     seller_product_count = serializers.SerializerMethodField()
 
     # 관련 데이터
@@ -275,9 +260,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     def get_recent_reviews(self, obj):
         """최근 리뷰 10개 반환"""
         recent_reivews = obj.reviews.all().order_by("-created_at")[:10]
-        return ProductReviewSerializer(
-            recent_reivews, many=True, context=self.context
-        ).data
+        return ProductReviewSerializer(recent_reivews, many=True, context=self.context).data
 
     def get_average_rating(self, obj):
         """평균 평점 계산"""
@@ -324,9 +307,7 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
     )
 
     # 가격 검증 (음수 불가)
-    price = serializers.DecimalField(
-        max_digits=10, decimal_places=0, min_value=0, help_text="판매가 (0원 이상)"
-    )
+    price = serializers.DecimalField(max_digits=10, decimal_places=0, min_value=0, help_text="판매가 (0원 이상)")
 
     compare_price = serializers.DecimalField(
         max_digits=10,
@@ -416,20 +397,12 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         if value:  # slug가 입력된 경우만 검증
             # 수정 시 자기 자신 제외
             if self.instance:
-                if (
-                    Product.objects.filter(slug=value)
-                    .exclude(pk=self.instance.pk)
-                    .exists()
-                ):
-                    raise serializers.ValidationError(
-                        f"URL 슬러그 '{value}'는 이미 사용중입니다."
-                    )
+                if Product.objects.filter(slug=value).exclude(pk=self.instance.pk).exists():
+                    raise serializers.ValidationError(f"URL 슬러그 '{value}'는 이미 사용중입니다.")
             else:
                 # 생성 시
                 if Product.objects.filter(slug=value).exists():
-                    raise serializers.ValidationError(
-                        f"URL 슬러그 '{value}'는 이미 사용중입니다."
-                    )
+                    raise serializers.ValidationError(f"URL 슬러그 '{value}'는 이미 사용중입니다.")
 
         return value
 
@@ -444,17 +417,13 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
             if not self.instance and "price" in self.initial_data:
                 price = self.initial_data.get("price")
                 if price and value <= decimal.Decimal(str(price)):
-                    raise serializers.ValidationError(
-                        "할인 전 가격은 판매가보다 높아야 합니다."
-                    )
+                    raise serializers.ValidationError("할인 전 가격은 판매가보다 높아야 합니다.")
 
             # 수정 시
             elif self.instance:
                 price = self.initial_data.get("price", self.instance.price)
                 if value <= decimal.Decimal(str(price)):
-                    raise serializers.ValidationError(
-                        "할인 전 가격은 판매가보다 높아야 합니다."
-                    )
+                    raise serializers.ValidationError("할인 전 가격은 판매가보다 높아야 합니다.")
 
         return value
 
@@ -503,9 +472,7 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         """
         # 재고가 0인데 판매 가능으로 설정한 경우 경고
         stock = attrs.get("stock", 0 if not self.instance else self.instance.stock)
-        is_available = attrs.get(
-            "is_available", True if not self.instance else self.instance.is_available
-        )
+        is_available = attrs.get("is_available", True if not self.instance else self.instance.is_available)
 
         if stock == 0 and is_available:
             # 경고만 하고 에러는 발생시키지 않음 (관리자가 의도적으로 설정할 수 있음)

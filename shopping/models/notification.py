@@ -1,5 +1,5 @@
-from django.db import models
 from django.conf import settings
+from django.db import models
 
 
 class Notification(models.Model):
@@ -27,9 +27,7 @@ class Notification(models.Model):
         verbose_name="사용자",
     )
 
-    notification_type = models.CharField(
-        max_length=20, choices=TYPE_CHOICES, verbose_name="알림 타입"
-    )
+    notification_type = models.CharField(max_length=20, choices=TYPE_CHOICES, verbose_name="알림 타입")
 
     # 알림 내용
     title = models.CharField(max_length=100, verbose_name="제목")

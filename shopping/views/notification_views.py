@@ -1,13 +1,9 @@
-from rest_framework import viewsets, status, permissions
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Q
 
 from ..models.notification import Notification
-from ..serializers.notification_serializers import (
-    NotificationSerializer,
-    NotificationMarkReadSerializer,
-)
+from ..serializers.notification_serializers import NotificationMarkReadSerializer, NotificationSerializer
 
 
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -86,9 +82,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
             "count": 3
         }
         """
-        serializer = NotificationMarkReadSerializer(
-            data=request.data, context={"request": request}
-        )
+        serializer = NotificationMarkReadSerializer(data=request.data, context={"request": request})
 
         if serializer.is_valid():
             count = serializer.mark_as_read()
@@ -118,6 +112,4 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         count = read_notifiactions.count()
         read_notifiactions.delete()
 
-        return Response(
-            {"message": f"{count}개의 알림을 삭제했습니다.", "count": count}
-        )
+        return Response({"message": f"{count}개의 알림을 삭제했습니다.", "count": count})

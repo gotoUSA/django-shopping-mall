@@ -1,21 +1,22 @@
-from rest_framework import viewsets, status, permissions
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
+
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
-from django.shortcuts import get_object_or_404
-from django.db.models import Q
+from rest_framework.response import Response
 
-from ..models.product_qa import ProductQuestion, ProductAnswer
 from ..models.product import Product
+from ..models.product_qa import ProductQuestion
 from ..serializers.product_qa_serializers import (
-    ProductQuestionListSerializer,
-    ProductQuestionDetailSerializer,
-    ProductQuestionCreateSerializer,
-    ProductQuestionUpdateSerializer,
-    ProductAnswerSerializer,
     ProductAnswerCreateSerializer,
+    ProductAnswerSerializer,
     ProductAnswerUpdateSerializer,
+    ProductQuestionCreateSerializer,
+    ProductQuestionDetailSerializer,
+    ProductQuestionListSerializer,
+    ProductQuestionUpdateSerializer,
 )
 
 
@@ -66,9 +67,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
             return queryset
 
         # 일반 사용자: 비밀글 아닌 것 OR 내가 작성한 것 OR 내가 판매자인 것
-        return queryset.filter(
-            Q(is_secret=False) | Q(user=user) | Q(product__seller=user)
-        )
+        return queryset.filter(Q(is_secret=False) | Q(user=user) | Q(product__seller=user))
 
     def get_serializer_class(self):
         """액션에 따라 적절한 Serializer 반환"""
@@ -85,9 +84,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """문의 작성"""
         if not request.user.is_authenticated:
-            return Response(
-                {"error": "로그인이 필요합니다."}, status=status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({"error": "로그인이 필요합니다."}, status=status.HTTP_401_UNAUTHORIZED)
 
         product_id = self.kwargs.get("product_pk")
         product = get_object_or_404(Product, pk=product_id)
@@ -97,9 +94,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             serializer.save(user=request.user, product=product)
 
-            detail_serializer = ProductQuestionDetailSerializer(
-                serializer.instance, context={"request": request}
-            )
+            detail_serializer = ProductQuestionDetailSerializer(serializer.instance, context={"request": request})
 
             return Response(detail_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -145,9 +140,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
 
         return super().destroy(request, *args, **kwargs)
 
-    @action(
-        detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated]
-    )
+    @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
     def answer(self, request, pk=None, product_pk=None):
         """
         답변 작성
@@ -167,9 +160,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = ProductAnswerCreateSerializer(
-            data=request.data, context={"request": request, "question": question}
-        )
+        serializer = ProductAnswerCreateSerializer(data=request.data, context={"request": request, "question": question})
 
         if serializer.is_valid():
             answer = serializer.save()
@@ -179,9 +170,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
             return Response(answer_serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(
-        detail=True, methods=["patch"], permission_classes=[permissions.IsAuthenticated]
-    )
+    @action(detail=True, methods=["patch"], permission_classes=[permissions.IsAuthenticated])
     def update_answer(self, request, pk=None, product_pk=None):
         """
         답변 수정
@@ -196,9 +185,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
 
         # 답변 존재 확인
         if not hasattr(question, "answer"):
-            return Response(
-                {"error": "답변이 없습니다."}, status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "답변이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
 
         answer = question.answer
 
@@ -206,9 +193,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         if answer.seller != request.user and not request.user.is_staff:
             raise PermissionDenied("수정 권한이 없습니다.")
 
-        serializer = ProductAnswerUpdateSerializer(
-            answer, data=request.data, partial=True
-        )
+        serializer = ProductAnswerUpdateSerializer(answer, data=request.data, partial=True)
 
         if serializer.is_valid():
             serializer.save()
@@ -230,9 +215,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
 
         # 답변 존재 확인
         if not hasattr(question, "answer"):
-            return Response(
-                {"error": "답변이 없습니다."}, status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "답변이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
 
         answer = question.answer
 
@@ -247,9 +230,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         question.is_answered = False
         question.save(update_fields=["is_answered"])
 
-        return Response(
-            {"message": "답변이 삭제되었습니다."}, status=status.HTTP_204_NO_CONTENT
-        )
+        return Response({"message": "답변이 삭제되었습니다."}, status=status.HTTP_204_NO_CONTENT)
 
 
 class MyQuestionViewSet(viewsets.ReadOnlyModelViewSet):

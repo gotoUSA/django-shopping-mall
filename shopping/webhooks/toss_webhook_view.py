@@ -1,17 +1,17 @@
+import logging
+
+from django.db import transaction
+from django.db.models import F
+from django.views.decorators.csrf import csrf_exempt
+
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from django.views.decorators.csrf import csrf_exempt
-from django.db import transaction
-from django.db.models import F
-import logging
-import json
 
-from ..models.payment import Payment, PaymentLog
-from ..models.order import Order
-from ..models.product import Product
 from ..models.cart import Cart
+from ..models.payment import Payment, PaymentLog
+from ..models.product import Product
 from ..serializers.payment_serializers import PaymentWebhookSerializer
 from ..utils.toss_payment import TossPaymentClient
 
@@ -46,9 +46,7 @@ def toss_webhook(request):
 
     if not signature:
         logger.warning("Webhook signature missing")
-        return Response(
-            {"error": "Signature missing"}, status=status.HTTP_401_UNAUTHORIZED
-        )
+        return Response({"error": "Signature missing"}, status=status.HTTP_401_UNAUTHORIZED)
 
     # 토스페이먼츠 클라이언트로 서명 검증
     toss_client = TossPaymentClient()
@@ -59,9 +57,7 @@ def toss_webhook(request):
         # 서명 검증
         if not toss_client.verify_webhook(webhook_data, signature):
             logger.warning("Invalid webhook signature")
-            return Response(
-                {"error": "Invalid signature"}, status=status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({"error": "Invalid signature"}, status=status.HTTP_401_UNAUTHORIZED)
 
     except Exception as e:
         logger.error(f"Webhook signature verification error: {str(e)}")
@@ -103,9 +99,7 @@ def toss_webhook(request):
 
     except Exception as e:
         logger.error(f"Webhook processing error: {str(e)}")
-        return Response(
-            {"error": "Processing failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return Response({"error": "Processing failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @transaction.atomic
@@ -116,7 +110,7 @@ def handle_payment_done(event_data):
     결제창에서 결제 완류 후 confirm API 호출 전에
     웹훅이 먼저 도착할 수 있으므로 중복 처리 방지 필요
     """
-    payment_key = event_data.get("paymentKey")
+    event_data.get("paymentKey")
     order_id = event_data.get("orderId")
 
     try:
@@ -149,8 +143,7 @@ def handle_payment_done(event_data):
             # 재고 확인
             if product.stock < order_item.quantity:
                 logger.error(
-                    f"Insufficient stock for product {product.id}: "
-                    f"stock={product.stock}, requested={order_item.quantity}"
+                    f"Insufficient stock for product {product.id}: " f"stock={product.stock}, requested={order_item.quantity}"
                 )
                 # 웹훅에서는 취소 처리하지 않음 (별도 배치 처리)
                 continue
@@ -191,7 +184,7 @@ def handle_payment_canceled(event_data):
     """
     결제 취소 이벤트 처리
     """
-    payment_key = event_data.get("paymentKey")
+    event_data.get("paymentKey")
     order_id = event_data.get("orderId")
 
     try:

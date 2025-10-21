@@ -165,21 +165,21 @@
         <div class="header">
             <h1>🛍️ 쇼핑몰 이메일 인증</h1>
         </div>
-        
+
         <div class="content">
             {% if is_resend %}
             <span class="resend-badge">재발송된 메일입니다</span>
             {% endif %}
-            
+
             <div class="greeting">
                 안녕하세요, {{ user.first_name }}님! 👋
             </div>
-            
+
             <div class="message">
                 쇼핑몰 회원가입을 환영합니다!<br>
                 아래 방법 중 하나를 선택하여 이메일 인증을 완료해주세요.
             </div>
-            
+
             <div class="verification-section">
                 <strong style="color: #333; font-size: 16px;">방법 1: 인증 코드 입력</strong>
                 <div class="verification-code">{{ verification_code }}</div>
@@ -187,26 +187,26 @@
                     웹사이트에서 위 6자리 코드를 입력하세요
                 </p>
             </div>
-            
+
             <div class="divider">또는</div>
-            
+
             <div class="button-container">
                 <a href="{{ verification_url }}" class="verify-button">
                     이메일 인증하기
                 </a>
             </div>
-            
+
             <div class="message" style="text-align: center; color: #999; font-size: 14px;">
                 방법 2: 위 버튼을 클릭하여 바로 인증
             </div>
-            
+
             <div class="link-section">
                 <p style="color: #666; font-size: 13px; margin-bottom: 10px;">
                     버튼이 작동하지 않으면 아래 링크를 복사하여 브라우저에 붙여넣으세요:
                 </p>
                 <a href="{{ verification_url }}" class="link-text">{{ verification_url }}</a>
             </div>
-            
+
             <div class="warning">
                 <div class="warning-title">⏰ 유효기간 안내</div>
                 <div class="warning-text">
@@ -214,14 +214,14 @@
                     기간이 지나면 새로운 인증 메일을 요청해주세요.
                 </div>
             </div>
-            
+
             <div class="spam-notice">
                 📧 <strong>이메일이 보이지 않나요?</strong><br>
                 스팸함 또는 프로모션 폴더를 확인해주세요.<br>
                 계속 메일을 받지 못하신다면 1분 후 재발송을 요청하실 수 있습니다.
             </div>
         </div>
-        
+
         <div class="footer">
             <div class="footer-text">
                 이 메일은 {{ user.email }} 계정의 이메일 인증을 위해 발송되었습니다.<br>

@@ -1,9 +1,8 @@
-from rest_framework import serializers
 from django.db import transaction
-from django.core.exceptions import ValidationError as djangoValidationError
-from decimal import Decimal
-from django.utils import timezone
 from django.db.models import F
+from django.utils import timezone
+
+from rest_framework import serializers
 
 # 모델 import
 from ..models.cart import Cart, CartItem
@@ -25,12 +24,8 @@ class CartItemSerializer(serializers.ModelSerializer):
     product = ProductListSerializer(read_only=True)
 
     # 상품 기본 정보 (빠른 참조용)
-    product_id = serializers.IntegerField(
-        source="product.id", read_only=True, help_text="상품 ID"
-    )
-    product_name = serializers.CharField(
-        source="product.name", read_only=True, help_text="상품명"
-    )
+    product_id = serializers.IntegerField(source="product.id", read_only=True, help_text="상품 ID")
+    product_name = serializers.CharField(source="product.name", read_only=True, help_text="상품명")
     product_price = serializers.DecimalField(
         source="product.price",
         max_digits=10,
@@ -41,12 +36,8 @@ class CartItemSerializer(serializers.ModelSerializer):
 
     # 계산 필드들
     subtotal = serializers.SerializerMethodField(help_text="소계 (단가 x 수량)")
-    is_available = serializers.SerializerMethodField(
-        help_text="구매 가능 여부 (재고 확인)"
-    )
-    available_stock = serializers.IntegerField(
-        source="product.stock", read_only=True, help_text="현재 재고 수량"
-    )
+    is_available = serializers.SerializerMethodField(help_text="구매 가능 여부 (재고 확인)")
+    available_stock = serializers.IntegerField(source="product.stock", read_only=True, help_text="현재 재고 수량")
 
     class Meta:
         model = CartItem
@@ -145,11 +136,7 @@ class CartItemCreateSerializer(serializers.ModelSerializer):
         # validate_product_id에서 저장한 product 사용
         if hasattr(self, "product"):
             if quantity > self.product.stock:
-                raise serializers.ValidationError(
-                    {
-                        "quantity": f"재고가 부족합니다. 현재 재고: {self.product.stock}개"
-                    }
-                )
+                raise serializers.ValidationError({"quantity": f"재고가 부족합니다. 현재 재고: {self.product.stock}개"})
 
         return attrs
 
@@ -173,19 +160,13 @@ class CartItemCreateSerializer(serializers.ModelSerializer):
 
             try:
                 # 기존 아이템을 잠금과 함께 조회
-                cart_item = CartItem.objects.select_for_update().get(
-                    cart=cart, product_id=product_id
-                )
+                cart_item = CartItem.objects.select_for_update().get(cart=cart, product_id=product_id)
                 # F() 객체로 안전하게 수량 증가 (atomic update)
-                CartItem.objects.filter(pk=cart_item.pk).update(
-                    quantity=F("quantity") + quantity, updated_at=timezone.now()
-                )
+                CartItem.objects.filter(pk=cart_item.pk).update(quantity=F("quantity") + quantity, updated_at=timezone.now())
                 cart_item.refresh_from_db()  # DB에서 최신 값 다시 로드
             except CartItem.DoesNotExist:
                 # 없으면 생성
-                cart_item = CartItem.objects.create(
-                    cart=cart, product_id=product_id, quantity=quantity
-                )
+                cart_item = CartItem.objects.create(cart=cart, product_id=product_id, quantity=quantity)
 
             return cart_item
 
@@ -225,9 +206,7 @@ class CartItemUpdateSerializer(serializers.ModelSerializer):
         if self.instance and value > 0:
             # 재고 확인
             if value > self.instance.product.stock:
-                raise serializers.ValidationError(
-                    f"재고가 부족합니다. 현재 재고: {self.instance.product.stock}개"
-                )
+                raise serializers.ValidationError(f"재고가 부족합니다. 현재 재고: {self.instance.product.stock}개")
 
         return value
 
@@ -252,9 +231,7 @@ class CartItemUpdateSerializer(serializers.ModelSerializer):
                 return cart_item
             else:
                 # 직접 UPDATE 쿼리로 수량 변경 (race condition 방지)
-                CartItem.objects.filter(pk=cart_item.pk).update(
-                    quantity=quantity, updated_at=timezone.now()
-                )
+                CartItem.objects.filter(pk=cart_item.pk).update(quantity=quantity, updated_at=timezone.now())
                 cart_item.refresh_from_db()
                 return cart_item
 
@@ -271,12 +248,8 @@ class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)
 
     # 사용자 정보 (간단히)
-    user_id = serializers.IntegerField(
-        source="user.id", read_only=True, help_text="사용자 ID"
-    )
-    user_username = serializers.CharField(
-        source="user.username", read_only=True, help_text="사용자명"
-    )
+    user_id = serializers.IntegerField(source="user.id", read_only=True, help_text="사용자 ID")
+    user_username = serializers.CharField(source="user.username", read_only=True, help_text="사용자명")
 
     # 집계 정보
     total_amount = serializers.SerializerMethodField(help_text="총 금액")
@@ -284,12 +257,8 @@ class CartSerializer(serializers.ModelSerializer):
     item_count = serializers.SerializerMethodField(help_text="상품 종류 수")
 
     # 구매 가능 여부
-    is_all_available = serializers.SerializerMethodField(
-        help_text="모든 상품 구매 가능 여부"
-    )
-    unavailable_items = serializers.SerializerMethodField(
-        help_text="구매 불가능한 상품 목록"
-    )
+    is_all_available = serializers.SerializerMethodField(help_text="모든 상품 구매 가능 여부")
+    unavailable_items = serializers.SerializerMethodField(help_text="구매 불가능한 상품 목록")
 
     class Meta:
         model = Cart
@@ -403,9 +372,7 @@ class CartClearSerializer(serializers.Serializer):
     안전을 위해 확인 메시지를 요구합니다.
     """
 
-    confirm = serializers.BooleanField(
-        required=True, help_text="장바구니를 비우려면 true를 전송하세요."
-    )
+    confirm = serializers.BooleanField(required=True, help_text="장바구니를 비우려면 true를 전송하세요.")
 
     def validate_confirm(self, value):  # 특정 필드 검증
         """확인 값 검증"""

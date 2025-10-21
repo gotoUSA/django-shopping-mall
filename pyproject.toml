@@ -1,0 +1,102 @@
+# ==========================================
+# Black 설정 (코드 포맷팅)
+# ==========================================
+[tool.black]
+line-length = 127
+target-version = ['py312']
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | env
+  | __pycache__
+  | migrations
+  | staticfiles
+  | media
+  | htmlcov
+  | \.backup
+)/
+'''
+
+# ==========================================
+# isort 설정 (import 정렬)
+# ==========================================
+[tool.isort]
+profile = "black"
+line_length = 127
+skip_glob = ["*/migrations/*", "venv/*", "env/*", "htmlcov/*"]
+known_django = ["django"]
+known_third_party = [
+    "rest_framework",
+    "celery",
+    "redis",
+    "mptt",
+    "allauth",
+    "dj_rest_auth",
+    "drf_yasg"
+]
+known_first_party = ["shopping", "myproject"]
+sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+# ==========================================
+# pytest 설정
+# ==========================================
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "myproject.settings"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+python_classes = ["Test*", "*Tests", "*TestCase"]
+python_functions = ["test_*"]
+addopts = """
+    --reuse-db
+    --nomigrations
+    --cov=shopping
+    --cov-report=html
+    --cov-report=term-missing:skip-covered
+    --cov-fail-under=70
+    -v
+    --tb=short
+    --strict-markers
+"""
+testpaths = ["shopping/tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+# ==========================================
+# coverage 설정
+# ==========================================
+[tool.coverage.run]
+source = ["shopping"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/env/*",
+    "manage.py",
+    "myproject/wsgi.py",
+    "myproject/asgi.py",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+precision = 2
+show_missing = true
+skip_covered = false
+
+[tool.coverage.html]
+directory = "htmlcov"

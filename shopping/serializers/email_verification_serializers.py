@@ -1,6 +1,8 @@
-from rest_framework import serializers
-from shopping.models.email_verification import EmailVerificationToken, EmailLog
 from django.utils import timezone
+
+from rest_framework import serializers
+
+from shopping.models.email_verification import EmailLog, EmailVerificationToken
 
 
 class EmailVerificationTokenSerializer(serializers.ModelSerializer):
@@ -29,16 +31,10 @@ class SendVerificationEmailSerializer(serializers.Serializer):
 
         # 이미 인증된 사용자 체크
         if user.is_email_verified:
-            raise serializers.ValidationError(
-                {"error": "이미 이메일 인증이 완료되었습니다."}
-            )
+            raise serializers.ValidationError({"error": "이미 이메일 인증이 완료되었습니다."})
 
         # 최근 토큰 확인 (재발송 제한)
-        recent_token = (
-            EmailVerificationToken.objects.filter(user=user, is_used=False)
-            .order_by("-created_at")
-            .first()
-        )
+        recent_token = EmailVerificationToken.objects.filter(user=user, is_used=False).order_by("-created_at").first()
 
         if recent_token and not recent_token.can_resend():
             raise serializers.ValidationError({"error": "1분 후에 다시 시도해주세요."})
@@ -76,9 +72,7 @@ class VerifyEmailByTokenSerializer(serializers.Serializer):
         self.token_obj.mark_as_used()
 
         # 로그 업데이트
-        EmailLog.objects.filter(token=self.token_obj).update(
-            status="verified", verified_at=timezone.now()
-        )
+        EmailLog.objects.filter(token=self.token_obj).update(status="verified", verified_at=timezone.now())
 
         return user
 
@@ -86,9 +80,7 @@ class VerifyEmailByTokenSerializer(serializers.Serializer):
 class VerifyEmailByCodeSerializer(serializers.Serializer):
     """6자리 코드로 이메일 인증 시리얼라이저"""
 
-    code = serializers.CharField(
-        required=True, write_only=True, min_length=6, max_length=6
-    )
+    code = serializers.CharField(required=True, write_only=True, min_length=6, max_length=6)
     message = serializers.CharField(read_only=True)
 
     def validate_code(self, value):
@@ -99,9 +91,7 @@ class VerifyEmailByCodeSerializer(serializers.Serializer):
         value = value.upper()
 
         try:
-            token = EmailVerificationToken.objects.get(
-                user=user, verification_code=value, is_used=False
-            )
+            token = EmailVerificationToken.objects.get(user=user, verification_code=value, is_used=False)
         except EmailVerificationToken.DoesNotExist:
             raise serializers.ValidationError("유효하지 않은 인증 코드입니다.")
 
@@ -123,9 +113,7 @@ class VerifyEmailByCodeSerializer(serializers.Serializer):
         self.token_obj.mark_as_used()
 
         # 로그 업데이트
-        EmailLog.objects.filter(token=self.token_obj).update(
-            status="verified", verified_at=timezone.now()
-        )
+        EmailLog.objects.filter(token=self.token_obj).update(status="verified", verified_at=timezone.now())
 
         return user
 
@@ -142,21 +130,13 @@ class ResendVerificationEmailSerializer(serializers.Serializer):
 
         # 이미 인증된 사용자 체크
         if user.is_email_verified:
-            raise serializers.ValidationError(
-                {"error": "이미 이메일 인증이 완료되었습니다."}
-            )
+            raise serializers.ValidationError({"error": "이미 이메일 인증이 완료되었습니다."})
 
         # 최근 토큰 확인 (재발송 제한)
-        recent_token = (
-            EmailVerificationToken.objects.filter(user=user, is_used=False)
-            .order_by("-created_at")
-            .first()
-        )
+        recent_token = EmailVerificationToken.objects.filter(user=user, is_used=False).order_by("-created_at").first()
 
         if recent_token and not recent_token.can_resend():
-            raise serializers.ValidationError(
-                {"error": "1분 후에 다시 시도해주세요. 잠시만 기다려주세요."}
-            )
+            raise serializers.ValidationError({"error": "1분 후에 다시 시도해주세요. 잠시만 기다려주세요."})
 
         return attrs
 

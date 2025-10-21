@@ -1,32 +1,29 @@
+import logging
 from decimal import Decimal
-from rest_framework import status, permissions
+
+from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from django.db.models import F
+from django.shortcuts import get_object_or_404, redirect, render
+
+from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.db import transaction
-from django.db.models import F
-from django.conf import settings
-from django.utils import timezone
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.views.decorators.csrf import csrf_exempt
-from django.http import HttpResponse, JsonResponse
-import logging
 
-from ..models.payment import Payment, PaymentLog
-from ..models.order import Order, OrderItem
-from ..models.product import Product
 from ..models.cart import Cart
+from ..models.order import Order
+from ..models.payment import Payment, PaymentLog
 from ..models.point import PointHistory
+from ..models.product import Product
 from ..serializers.payment_serializers import (
-    PaymentSerializer,
-    PaymentRequestSerializer,
-    PaymentConfirmSerializer,
     PaymentCancelSerializer,
-    PaymentLogSerializer,
+    PaymentConfirmSerializer,
+    PaymentRequestSerializer,
+    PaymentSerializer,
 )
 from ..utils.toss_payment import TossPaymentClient, TossPaymentError, get_error_message
-
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -73,9 +70,7 @@ class PaymentRequestView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        serializer = PaymentRequestSerializer(
-            data=request.data, context={"request": request}
-        )
+        serializer = PaymentRequestSerializer(data=request.data, context={"request": request})
 
         if serializer.is_valid():
             # Payment 생성
@@ -135,10 +130,7 @@ class PaymentConfirmView(APIView):
         """
         # 이메일 인증 체크 (보안)
         if not request.user.is_email_verified:
-            logger.warning(
-                f"미인증 사용자 결제 승인 시도: user_id={request.user.id}, "
-                f"email={request.user.email}"
-            )
+            logger.warning(f"미인증 사용자 결제 승인 시도: user_id={request.user.id}, " f"email={request.user.email}")
             return Response(
                 {
                     "error": "이메일 인증이 필요합니다.",
@@ -148,9 +140,7 @@ class PaymentConfirmView(APIView):
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )
-        serializer = PaymentConfirmSerializer(
-            data=request.data, context={"request": request}
-        )
+        serializer = PaymentConfirmSerializer(data=request.data, context={"request": request})
 
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -174,9 +164,7 @@ class PaymentConfirmView(APIView):
 
             # 3. 재고 차감 (select_for_update로 동시성 제어)
             for order_item in order.order_items.select_for_update():
-                product = Product.objects.select_for_update().get(
-                    pk=order_item.product.pk
-                )
+                product = Product.objects.select_for_update().get(pk=order_item.product.pk)
 
                 # 재고 확인
                 if product.stock < order_item.quantity:
@@ -186,7 +174,7 @@ class PaymentConfirmView(APIView):
                             payment_key=payment.payment_key,
                             cancel_reason=f"{product.name} 재고 부족",
                         )
-                    except:
+                    except Exception:
                         pass  # 취소 실패해도 진행
 
                     return Response(
@@ -210,9 +198,7 @@ class PaymentConfirmView(APIView):
             order.save(update_fields=["status", "payment_method", "updated_at"])
 
             # 5. 장바구니 비활성화
-            Cart.objects.filter(user=request.user, is_active=True).update(
-                is_active=False
-            )
+            Cart.objects.filter(user=request.user, is_active=True).update(is_active=False)
 
             # 6. 포인트 적립 (구매 금액의 1%)
             # 포인트로만 결제한 경우는 적립하지 않음
@@ -345,9 +331,7 @@ class PaymentCancelView(APIView):
             "cancel_reason": "고객 변심"
         }
         """
-        serializer = PaymentCancelSerializer(
-            data=request.data, context={"request": request}
-        )
+        serializer = PaymentCancelSerializer(data=request.data, context={"request": request})
 
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -361,9 +345,7 @@ class PaymentCancelView(APIView):
 
         try:
             # 1. 토스페이먼츠에 취소 요청
-            cancel_data = toss_client.cancel_payment(
-                payment_key=payment.payment_key, cancel_reason=cancel_reason
-            )
+            cancel_data = toss_client.cancel_payment(payment_key=payment.payment_key, cancel_reason=cancel_reason)
 
             # 2. Payment 정보 업데이트
             payment.mark_as_canceled(cancel_data)
@@ -493,12 +475,8 @@ class PaymentCancelView(APIView):
                     "message": "결제가 취소되었습니다.",
                     "payment": PaymentSerializer(payment).data,
                     "refund_amount": int(payment.canceled_amount),
-                    "refunded_points": (
-                        order.used_points if order.used_points > 0 else 0
-                    ),
-                    "deducted_points": (
-                        points_to_deduct if order.earned_points > 0 else 0
-                    ),
+                    "refunded_points": (order.used_points if order.used_points > 0 else 0),
+                    "deducted_points": (points_to_deduct if order.earned_points > 0 else 0),
                 },
                 status=status.HTTP_200_OK,
             )
@@ -538,11 +516,7 @@ class PaymentListView(APIView):
 
     def get(self, request):
         """내 결제 목록 조회"""
-        payments = (
-            Payment.objects.filter(order__user=request.user)
-            .select_related("order")
-            .order_by("-created_at")
-        )
+        payments = Payment.objects.filter(order__user=request.user).select_related("order").order_by("-created_at")
 
         # 페이지네이션 (간단ver)
         page = int(request.GET.get("page", 1))
@@ -563,46 +537,6 @@ class PaymentListView(APIView):
                 "results": serializer.data,
             }
         )
-
-
-@api_view(["POST"])
-@permission_classes([permissions.AllowAny])  # 인증 불필요
-def payment_fail(request):
-    """
-    결제 실패 콜백
-
-    토스페이먼츠 결제창에서 결제 실패시 호출됩니다.
-
-    POST /api/payments/fail/
-    """
-    order_id = request.data.get("orderId")
-    error_code = request.data.get("code")
-    error_message = request.data.get("message")
-
-    if order_id:
-        try:
-            payment = Payment.objects.get(order_id=order_id)
-            payment.mark_as_failed(f"{error_code}: {error_message}")
-
-            # 실패 로그
-            PaymentLog.objects.create(
-                payment.payment,
-                log_type="error",
-                message=f"결제 실패: {error_message}",
-                data={"code": error_code, "message": error_message},
-            )
-
-        except Payment.DoesNotExist:
-            pass
-
-    return Response(
-        {
-            "message": "결제가 실패했습니다.",
-            "error_code": error_code,
-            "error_message": get_error_message(error_code) or error_message,
-        },
-        status=status.HTTP_400_BAD_REQUEST,
-    )
 
 
 @login_required
@@ -661,9 +595,7 @@ def payment_success(request):
         from ..utils.toss_payment import TossPaymentClient
 
         toss_client = TossPaymentClient()
-        result = toss_client.confirm_payment(
-            payment_key=payment_key, order_id=order_id, amount=int(amount)
-        )
+        result = toss_client.confirm_payment(payment_key=payment_key, order_id=order_id, amount=int(amount))
 
         # 결제 성공 처리
         payment.mark_as_paid(result)

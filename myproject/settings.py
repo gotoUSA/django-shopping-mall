@@ -10,9 +10,10 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -69,11 +70,15 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     "dj_rest_auth",
     "dj_rest_auth.registration",
+    # Debug Toolbar
+    "debug_toolbar",
 ]
 
 AUTH_USER_MODEL = "shopping.User"
 
 MIDDLEWARE = [
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
+    "django.middleware.security.SecurityMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -284,9 +289,7 @@ LOGGING = {
 
 # Celery 브로커 설정 (Redis)
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.environ.get(
-    "CELERY_RESULT_BACKEND", "redis://localhost:6379/0"
-)
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 
 # Celery 설정
 CELERY_ACCEPT_CONTENT = ["json"]
@@ -295,8 +298,14 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE  # Django 시간대와 동일하게 설정
 CELERY_ENABLE_UTC = False  # 로컬 시간대 사용
 
+# 테스트 환경에서 동기 실행
+if TESTING:
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+
 # Celery Beat 설정 (데이터베이스 스케줄러 사용)
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
 
 # ========== 데이터베이스 설정 수정 (Docker 사용 시) ==========
 
@@ -462,7 +471,20 @@ SOCIALACCOUNT_PROVIDERS = {
     },
 }
 
+
+# Debug Toolbar 설정
+if DEBUG:
+    INTERNAL_IPS = [
+        "127.0.0.1",
+        "localhost",
+    ]
+
+    # Docker 환경에서도 작동하도록
+    import socket
+
+    hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
+    INTERNAL_IPS += [ip[: ip.rfind(".")] + ".1" for ip in ips]
+
+
 # 소셜 로그인 리다이렉트 URI (프론트엔드)
-SOCIAL_LOGIN_REDIRECT_URI = os.getenv(
-    "SOCIAL_LOGIN_REDIRECT_URI", "http://localhost:8000/social/test/"
-)
+SOCIAL_LOGIN_REDIRECT_URI = os.getenv("SOCIAL_LOGIN_REDIRECT_URI", "http://localhost:8000/social/test/")

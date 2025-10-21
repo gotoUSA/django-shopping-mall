@@ -1,6 +1,6 @@
 from django.contrib.auth.models import AbstractUser
-from django.db import models
 from django.core.validators import RegexValidator
+from django.db import models
 
 phone_regex = RegexValidator(
     regex=r"^\d{2,3}-\d{3,4}-\d{4}$",
@@ -31,27 +31,17 @@ class User(AbstractUser):
 
     address = models.CharField(max_length=255, blank=True, verbose_name="기본주소")
 
-    address_detail = models.CharField(
-        max_length=255, blank=True, verbose_name="상세주소"
-    )
+    address_detail = models.CharField(max_length=255, blank=True, verbose_name="상세주소")
 
     # 인증 상태
-    is_email_verified = models.BooleanField(
-        default=False, verbose_name="이메일 인증 여부"
-    )
+    is_email_verified = models.BooleanField(default=False, verbose_name="이메일 인증 여부")
 
-    is_phone_verified = models.BooleanField(
-        default=False, verbose_name="휴대폰 인증 여부"
-    )
+    is_phone_verified = models.BooleanField(default=False, verbose_name="휴대폰 인증 여부")
 
     # 마케팅 동의
-    agree_marketing_email = models.BooleanField(
-        default=False, verbose_name="마케팅 이메일 수신 동의"
-    )
+    agree_marketing_email = models.BooleanField(default=False, verbose_name="마케팅 이메일 수신 동의")
 
-    agree_marketing_sms = models.BooleanField(
-        default=False, verbose_name="마케팅 sms 수신 동의"
-    )
+    agree_marketing_sms = models.BooleanField(default=False, verbose_name="마케팅 sms 수신 동의")
 
     # 회원 등급 및 포인트 (확장 가능)
     MEMBERSHIP_CHOICES = [
@@ -71,9 +61,7 @@ class User(AbstractUser):
     points = models.PositiveIntegerField(default=0, verbose_name="포인트")
 
     # 추가 메타 정보
-    last_login_ip = models.GenericIPAddressField(
-        null=True, blank=True, verbose_name="마지막 로그인 IP"
-    )
+    last_login_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name="마지막 로그인 IP")
 
     # 탈퇴 관련
     is_withdrawn = models.BooleanField(default=False, verbose_name="탈퇴 여부")

@@ -1,5 +1,7 @@
-from rest_framework import serializers
 from django.utils import timezone
+
+from rest_framework import serializers
+
 from ..models.notification import Notification
 
 
@@ -11,9 +13,7 @@ class NotificationSerializer(serializers.ModelSerializer):
     """
 
     # 알림 타입을 한글로 표시
-    notification_type_display = serializers.CharField(
-        source="get_notification_type_display", read_only=True
-    )
+    notification_type_display = serializers.CharField(source="get_notification_type_display", read_only=True)
 
     # 생성된 시간을 상대적으로 표시 (예: "5분 전", "2시간 전")
     created_at_display = serializers.SerializerMethodField()
@@ -86,9 +86,7 @@ class NotificationMarkReadSerializer(serializers.Serializer):
         if found_count != len(requested_ids):
             found_ids = set(qs.values_list("id", flat=True))
             missing = sorted(requested_ids - found_ids)
-            raise serializers.ValidationError(
-                f"다음 알림을 찾을 수 없거나 권한이 없습니다: {missing}"
-            )
+            raise serializers.ValidationError(f"다음 알림을 찾을 수 없거나 권한이 없습니다: {missing}")
         return value
 
     def mark_as_read(self):
@@ -98,9 +96,7 @@ class NotificationMarkReadSerializer(serializers.Serializer):
 
         if notification_ids:
             # 특정 알림들만 읽음 처리
-            notifications = Notification.objects.filter(
-                id__in=notification_ids, user=user, is_read=False
-            )
+            notifications = Notification.objects.filter(id__in=notification_ids, user=user, is_read=False)
         else:
             # 전체 읽음 처리
             notifications = Notification.objects.filter(user=user, is_read=False)

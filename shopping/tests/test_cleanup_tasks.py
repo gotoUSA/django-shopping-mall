@@ -1,14 +1,15 @@
-from django.test import TestCase
-from django.utils import timezone
 from datetime import timedelta
 
+from django.test import TestCase
+from django.utils import timezone
+
+from shopping.models.email_verification import EmailLog, EmailVerificationToken
 from shopping.models.user import User
-from shopping.models.email_verification import EmailVerificationToken, EmailLog
 from shopping.tasks.cleanup_tasks import (
-    delete_unverified_users_task,
+    cleanup_expired_tokens_task,
     cleanup_old_email_logs_task,
     cleanup_used_tokens_task,
-    cleanup_expired_tokens_task,
+    delete_unverified_users_task,
 )
 
 
@@ -86,7 +87,6 @@ class DeleteUnverifiedUsersTaskTest(TestCase):
         # 주문 모델을 임포트하고 주문 생성
         # (실제로는 Order 모델이 있어야 함)
         # 이 테스트는 Order 모델이 구현되면 활성화
-        pass
 
     def test_delete_unverified_users_none_to_delete(self):
         """삭제할 계정이 없는 경우 테스트"""
@@ -230,17 +230,11 @@ class CleanupUsedTokensTaskTest(TestCase):
         self.assertEqual(result["deleted_count"], 1)
 
         # 40일 전 사용된 토큰만 삭제되었는지 확인
-        self.assertFalse(
-            EmailVerificationToken.objects.filter(id=self.old_used_token.id).exists()
-        )
+        self.assertFalse(EmailVerificationToken.objects.filter(id=self.old_used_token.id).exists())
 
         # 나머지는 유지되었는지 확인
-        self.assertTrue(
-            EmailVerificationToken.objects.filter(id=self.recent_used_token.id).exists()
-        )
-        self.assertTrue(
-            EmailVerificationToken.objects.filter(id=self.unused_token.id).exists()
-        )
+        self.assertTrue(EmailVerificationToken.objects.filter(id=self.recent_used_token.id).exists())
+        self.assertTrue(EmailVerificationToken.objects.filter(id=self.unused_token.id).exists())
 
         # 최종 토큰 수
         total_after = EmailVerificationToken.objects.count()
@@ -292,17 +286,11 @@ class CleanupExpiredTokensTaskTest(TestCase):
         self.assertEqual(result["deleted_count"], 1)
 
         # 만료된 미사용 토큰만 삭제되었는지 확인
-        self.assertFalse(
-            EmailVerificationToken.objects.filter(id=self.expired_token.id).exists()
-        )
+        self.assertFalse(EmailVerificationToken.objects.filter(id=self.expired_token.id).exists())
 
         # 유효한 토큰과 사용된 토큰은 유지되었는지 확인
-        self.assertTrue(
-            EmailVerificationToken.objects.filter(id=self.valid_token.id).exists()
-        )
-        self.assertTrue(
-            EmailVerificationToken.objects.filter(id=self.used_token.id).exists()
-        )
+        self.assertTrue(EmailVerificationToken.objects.filter(id=self.valid_token.id).exists())
+        self.assertTrue(EmailVerificationToken.objects.filter(id=self.used_token.id).exists())
 
         # 최종 토큰 수
         total_after = EmailVerificationToken.objects.count()
@@ -350,8 +338,8 @@ class CleanupTaskIntegrationTest(TestCase):
         """전체 정리 워크플로우 테스트"""
         # 1. 초기 데이터 수
         users_before = User.objects.count()
-        tokens_before = EmailVerificationToken.objects.count()
-        logs_before = EmailLog.objects.count()
+        EmailVerificationToken.objects.count()
+        EmailLog.objects.count()
 
         # 2. 미인증 계정 삭제(CASCADE로 토큰, 로그도 삭제)
         delete_result = delete_unverified_users_task(days=7)

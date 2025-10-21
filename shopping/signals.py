@@ -1,9 +1,10 @@
-from django.dispatch import receiver
 from django.db.models.signals import post_save
-from allauth.socialaccount.signals import pre_social_login
+from django.dispatch import receiver
+
 from allauth.socialaccount.models import SocialAccount
+from allauth.socialaccount.signals import pre_social_login
+
 from shopping.models.email_verification import EmailVerificationToken
-from shopping.models.user import User
 
 
 @receiver(pre_social_login)
@@ -36,9 +37,7 @@ def handle_social_login(sender, request, sociallogin, **kwargs):
         print(f"✅ 소셜 로그인: {user.email} 이메일 자동 인증 완료")
 
     # 기존 이메일 인증 토큰 무효화 (이미 소셜로 인증됨)
-    updated_count = EmailVerificationToken.objects.filter(
-        user=user, is_used=False
-    ).update(is_used=True)
+    updated_count = EmailVerificationToken.objects.filter(user=user, is_used=False).update(is_used=True)
 
     if updated_count > 0:
         print(f"🔐 소셜 로그인: {user.email} 기존 인증 토큰 무효화 완료")
@@ -79,11 +78,7 @@ def handle_new_social_account(sender, instance, created, **kwargs):
     print(f"✅ 소셜 가입 (신규): {user.email} 이메일 자동 인증 완료")
 
     # 혹시 있을 수 있는 기존 토큰 무효화
-    updated_count = EmailVerificationToken.objects.filter(
-        user=user, is_used=False
-    ).update(is_used=True)
+    updated_count = EmailVerificationToken.objects.filter(user=user, is_used=False).update(is_used=True)
 
     if updated_count > 0:
-        print(
-            f"🔐 소셜 가입: {user.email} 기존 인증 토큰 {updated_count}개 무효화 완료"
-        )
+        print(f"🔐 소셜 가입: {user.email} 기존 인증 토큰 {updated_count}개 무효화 완료")

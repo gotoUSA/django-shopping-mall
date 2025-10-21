@@ -1,11 +1,12 @@
 import base64
-import requests
-import json
 import hashlib
 import hmac
+import json
 from typing import Dict, Optional
+
 from django.conf import settings
-from decimal import Decimal
+
+import requests
 
 
 class TossPaymentClient:
@@ -194,9 +195,7 @@ class TossPaymentClient:
         message = json.dumps(webhook_data, separators=(",", ":"), ensure_ascii=False)
 
         # HMAC-SHA256으로 서명 생성
-        expected_signature = hmac.new(
-            webhook_secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
-        ).hexdigest()
+        expected_signature = hmac.new(webhook_secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256).hexdigest()
 
         # 서명 비교 (타이밍 공격 방지를 위해 hmac.compare_digest 사용)
         return hmac.compare_digest(signature, expected_signature)

@@ -1,0 +1,60 @@
+# Git commit 전 자동 코드 검사/정리
+# 설치: pip install pre-commit && pre-commit install
+# 수동 실행: pre-commit run --all-files
+
+repos:
+  # autoflake - 사용 안 하는 import/변수 제거
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.0
+    hooks:
+      - id: autoflake
+        args:
+          - --in-place
+          - --remove-all-unused-imports
+          - --remove-unused-variables
+          - --ignore-init-module-imports
+        exclude: ^.*/migrations/.*$
+        
+  # isort - import 정렬
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black", "--line-length", "127"]
+        exclude: ^.*/migrations/.*$
+        
+  # black - 코드 포맷팅
+  - repo: https://github.com/psf/black
+    rev: 24.3.0
+    hooks:
+      - id: black
+        args: ["--line-length", "127"]
+        exclude: ^.*/migrations/.*$
+        
+  # flake8 - 코드 품질 검사
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        args: 
+          - --max-line-length=127
+          - --exclude=*/migrations/*
+          - --ignore=E501,W503
+          - --max-complexity=15
+        exclude: ^.*/migrations/.*$
+
+  # 추가 유용한 hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^.*/migrations/.*$
+      - id: end-of-file-fixer
+        exclude: ^.*/migrations/.*$
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-json
+      - id: pretty-format-json
+        args: ['--autofix', '--no-sort-keys']
+        exclude: ^.*/migrations/.*$

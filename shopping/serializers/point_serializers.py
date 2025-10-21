@@ -1,4 +1,5 @@
 from rest_framework import serializers
+
 from ..models.point import PointHistory
 from ..models.user import User
 
@@ -7,9 +8,7 @@ class PointHistorySerializer(serializers.ModelSerializer):
     """포인트 이력 조회용 시리얼라이저"""
 
     type_display = serializers.CharField(source="get_type_display", read_only=True)
-    order_number = serializers.CharField(
-        source="order.order_number", read_only=True, allow_null=True
-    )
+    order_number = serializers.CharField(source="order.order_number", read_only=True, allow_null=True)
 
     class Meta:
         model = PointHistory
@@ -60,8 +59,9 @@ class UserPointSerializer(serializers.ModelSerializer):
 
     def get_expiring_soon(self, obj):
         """30일 내 만료 예정 포인트"""
-        from django.utils import timezone
         from datetime import timedelta
+
+        from django.utils import timezone
 
         expire_date = timezone.now() + timedelta(days=30)
         histories = obj.point_histories.filter(
@@ -76,22 +76,16 @@ class UserPointSerializer(serializers.ModelSerializer):
 class PointUseSerializer(serializers.Serializer):
     """포인트 사용 요청 시리얼라이저"""
 
-    points = serializers.IntegerField(
-        min_value=100, help_text="사용할 포인트 (최소 100포인트)"
-    )
+    points = serializers.IntegerField(min_value=100, help_text="사용할 포인트 (최소 100포인트)")
     order_id = serializers.IntegerField(required=False, help_text="관련 주문 ID")
-    description = serializers.CharField(
-        max_length=255, required=False, help_text="사용 사유"
-    )
+    description = serializers.CharField(max_length=255, required=False, help_text="사용 사유")
 
     def validate_points(self, value):
         """포인트 검증"""
         user = self.context["request"].user
 
         if value > user.points:
-            raise serializers.ValidationError(
-                f"보유 포인트가 부족합니다. (보유: {user.points}P)"
-            )
+            raise serializers.ValidationError(f"보유 포인트가 부족합니다. (보유: {user.points}P)")
 
         return value
 
@@ -99,9 +93,7 @@ class PointUseSerializer(serializers.Serializer):
 class PointCheckSerializer(serializers.Serializer):
     """포인트 사용 가능 여부 확인 시리얼라이저"""
 
-    order_amount = serializers.DecimalField(
-        max_digits=10, decimal_places=0, help_text="주문 금액"
-    )
+    order_amount = serializers.DecimalField(max_digits=10, decimal_places=0, help_text="주문 금액")
     use_points = serializers.IntegerField(min_value=0, help_text="사용하려는 포인트")
 
     def validate(self, attrs):
@@ -129,7 +121,7 @@ class PointCheckSerializer(serializers.Serializer):
         elif use_points > user.points:
             result["message"] = f"보유 포인트가 부족합니다. (보유: {user.points}P)"
         elif use_points > order_amount:
-            result["message"] = f"주문 금액을 초과하여 사용할 수 없습니다."
+            result["message"] = "주문 금액을 초과하여 사용할 수 없습니다."
         else:
             result["can_use"] = True
             result["message"] = f"{use_points}포인트 사용 가능합니다."

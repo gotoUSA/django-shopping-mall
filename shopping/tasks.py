@@ -3,13 +3,10 @@ Celery 비동기 작업 정의
 포인트 만료 처리 및 알림 발송
 """
 
+from django.utils import timezone
+
 from celery import shared_task
 from celery.utils.log import get_task_logger
-from django.core.mail import send_mail
-from django.conf import settings
-from django.utils import timezone
-from typing import Optional
-import traceback
 
 logger = get_task_logger(__name__)
 
@@ -26,8 +23,9 @@ def process_single_user_points(user_id: int) -> dict:
     Returns:
         처리 결과
     """
-    from shopping.services.point_service import PointService
     from django.contrib.auth import get_user_model
+
+    from shopping.services.point_service import PointService
 
     User = get_user_model()
 
@@ -69,16 +67,15 @@ def cleanup_old_point_histories(days: int = 730) -> dict:
     Returns:
         삭제 결과
     """
-    from shopping.models.point import PointHistory
     from datetime import timedelta
+
+    from shopping.models.point import PointHistory
 
     cutoff_date = timezone.now() - timedelta(days=days)
 
     try:
         # 만료된 포인트 중 오래된 것 삭제
-        deleted_count, _ = PointHistory.objects.filter(
-            type="expire", created_at__lt=cutoff_date
-        ).delete()
+        deleted_count, _ = PointHistory.objects.filter(type="expire", created_at__lt=cutoff_date).delete()
 
         logger.info(f"오래된 포인트 이력 삭제: {deleted_count}건")
 

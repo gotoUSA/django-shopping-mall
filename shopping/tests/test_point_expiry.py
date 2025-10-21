@@ -8,16 +8,16 @@
 4. 만료 예정 포인트 알림
 """
 
+from datetime import timedelta
+from unittest.mock import patch
+
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
-from django.contrib.auth import get_user_model
-from datetime import timedelta
-from decimal import Decimal
-from unittest.mock import patch, MagicMock
 
 from shopping.models.point import PointHistory
 from shopping.services.point_service import PointService
-from shopping.tasks import expire_points_task, send_expiry_notification_task
+from shopping.tasks import expire_points_task
 
 User = get_user_model()
 
@@ -28,9 +28,7 @@ class PointExpiryTestCase(TestCase):
     def setUp(self):
         """테스트 데이터 설정"""
         # 테스트 사용자 생성
-        self.user = User.objects.create_user(
-            username="testuser", email="test@example.com", password="testpass123"
-        )
+        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
 
         # 포인트 서비스 인스턴스
         self.point_service = PointService()
@@ -41,9 +39,7 @@ class PointExpiryTestCase(TestCase):
         now = timezone.now()
 
         # When: 포인트 적립
-        point_history = PointHistory.create_history(
-            user=self.user, points=1000, type="earn", description="테스트 적립"
-        )
+        point_history = PointHistory.create_history(user=self.user, points=1000, type="earn", description="테스트 적립")
 
         # Then: 만료일이 1년 후인지 확인
         expected_expiry = now + timedelta(days=365)
@@ -57,14 +53,10 @@ class PointExpiryTestCase(TestCase):
         # Given: 과거에 적립된 포인트 (이미 만료됨)
         expired_date = timezone.now() - timedelta(days=366)
         with patch("django.utils.timezone.now", return_value=expired_date):
-            PointHistory.create_history(
-                user=self.user, points=500, type="earn", description="만료된 포인트"
-            )
+            PointHistory.create_history(user=self.user, points=500, type="earn", description="만료된 포인트")
 
         # 아직 만료되지 않은 포인트
-        PointHistory.create_history(
-            user=self.user, points=300, type="earn", description="유효한 포인트"
-        )
+        PointHistory.create_history(user=self.user, points=300, type="earn", description="유효한 포인트")
 
         # When: 만료된 포인트 조회
         expired_points = self.point_service.get_expired_points()
@@ -98,9 +90,7 @@ class PointExpiryTestCase(TestCase):
         self.assertEqual(self.user.points, 500)
 
         # 3. 만료 이력이 생성되었는지 확인
-        expire_history = PointHistory.objects.filter(
-            user=self.user, type="expire"
-        ).first()
+        expire_history = PointHistory.objects.filter(user=self.user, type="expire").first()
         self.assertIsNotNone(expire_history)
         self.assertEqual(expire_history.points, -1000)
 
@@ -110,28 +100,16 @@ class PointExpiryTestCase(TestCase):
         base_time = timezone.now()
 
         # 1번 포인트: 6개월 전 적립 (먼저 사용되어야 함)
-        with patch(
-            "django.utils.timezone.now", return_value=base_time - timedelta(days=180)
-        ):
-            history1 = PointHistory.create_history(
-                user=self.user, points=500, type="earn", description="첫 번째 적립"
-            )
+        with patch("django.utils.timezone.now", return_value=base_time - timedelta(days=180)):
+            history1 = PointHistory.create_history(user=self.user, points=500, type="earn", description="첫 번째 적립")
 
         # 2번 포인트: 3개월 전 적립
-        with patch(
-            "django.utils.timezone.now", return_value=base_time - timedelta(days=90)
-        ):
-            history2 = PointHistory.create_history(
-                user=self.user, points=300, type="earn", description="두 번째 적립"
-            )
+        with patch("django.utils.timezone.now", return_value=base_time - timedelta(days=90)):
+            history2 = PointHistory.create_history(user=self.user, points=300, type="earn", description="두 번째 적립")
 
         # 3번 포인트: 1개월 전 적립
-        with patch(
-            "django.utils.timezone.now", return_value=base_time - timedelta(days=30)
-        ):
-            history3 = PointHistory.create_history(
-                user=self.user, points=200, type="earn", description="세 번째 적립"
-            )
+        with patch("django.utils.timezone.now", return_value=base_time - timedelta(days=30)):
+            history3 = PointHistory.create_history(user=self.user, points=200, type="earn", description="세 번째 적립")
 
         # 사용자 총 포인트 설정
         self.user.points = 1000
@@ -188,16 +166,14 @@ class PointExpiryTestCase(TestCase):
     def test_partial_point_usage_tracking(self):
         """부분 사용된 포인트 추적 테스트"""
         # Given: 포인트 적립
-        history = PointHistory.create_history(
-            user=self.user, points=1000, type="earn", description="테스트 적립"
-        )
+        history = PointHistory.create_history(user=self.user, points=1000, type="earn", description="테스트 적립")
 
         # 사용자 포인트 설정
         self.user.points = 1000
         self.user.save()
 
         # When: 일부 포인트 사용 (300P)
-        result = self.point_service.use_points_fifo(self.user, 300)
+        self.point_service.use_points_fifo(self.user, 300)
 
         # Then: 남은 포인트 추적
         history.refresh_from_db()
@@ -217,9 +193,7 @@ class PointExpiryTestCase(TestCase):
     def test_no_points_to_expire(self):
         """만료할 포인트가 없을 때 테스트"""
         # Given: 모든 포인트가 아직 유효함
-        PointHistory.create_history(
-            user=self.user, points=1000, type="earn", description="유효한 포인트"
-        )
+        PointHistory.create_history(user=self.user, points=1000, type="earn", description="유효한 포인트")
 
         # When: 만료 처리 실행
         expired_count = self.point_service.expire_points()
@@ -230,9 +204,7 @@ class PointExpiryTestCase(TestCase):
     def test_multiple_users_point_expiry(self):
         """여러 사용자의 포인트 만료 처리 테스트"""
         # Given: 여러 사용자와 만료된 포인트
-        user2 = User.objects.create_user(
-            username="testuser2", email="test2@example.com"
-        )
+        user2 = User.objects.create_user(username="testuser2", email="test2@example.com")
 
         expired_date = timezone.now() - timedelta(days=366)
 

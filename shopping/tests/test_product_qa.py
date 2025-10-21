@@ -1,13 +1,15 @@
-from django.test import TestCase
-from django.urls import reverse
-from rest_framework import status
-from rest_framework.test import APIClient
 from decimal import Decimal
 
-from shopping.models.user import User
-from shopping.models.product import Product, Category
-from shopping.models.product_qa import ProductQuestion, ProductAnswer
+from django.test import TestCase
+from django.urls import reverse
+
+from rest_framework import status
+from rest_framework.test import APIClient
+
 from shopping.models.notification import Notification
+from shopping.models.product import Category, Product
+from shopping.models.product_qa import ProductAnswer, ProductQuestion
+from shopping.models.user import User
 
 
 class ProductQuestionTestCase(TestCase):
@@ -18,19 +20,13 @@ class ProductQuestionTestCase(TestCase):
         self.client = APIClient()
 
         # 카테고리 생성
-        self.category = Category.objects.create(
-            name="테스트 카테고리", slug="test-category"
-        )
+        self.category = Category.objects.create(name="테스트 카테고리", slug="test-category")
 
         # 사용자 생성 (판매자)
-        self.seller = User.objects.create_user(
-            username="seller", email="seller@test.com", password="testpass123"
-        )
+        self.seller = User.objects.create_user(username="seller", email="seller@test.com", password="testpass123")
 
         # 사용자 생성 (구매자)
-        self.buyer = User.objects.create_user(
-            username="buyer", email="buyer@test.com", password="testpass123"
-        )
+        self.buyer = User.objects.create_user(username="buyer", email="buyer@test.com", password="testpass123")
 
         # 상품 생성
         self.product = Product.objects.create(
@@ -152,9 +148,7 @@ class ProductQuestionTestCase(TestCase):
             content="배송 언제 되나요?",
         )
 
-        ProductAnswer.objects.create(
-            question=question, seller=self.seller, content="내일 출발합니다"
-        )
+        ProductAnswer.objects.create(question=question, seller=self.seller, content="내일 출발합니다")
 
         # 작성자로 로그인
         self.client.force_authenticate(user=self.buyer)
@@ -231,9 +225,7 @@ class ProductQuestionTestCase(TestCase):
         )
 
         # 판매자가 답변 작성
-        answer = ProductAnswer.objects.create(
-            question=question, seller=self.seller, content="내일 출발 예정입니다!"
-        )
+        answer = ProductAnswer.objects.create(question=question, seller=self.seller, content="내일 출발 예정입니다!")
 
         # 알림이 생성되었는지 확인
         self.assertEqual(Notification.objects.count(), 1)
@@ -296,9 +288,7 @@ class ProductQuestionTestCase(TestCase):
         )
 
         # 다른 사용자 문의
-        other_user = User.objects.create_user(
-            username="other", email="other@test.com", password="testpass123"
-        )
+        other_user = User.objects.create_user(username="other", email="other@test.com", password="testpass123")
 
         ProductQuestion.objects.create(
             product=self.product,
@@ -325,9 +315,7 @@ class NotificationTestCase(TestCase):
         self.client = APIClient()
 
         # 사용자 생성
-        self.user = User.objects.create_user(
-            username="testuser", email="test@test.com", password="testpass123"
-        )
+        self.user = User.objects.create_user(username="testuser", email="test@test.com", password="testpass123")
 
         # 알림 생성
         self.notification1 = Notification.objects.create(
@@ -394,9 +382,7 @@ class NotificationTestCase(TestCase):
         self.assertEqual(response.data["count"], 2)  # 읽지 않은 것 2개
 
         # 모든 알림이 읽음 처리되었는지 확인
-        unread_count = Notification.objects.filter(
-            user=self.user, is_read=False
-        ).count()
+        unread_count = Notification.objects.filter(user=self.user, is_read=False).count()
         self.assertEqual(unread_count, 0)
 
     def test_clear_read_notifications(self):

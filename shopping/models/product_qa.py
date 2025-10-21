@@ -1,5 +1,5 @@
-from django.db import models
 from django.conf import settings
+from django.db import models
 
 
 class ProductQuestion(models.Model):
@@ -38,9 +38,7 @@ class ProductQuestion(models.Model):
     )
 
     # 답변 여부
-    is_answered = models.BooleanField(
-        default=False, verbose_name="답변 완료", db_index=True
-    )
+    is_answered = models.BooleanField(default=False, verbose_name="답변 완료", db_index=True)
 
     # 시간 정보
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="작성일")

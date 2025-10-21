@@ -6,12 +6,14 @@
 """
 
 from decimal import Decimal
+
 from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
+
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from shopping.models import User, Product, Category, Cart, CartItem, Order, OrderItem
+from shopping.models import Cart, CartItem, Category, Order, Product, User
 
 
 class ShippingFeeTestCase(TestCase):
@@ -30,9 +32,7 @@ class ShippingFeeTestCase(TestCase):
         )
 
         # 카테고리 생성
-        self.category = Category.objects.create(
-            name="테스트 카테고리", slug="test-category"
-        )
+        self.category = Category.objects.create(name="테스트 카테고리", slug="test-category")
 
         # 테스트 상품 생성
         self.product = Product.objects.create(
@@ -183,9 +183,7 @@ class OrderCreateWithShippingFeeTest(TransactionTestCase):
         self.client.force_authenticate(user=self.user)
 
         # 카테고리 및 상품 생성
-        self.category = Category.objects.create(
-            name="테스트 카테고리", slug="test-category"
-        )
+        self.category = Category.objects.create(name="테스트 카테고리", slug="test-category")
 
         self.product = Product.objects.create(
             name="테스트 상품",
@@ -198,9 +196,7 @@ class OrderCreateWithShippingFeeTest(TransactionTestCase):
 
         # 장바구니 생성 및 상품 추가
         self.cart = Cart.objects.create(user=self.user, is_active=True)
-        CartItem.objects.create(
-            cart=self.cart, product=self.product, quantity=1  # 20,000원 (무료배송 미달)
-        )
+        CartItem.objects.create(cart=self.cart, product=self.product, quantity=1)  # 20,000원 (무료배송 미달)
 
     def test_order_create_with_shipping_fee(self):
         """주문 생성시 배송비 자동 적용 테스트"""
@@ -216,9 +212,7 @@ class OrderCreateWithShippingFeeTest(TransactionTestCase):
         }
 
         # 주문 생성 API 호출
-        response = self.client.post(
-            reverse("order-list"), data=order_data, format="json"
-        )
+        response = self.client.post(reverse("order-list"), data=order_data, format="json")
 
         # 응답 확인
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -247,9 +241,7 @@ class OrderCreateWithShippingFeeTest(TransactionTestCase):
         }
 
         # 주문 생성 API 호출
-        response = self.client.post(
-            reverse("order-list"), data=order_data, format="json"
-        )
+        response = self.client.post(reverse("order-list"), data=order_data, format="json")
 
         # 응답 확인
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -277,9 +269,7 @@ class OrderCreateWithShippingFeeTest(TransactionTestCase):
         )
 
         # 장바구니에 상품 추가 (총 40,000원)
-        CartItem.objects.create(
-            cart=self.cart, product=product2, quantity=1  # 추가 20,000원
-        )
+        CartItem.objects.create(cart=self.cart, product=product2, quantity=1)  # 추가 20,000원
 
         # 주문 생성 요청 데이터
         order_data = {
@@ -293,9 +283,7 @@ class OrderCreateWithShippingFeeTest(TransactionTestCase):
         }
 
         # 주문 생성 API 호출
-        response = self.client.post(
-            reverse("order-list"), data=order_data, format="json"
-        )
+        response = self.client.post(reverse("order-list"), data=order_data, format="json")
 
         # 응답 확인
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)

@@ -1,7 +1,8 @@
-from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from ..models.product_qa import ProductQuestion, ProductAnswer
-from ..models.product import Product
+
+from rest_framework import serializers
+
+from ..models.product_qa import ProductAnswer, ProductQuestion
 
 User = get_user_model()
 
@@ -200,9 +201,7 @@ class ProductAnswerCreateSerializer(serializers.ModelSerializer):
         question = self.context["question"]
         user = self.context["request"].user
 
-        return ProductAnswer.objects.create(
-            question=question, seller=user, **validated_data
-        )
+        return ProductAnswer.objects.create(question=question, seller=user, **validated_data)
 
 
 class ProductAnswerUpdateSerializer(serializers.ModelSerializer):

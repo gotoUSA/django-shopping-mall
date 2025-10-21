@@ -1,0 +1,38 @@
+[flake8]
+# 최대 줄 길이
+max-line-length = 127
+
+# 제외할 디렉토리/파일
+exclude =
+    venv/,
+    env/,
+    .venv/,
+    */migrations/*,
+    __pycache__/,
+    *.pyc,
+    .git/,
+    staticfiles/,
+    media/,
+    .backup/,
+    htmlcov/
+
+# 무시할 에러 코드
+# E501: 긴 줄 (Black이 자동으로 처리)
+# W503: 줄 바꿈 후 이항 연산자 (Black 스타일과 충돌)
+# E203: 슬라이스에서 공백 (Black과 충돌)
+ignore =
+    E501,  
+    W503,
+    E203  
+
+# 파일별 예외 처리
+per-file-ignores =
+    __init__.py:F401
+    settings.py:E402,F405
+    
+# 복잡도 체크
+max-complexity = 15
+
+# import 순서 체크
+import-order-style = google
+application-import-names = shopping,myproject

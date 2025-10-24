@@ -1,13 +1,3 @@
-"""
-포인트 만료 기능 TDD 테스트
-
-테스트 시나리오:
-1. 만료된 포인트 조회
-2. 포인트 만료 처리
-3. FIFO 방식 포인트 사용
-4. 만료 예정 포인트 알림
-"""
-
 from datetime import timedelta
 from unittest.mock import patch
 

@@ -20,7 +20,7 @@ class Order(models.Model):
         ("preparing", "배송준비중"),  # 상품 포장 중
         ("shipped", "배송중"),  # 택배 발송됨
         ("delivered", "배송완료"),  # 고객이 받음
-        ("cancelled", "주문취소"),  # 주문 취소됨
+        ("canceled", "주문취소"),  # 주문 취소됨
         ("refunded", "환불완료"),  # 환불 처리됨
     ]
 

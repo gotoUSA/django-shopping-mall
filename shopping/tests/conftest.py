@@ -1,12 +1,3 @@
-"""
-Pytest 공통 Fixture 설정
-
-이 파일은 모든 테스트에서 사용할 수 있는 공통 fixture를 정의합니다.
-- 기본 fixture: api_client, user, product 등
-- Factory 패턴: 유연한 객체 생성
-- Mock: 외부 API 호출 대체
-"""
-
 from decimal import Decimal
 
 import pytest
@@ -101,7 +92,6 @@ def seller_user(db):
         email="seller@example.com",
         password="sellerpass123",
         phone_number="010-9999-8888",
-        user_type="seller",
         is_email_verified=True,
     )
 
@@ -327,7 +317,7 @@ def multiple_products(db, category, seller_user):
             seller=seller_user,
             price=Decimal(str(10000 * i)),
             stock=10,
-            sku=f"TEST-{i:03d}",
+            sku=f"MULTI-{i:03d}",
             is_active=True,
         )
         for i in range(1, 4)
@@ -459,3 +449,193 @@ def freeze_time(mocker):
         return mocker.patch("django.utils.timezone.now", return_value=dt)
 
     return _freeze
+
+
+# ==========================================
+# 9. 주문/결제 Fixture (Order/Payment)
+# ==========================================
+
+
+@pytest.fixture
+def order(db, user, product):
+    """
+    기본 주문 (pending 상태)
+
+    - 상태: pending (결제 대기)
+    - 상품 1개 포함
+    """
+    from shopping.models.order import Order, OrderItem
+
+    order = Order.objects.create(
+        user=user,
+        status="pending",
+        total_amount=product.price,
+        shipping_name="홍길동",
+        shipping_phone="010-9999-8888",
+        shipping_postal_code="12345",
+        shipping_address="서울시 강남구 테스트로 123",
+        shipping_address_detail="101동 202호",
+    )
+
+    OrderItem.objects.create(
+        order=order,
+        product=product,
+        quantity=1,
+        price=product.price,
+    )
+
+    return order
+
+
+@pytest.fixture
+def paid_order(db, user, product):
+    """
+    결제 완료된 주문
+
+    - 상태: paid (결제 완료)
+    - 상품 1개 포함
+    """
+    from shopping.models.order import Order, OrderItem
+
+    order = Order.objects.create(
+        user=user,
+        status="paid",
+        total_amount=product.price,
+        payment_method="card",
+        shipping_name="홍길동",
+        shipping_phone="010-9999-8888",
+        shipping_postal_code="12345",
+        shipping_address="서울시 강남구 테스트로 123",
+        shipping_address_detail="101동 202호",
+    )
+
+    OrderItem.objects.create(
+        order=order,
+        product=product,
+        quantity=1,
+        price=product.price,
+    )
+
+    return order
+
+
+@pytest.fixture
+def order_with_multiple_items(db, user, multiple_products):
+    """
+    여러 상품이 포함된 주문
+
+    - 상품 3개 포함
+    - 총 금액: 60,000원 (10,000 + 20,000 + 30,000)
+    """
+    from shopping.models.order import Order, OrderItem
+
+    total = sum(p.price for p in multiple_products)
+
+    order = Order.objects.create(
+        user=user,
+        status="pending",
+        total_amount=total,
+        shipping_name="홍길동",
+        shipping_phone="010-9999-8888",
+        shipping_postal_code="12345",
+        shipping_address="서울시 강남구 테스트로 123",
+        shipping_address_detail="101동 202호",
+    )
+
+    for product in multiple_products:
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            quantity=1,
+            price=product.price,
+        )
+
+    return order
+
+
+@pytest.fixture
+def payment(db, order):
+    """
+    기본 결제 (pending 상태)
+
+    - 상태: pending (결제 대기)
+    - 주문과 연결됨
+    """
+    from shopping.models.payment import Payment
+
+    return Payment.objects.create(
+        order=order,
+        amount=order.total_amount,
+        status="pending",
+        toss_order_id=order.order_number,
+    )
+
+
+@pytest.fixture
+def paid_payment(db, paid_order):
+    """
+    결제 완료된 Payment
+
+    - 상태: done (결제 완료)
+    - 토스 결제 정보 포함
+    """
+    from shopping.models.payment import Payment
+    from django.utils import timezone
+
+    return Payment.objects.create(
+        order=paid_order,
+        amount=paid_order.total_amount,
+        status="done",
+        toss_order_id=paid_order.order_number,
+        payment_key="test_payment_key_123",
+        method="카드",
+        approved_at=timezone.now(),
+        card_company="신한카드",
+        card_number="1234****",
+    )
+
+
+@pytest.fixture
+def canceled_payment(db, order):
+    """
+    취소된 결제
+
+    - 상태: canceled (취소됨)
+    """
+    from shopping.models.payment import Payment
+    from django.utils import timezone
+
+    return Payment.objects.create(
+        order=order,
+        amount=order.total_amount,
+        status="canceled",
+        is_canceled=True,
+        toss_order_id=order.order_number,
+        payment_key="test_payment_key_canceled",
+        canceled_at=timezone.now(),
+        cancel_reason="사용자 요청",
+    )
+
+
+@pytest.fixture
+def payment_factory(db):
+    """
+    Payment Factory - 유연한 결제 생성
+
+    사용 예시:
+        payment1 = payment_factory(order=order)  # 기본값
+        payment2 = payment_factory(order=order, status="done", payment_key="key123")
+    """
+    from shopping.models.payment import Payment
+
+    def _create_payment(order, **kwargs):
+        defaults = {
+            "amount": order.total_amount,
+            "status": "pending",
+            "toss_order_id": order.order_number,
+        }
+        defaults.update(kwargs)
+
+        return Payment.objects.create(order=order, **defaults)
+
+    return _create_payment

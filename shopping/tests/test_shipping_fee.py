@@ -1,10 +1,3 @@
-"""
-배송비 계산 로직 테스트
-- 무료배송 기준 테스트
-- 도서산간 추가 배송비 테스트
-- 주문 생성시 배송비 자동 적용 테스트
-"""
-
 from decimal import Decimal
 
 from django.test import TestCase, TransactionTestCase

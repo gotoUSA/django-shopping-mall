@@ -1,12 +1,3 @@
-"""
-주문 생성 프로세스 TDD 테스트
-
-이 파일은 장바구니에서 주문으로 변환하는 전체 프로세스를 테스트합니다.
-포인트 사용, 재고 관리, 동시성 처리 등을 포함합니다.
-
-Docker 환경: PostgreSQL 사용
-"""
-
 import threading
 from decimal import Decimal
 
@@ -708,7 +699,7 @@ class OrderConcurrencyTestCase(TransactionTestCase):
 
         # 디버깅용 출력 (선택사항)
         print("\n=== F() 객체 동시성 제어 테스트 결과 ===")
-        print(f"초기 재고: 5개")
+        print("초기 재고: 5개")
         print(f"성공한 스레드: {success_count}개")
         print(f"실패한 스레드: {failed_count}개")
         print(f"최종 재고: {product.stock}개")

@@ -76,7 +76,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                     item.product.save()
 
             # 주문 상태 변경
-            order.status = "cancelled"
+            order.status = "canceled"
             order.save()
 
         return Response({"message": "주문이 취소되었습니다."})

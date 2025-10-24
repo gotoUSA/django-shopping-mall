@@ -358,7 +358,7 @@ class PaymentCancelView(APIView):
                     )
 
             # 4. 주문 상태 변경
-            order.status = "cancelled"
+            order.status = "canceled"
             order.save(update_fields=["status", "updated_at"])
 
             # 5. 포인트 처리

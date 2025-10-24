@@ -1,10 +1,3 @@
-"""
-장바구니 기능 TDD 테스트
-
-이 파일은 장바구니의 모든 기능을 테스트합니다.
-상품 추가, 수량 변경, 삭제, 재고 관리 등을 포함합니다.
-"""
-
 import threading
 import time
 from decimal import Decimal

@@ -1,10 +1,3 @@
-"""
-JWT 인증 시스템 테스트
-
-이 파일은 회원가입, 로그인, 토큰 갱신 등
-인증 관련 모든 기능을 테스트합니다.
-"""
-
 from datetime import timedelta
 
 from django.test import TestCase

@@ -1,5 +1,6 @@
 import logging
 
+from decimal import Decimal
 from django.db import transaction
 from django.db.models import F
 from django.views.decorators.csrf import csrf_exempt
@@ -164,7 +165,7 @@ def handle_payment_done(event_data):
 
     # 포인트 적립
     if order.user:
-        points_to_add = int(payment.amount * 0.01)
+        points_to_add = int(payment.amount * Decimal(0.01))
         if points_to_add > 0:
             order.user.add_points(points_to_add)
 
@@ -205,7 +206,7 @@ def handle_payment_canceled(event_data):
     order = payment.order
 
     # 이미 cancelled 상태면 스킵
-    if order.status == "cancelled":
+    if order.status == "canceled":
         logger.info(f"Order already cancelled: {order_id}")
         return
 
@@ -218,15 +219,15 @@ def handle_payment_canceled(event_data):
                     sold_count=F("sold_count") - order_item.quantity,
                 )
 
-    # 주문 상태 변경
-    order.status = "cancelled"
-    order.save(update_fields=["status", "updated_at"])
-
-    # 포인트 회수
+    # 포인트 회수 (상태 변경 전)
     if order.user and order.status in ["paid", "preparing"]:
-        points_to_deduct = int(payment.amount * 0.01)
+        points_to_deduct = int(payment.amount * Decimal(0.01))
         if points_to_deduct > 0:
             order.user.use_points(points_to_deduct)
+
+    # 주문 상태 변경
+    order.status = "canceled"
+    order.save(update_fields=["status", "updated_at"])
 
     # 웹훅 로그
     PaymentLog.objects.create(

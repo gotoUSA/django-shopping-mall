@@ -409,7 +409,7 @@ class OrderCreateTestCase(TestCase):
 
         # 주문 상태 확인
         order.refresh_from_db()
-        self.assertEqual(order.status, "cancelled")
+        self.assertEqual(order.status, "canceled")
 
     def test_cancel_order_with_points_refund(self):
         """포인트 사용 주문 취소 시 포인트 환불"""
@@ -434,7 +434,7 @@ class OrderCreateTestCase(TestCase):
         # 포인트 환불 확인 (실제 구현에서는 PaymentCancelView에서 처리)
         # 여기서는 취소 상태만 확인
         order.refresh_from_db()
-        self.assertEqual(order.status, "cancelled")
+        self.assertEqual(order.status, "canceled")
 
     def test_cannot_cancel_shipped_order(self):
         """배송중인 주문은 취소 불가"""

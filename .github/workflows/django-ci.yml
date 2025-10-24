@@ -84,7 +84,7 @@ jobs:
     - name: Run tests with coverage
       run: |
         pip install coverage pytest-cov
-        pytest shopping/tests/ --cov=shopping --cov-report=xml --cov-report=term-missing -v
+        pytest shopping/tests/ --reuse-db -n 2 --cov=shopping --cov-report=term-missing --cov-report=xml -vv
 
     # 코드 스타일 체크 (선택사항)
     - name: Lint with flake8

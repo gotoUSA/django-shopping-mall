@@ -72,6 +72,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install -r requirements-dev.txt
 
 
     # 데이터베이스 마이그레이션
@@ -82,12 +83,8 @@ jobs:
     # 테스트 커버리지 측정
     - name: Run tests with coverage
       run: |
-        pip install coverage
-        # --keepdb: DB 재사용으로 에러 방지
-        # --parallel=2: 병렬 실행으로 속도 향상
-        coverage run --source='.' manage.py test shopping --verbosity=2 --keepdb --parallel=2
-        coverage report
-        coverage xml
+        pip install coverage pytest-cov
+        pytest shopping/tests/ --cov=shopping --cov-report=xml --cov-report=term-missing -v
 
     # 코드 스타일 체크 (선택사항)
     - name: Lint with flake8

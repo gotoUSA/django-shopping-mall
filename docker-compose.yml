@@ -20,8 +20,6 @@ services:
   # Redis (Celery 브로커 및 캐시)
   redis:
     image: redis:7-alpine
-    ports:
-      - "6373:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

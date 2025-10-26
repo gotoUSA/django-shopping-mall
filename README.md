@@ -97,6 +97,7 @@ docker-compose exec web pytest
 
 # 커버리지 포함
 docker-compose exec web pytest --cov=shopping --cov-report=html
+```
 
 ## 📁 프로젝트 구조
 

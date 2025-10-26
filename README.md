@@ -55,7 +55,7 @@ docker-compose up -d
 # 실행되는 서비스:
 # - web (Django API 서버) - 포트 8000
 # - db (PostgreSQL) - 포트 5432  
-# - redis (Redis) - 포트 6379
+# - redis (Redis)
 # - celery_worker (비동기 작업 처리)
 # - celery_beat (스케줄 작업)
 # - flower (Celery 모니터링) - 포트 5555
@@ -82,6 +82,7 @@ docker-compose exec web python manage.py create_test_data --preset basic
 - **[설치 가이드](docs/SETUP.md)** - 환경 설정 및 배포
 - **[데이터 모델](docs/MODELS.md)** - DB 구조 및 관계
 - **[테스트](docs/TESTING.md)** - 테스트 작성 및 실행
+- **[기능](docs/FEATURES.md)** - 주요 기능
 
 **자동 생성 문서:**
 - Swagger UI: http://localhost:8000/swagger/

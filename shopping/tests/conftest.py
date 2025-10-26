@@ -185,6 +185,20 @@ def seller_authenticated_client(api_client, seller_user):
     return api_client
 
 
+@pytest.fixture
+def get_tokens(api_client, user):
+    """
+    JWT 토큰 발급 헬퍼
+
+    access, refresh 토큰을 dict로 반환
+    """
+    response = api_client.post(
+        reverse("auth-login"),
+        {"username": "testuser", "password": "testpass123"},
+    )
+    return response.json()
+
+
 # ==========================================
 # 5. 카테고리/상품 Fixture
 # ==========================================

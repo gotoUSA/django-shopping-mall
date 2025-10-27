@@ -1,6 +1,7 @@
 import base64
 import json
 from datetime import timedelta
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from django.conf import settings
@@ -59,10 +60,68 @@ class TestTokenRefresh:
         # Assert
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
+    def test_old_token_after_refresh(self, api_client, get_tokens):
+        """토큰 갱신 후 이전 토큰 사용 불가 (ROTATE_REFRESH_TOKENS=True)"""
+        # Arrange
+        tokens = get_tokens
+        old_refresh_token = tokens["refresh"]
+        refresh_url = reverse("token-refresh")
+
+        # Act - 첫 번째 갱신
+        first_refresh_response = api_client.post(refresh_url, {"refresh": old_refresh_token})
+        assert first_refresh_response.status_code == status.HTTP_200_OK
+
+        # ROTATE_REFRESH_TOKENS=True인 경우만 테스트
+        if settings.SIMPLE_JWT.get("ROTATE_REFRESH_TOKENS"):
+            # Act - 이전 refresh token으로 다시 갱신 시도
+            second_refresh_response = api_client.post(refresh_url, {"refresh": old_refresh_token})
+
+            # Assert - 이전 토큰은 블랙리스트되어 사용 불가
+            assert second_refresh_response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_rotated_refresh_token_success(self, api_client, get_tokens):
+        """Refresh Token 회전 후 새 토큰으로 갱신 성공"""
+        # Arrange
+        tokens = get_tokens
+        refresh_url = reverse("token-refresh")
+
+        # ROTATE_REFRESH_TOKENS=True인 경우만 테스트
+        if not settings.SIMPLE_JWT.get("ROTATE_REFRESH_TOKENS"):
+            pytest.skip("ROTATE_REFRESH_TOKENS가 비활성화되어 있습니다")
+
+        # Act - 첫 번째 갱신으로 새 refresh token 받기
+        first_refresh_response = api_client.post(refresh_url, {"refresh": tokens["refresh"]})
+        assert first_refresh_response.status_code == status.HTTP_200_OK
+        new_refresh_token = first_refresh_response.data["refresh"]
+
+        # Act - 새로운 refresh token으로 다시 갱신
+        second_refresh_response = api_client.post(refresh_url, {"refresh": new_refresh_token})
+
+        # Assert - 새 토큰으로는 성공해야함
+        assert second_refresh_response.status_code == status.HTTP_200_OK
+        assert "access" in second_refresh_response.data
+        assert "refresh" in second_refresh_response.data
+
 
 @pytest.mark.django_db
 class TestTokenExpiry:
     """토큰 만료 테스트"""
+
+    def test_valid_access_token_success(self, api_client, get_tokens):
+        """정상적인 Access Toekn으로 API 접근 성공"""
+        # Arrange
+        tokens = get_tokens
+        access_token = tokens["access"]
+        url = reverse("auth-profile")
+
+        # Act
+        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
+        response = api_client.get(url)
+
+        # Assert - 정상적으로 프로필 조회 성공
+        assert response.status_code == status.HTTP_200_OK
+        assert "username" in response.data
+        assert "email" in response.data
 
     def test_expired_access_token(self, api_client, user):
         """만료된 Access Token으로 API 접근 실패"""
@@ -91,6 +150,44 @@ class TestTokenExpiry:
 
         # Assert
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_inactive_user_token(self, api_client, user):
+        """비활성화된 사용자의 토큰으로 접근 실패"""
+        # Arrange
+        url = reverse("auth-profile")
+        # 토큰 먼저 발급
+        token = AccessToken.for_user(user)
+
+        # 사용자 비활성화
+        user.is_active = False
+        user.save()
+
+        # Act
+        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(token)}")
+        response = api_client.get(url)
+
+        # Assert - 비활성화된 사용자는 접근 불가
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+
+    def test_with_drawn_user_token(self, api_client, user):
+        """탈퇴한 사용자의 토큰으로 접근 실패"""
+        # Arrange
+        url = reverse("auth-profile")
+        # 토큰 먼저 발급
+        token = AccessToken.for_user(user)
+
+        # 사용자 탈퇴 처리
+        user.is_withdrawn = True
+        user.withdrawn_at = timezone.now()
+        user.is_active = False
+        user.save()
+
+        # Act
+        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(token)}")
+        response = api_client.get(url)
+
+        # Assert - 탈퇴한 사용자는 접근 불가
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
 
 
 @pytest.mark.django_db
@@ -221,6 +318,19 @@ class TestTokenFormat:
         # DRF는 대소문자 구분할 수 있음
         assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
 
+    def test_multiple_bearer_tokens(self, api_client, get_tokens):
+        """여러 개의 Bearer 토큰"""
+        # Arrange
+        tokens = get_tokens
+        url = reverse("auth-profile")
+
+        # Act - Bearer 토큰 2개 전송
+        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']} Bearer {tokens['access']}")
+        response = api_client.get(url)
+
+        # Assert - 형식이 잘못되어 실패해야 함
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+
 
 @pytest.mark.django_db
 class TestTokenBlacklist:
@@ -269,25 +379,6 @@ class TestTokenBlacklist:
 
         # Assert
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-    def test_old_token_after_refresh(self, api_client, get_tokens):
-        """토큰 갱신 후 이전 토큰 사용 불가 (ROTATE_REFRESH_TOKENS=True)"""
-        # Arrange
-        tokens = get_tokens
-        old_refresh_token = tokens["refresh"]
-        refresh_url = reverse("token-refresh")
-
-        # Act - 첫 번째 갱신
-        first_refresh_response = api_client.post(refresh_url, {"refresh": old_refresh_token})
-        assert first_refresh_response.status_code == status.HTTP_200_OK
-
-        # ROTATE_REFRESH_TOKENS=True인 경우만 테스트
-        if settings.SIMPLE_JWT.get("ROTATE_REFRESH_TOKENS"):
-            # Act - 이전 refresh token으로 다시 갱신 시도
-            second_refresh_response = api_client.post(refresh_url, {"refresh": old_refresh_token})
-
-            # Assert - 이전 토큰은 블랙리스트되어 사용 불가
-            assert second_refresh_response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 @pytest.mark.django_db
@@ -349,10 +440,117 @@ class TestInvalidTokenFormat:
         # Assert
         assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
 
-    def test_non_json_payload(self, api_client):
+    def test_non_json_payload(self, api_client, user):
         """JSON이 아닌 payload"""
-        # TODO: payload가 JSON 형식이 아닌 토큰
-        pass
+        # Arrange
+        url = reverse("auth-profile")
+        token = AccessToken.for_user(user)
+        token_str = str(token)
+        parts = token_str.split(".")
+
+        # payload를 JSON이 아닌 일반 문자열로 변조
+        non_json_payload = base64.urlsafe_b64encode(b"this is not json").decode().rstrip("=")
+        tampered_token = f"{parts[0]}.{non_json_payload}.{parts[2]}"
+
+        # Act
+        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {tampered_token}")
+        response = api_client.get(url)
+
+        # Assert - JSON 파싱 실패로 인증 실패
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+
+    def test_null_token(self, api_client):
+        """NULL 토큰"""
+        # Arrange
+        url = reverse("auth-profile")
+
+        # Act - None을 전달 (실제로는 빈 헤더)
+        api_client.credentials(HTTP_AUTHORIZATION="Bearer ")
+        response = api_client.get(url)
+
+        # Assert
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+
+    def test_empty_token(self, api_client):
+        """빈 문자열 토큰"""
+        # Arrange
+        url = reverse("auth-profile")
+
+        # Act
+        api_client.credentials(HTTP_AUTHORIZATION="Bearer ")
+        response = api_client.get(url)
+
+        # Assert
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+
+    def test_whitespace_only_token(self, api_client):
+        """공백만 있는 토큰"""
+        # Arrange
+        url = reverse("auth-profile")
+
+        # Act
+        api_client.credentials(HTTP_AUTHORIZATION="Bearer     ")
+        response = api_client.get(url)
+
+        # Assert
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+
+    def test_very_long_token(self, api_client):
+        """매우 긴 토큰 (버퍼 오버플로우 테스트)"""
+        # Arrange
+        url = reverse("auth-profile")
+        # 10KB 길이의 토큰
+        very_long_token = "a" * 10000
+
+        # Act
+        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {very_long_token}")
+        response = api_client.get(url)
+
+        # Assert
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+
+    def test_special_characters_token(self, api_client):
+        """특수문자만으로 구성된 토큰"""
+        # Arrange
+        url = reverse("auth-profile")
+        special_token = "!@#$%^&*()_+-=[]{}|;:',.<>?/~`"
+
+        # Act
+        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {special_token}")
+        response = api_client.get(url)
+
+        # Assert
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+
+
+@pytest.mark.django_db
+class TestTokenSecurity:
+    """토큰 보안 테스트"""
+
+    def test_future_iat_token(self, api_client, user):
+        """미래 시간의 iat (issued at)"""
+        # Arrange
+        url = reverse("auth-profile")
+        token = AccessToken.for_user(user)
+
+        # iat를 미래 시간으로 변조
+        token_str = str(token)
+        parts = token_str.split(".")
+
+        payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=="))
+        # 1시간 후의 시간으로 변조
+        payload["iat"] = int((timezone.now() + timedelta(hours=1)).timestamp())
+
+        # 변조된 payload를 다시 인코딩
+        tampered_payload = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+        tampered_token = f"{parts[0]}.{tampered_payload}.{parts[2]}"
+
+        # Act
+        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {tampered_token}")
+        response = api_client.get(url)
+
+        # Assert - signature가 맞지 않아 실패해야 함
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
 
 
 @pytest.mark.django_db

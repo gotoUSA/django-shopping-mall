@@ -63,6 +63,9 @@ from .views import point_views
 from .views.notification_views import NotificationViewSet
 from .views.product_qa_views import MyQuestionViewSet, ProductQuestionViewSet
 
+# return_request view
+from shopping.views.return_views import ReturnViewSet
+
 
 # 소셜 로그인 뷰 정의
 class GoogleLogin(SocialLoginView):
@@ -102,6 +105,9 @@ router.register(r"notifications", NotificationViewSet, basename="notification")
 
 # 내 문의 라우터
 router.register(r"my/questions", MyQuestionViewSet, basename="my-question")
+
+# 교환 환불 라우터
+router.register(r"returns", ReturnViewSet, basename="return")
 
 # 상품별 문의 중첩 라우터
 # /api/products/{product_pk}/questions/
@@ -260,6 +266,42 @@ urlpatterns = [
         "social/test/",
         TemplateView.as_view(template_name="social_test.html"),
         name="social-test-page",
+    ),
+    # 교환/환불 관련 URLs
+    path(
+        "orders/<int:order_id>/returns/",
+        ReturnViewSet.as_view({"post": "create"}),
+        name="return-create",
+    ),
+    path(
+        "returns/",
+        ReturnViewSet.as_view({"get": "list"}),
+        name="return-list",
+    ),
+    path(
+        "returns/<int:pk>/",
+        ReturnViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}),
+        name="return-detail",
+    ),
+    path(
+        "returns/<int:pk>/approve/",
+        ReturnViewSet.as_view({"post": "approve"}),
+        name="return-approve",
+    ),
+    path(
+        "returns/<int:pk>/reject/",
+        ReturnViewSet.as_view({"post": "reject"}),
+        name="return-reject",
+    ),
+    path(
+        "returns/<int:pk>/confirm-receive/",
+        ReturnViewSet.as_view({"post": "confirm_receive"}),
+        name="return-confirm-receive",
+    ),
+    path(
+        "returns/<int:pk>/complete/",
+        ReturnViewSet.as_view({"post": "complete"}),
+        name="return-complete",
     ),
 ]
 

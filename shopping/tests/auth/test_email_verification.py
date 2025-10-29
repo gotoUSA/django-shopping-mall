@@ -1,5 +1,6 @@
 import uuid
-from datetime import timedelta
+from datetime import timedelta, datetime
+from datetime import timezone as dt_timezone
 from unittest.mock import patch
 
 import pytest
@@ -124,8 +125,9 @@ class TestEmailResend:
     def test_resend_verification_email_success(self, api_client, unverified_user):
         """인증 이메일 재발송"""
         # Arrange - 기존 토큰을 1분 이상 전에 생성
+        base_time = datetime(2025, 1, 28, 10, 0, 0, tzinfo=dt_timezone.utc)
         old_token = EmailVerificationToken.objects.create(user=unverified_user)
-        old_token.created_at = timezone.now() - timedelta(minutes=2)
+        old_token.created_at = base_time
         old_token.save()
 
         api_client.force_authenticate(user=unverified_user)
@@ -243,10 +245,18 @@ class TestEmailVerificationBoundary:
     def test_token_expiry_exactly_24_hours(self, api_client, unverified_user):
         """토큰이 정확히 24시간 후에 만료됨"""
         # Arrange - 정확히 24시간 전 토큰 생성
+        base_time = datetime(2025, 1, 28, 10, 0, 0, tzinfo=dt_timezone.utc)
         token = EmailVerificationToken.objects.create(user=unverified_user)
-        token.created_at = timezone.now() - timedelta(hours=24, minutes=1)
+        token.created_at = base_time
         token.save()
         url = reverse("email-verification-verify")
+
+        # Act - View에서 is_expired()를 호출하므로,
+        # View가 실행되는 시점을 24시간 1초 후라고 가정하고 테스트해야 함
+        # 하지만 View는 now 파라미터를 전달하지 않으므로,
+        # created_at을 24시간 1초 전으로 설정
+        token.created_at = timezone.now() - timedelta(hours=24, seconds=1)
+        token.save()
 
         # Act
         response = api_client.get(url, {"token": str(token.token)})
@@ -259,7 +269,7 @@ class TestEmailVerificationBoundary:
         """24시간 전이면 아직 유효함"""
         # Arrange - 23시간 전 토큰
         token = EmailVerificationToken.objects.create(user=unverified_user)
-        token.created_at = timezone.now() - timedelta(hours=23)
+        token.created_at = timezone.now() - timedelta(hours=23, minutes=59, seconds=59)
         token.save()
         url = reverse("email-verification-verify")
 
@@ -290,7 +300,7 @@ class TestEmailVerificationBoundary:
         """1분 경과 후에는 재발송 가능"""
         # Arrange - 1분 이상 지난 토큰 (충분한 여유를 두어 타이밍 이슈 방지)
         old_token = EmailVerificationToken.objects.create(user=unverified_user)
-        old_token.created_at = timezone.now() - timedelta(minutes=1, seconds=10)
+        old_token.created_at = timezone.now() - timedelta(minutes=1, seconds=1)
         old_token.save()
 
         api_client.force_authenticate(user=unverified_user)
@@ -360,9 +370,9 @@ class TestEmailVerificationByTokenException:
 
     def test_verify_with_expired_token(self, api_client, unverified_user):
         """만료된 토큰으로 인증 시도"""
-        # Arrange - 만료된 토큰 (25시간 전)
+        # Arrange - 만료된 토큰 (24시간 1초전)
         token = EmailVerificationToken.objects.create(user=unverified_user)
-        token.created_at = timezone.now() - timedelta(hours=25)
+        token.created_at = timezone.now() - timedelta(hours=24, seconds=1)
         token.save()
         url = reverse("email-verification-verify")
 
@@ -459,7 +469,7 @@ class TestEmailVerificationByCodeException:
         """만료된 코드로 인증 시도"""
         # Arrange - 만료된 토큰
         token = EmailVerificationToken.objects.create(user=unverified_user)
-        token.created_at = timezone.now() - timedelta(hours=25)
+        token.created_at = timezone.now() - timedelta(hours=24, seconds=1)
         token.save()
 
         api_client.force_authenticate(user=unverified_user)
@@ -567,30 +577,36 @@ class TestEmailVerificationTokenModel:
     def test_is_expired_method(self, unverified_user):
         """is_expired() 메서드 테스트"""
         # Arrange - 만료된 토큰
-        expired_token = EmailVerificationToken.objects.create(user=unverified_user)
-        expired_token.created_at = timezone.now() - timedelta(hours=25)
-        expired_token.save()
+        base_time = datetime(2025, 1, 28, 10, 0, 0, tzinfo=dt_timezone.utc)
+        token = EmailVerificationToken.objects.create(user=unverified_user)
+        token.created_at = base_time
+        token.save()
 
-        # Arrange - 유효한 토큰
-        valid_token = EmailVerificationToken.objects.create(user=unverified_user)
+        # Assert - 정확히 24시간 후 (만료되지 않음)
+        assert token.is_expired(now=base_time + timedelta(hours=24)) is False
 
-        # Assert
-        assert expired_token.is_expired() is True
-        assert valid_token.is_expired() is False
+        # Assert - 24시간 1초 후 (만료됨)
+        assert token.is_expired(now=base_time + timedelta(hours=24, seconds=1)) is True
+
+        # Assert - 23시간 59분 59초 후 (유효)
+        assert token.is_expired(now=base_time + timedelta(hours=23, minutes=59, seconds=59)) is False
 
     def test_can_resend_method(self, unverified_user):
         """can_resend() 메서드 테스트 (1분 제한)"""
-        # Arrange - 방금 생성한 토큰
-        recent_token = EmailVerificationToken.objects.create(user=unverified_user)
+        # Arrange
+        base_time = datetime(2025, 1, 28, 10, 0, 0, tzinfo=dt_timezone.utc)
+        token = EmailVerificationToken.objects.create(user=unverified_user)
+        token.created_at = base_time
+        token.save()
 
-        # Arrange - 1분 이상 지난 토큰
-        old_token = EmailVerificationToken.objects.create(user=unverified_user)
-        old_token.created_at = timezone.now() - timedelta(minutes=2)
-        old_token.save()
+        # Assert - 정확히 1분 후 (재발송 불가)
+        assert token.can_resend(now=base_time + timedelta(minutes=1)) is False
 
-        # Assert
-        assert recent_token.can_resend() is False  # 1분 안됨
-        assert old_token.can_resend() is True  # 1분 지남
+        # Assert - 1분 1초 후 (재발송 가능)
+        assert token.can_resend(now=base_time + timedelta(minutes=1, seconds=1)) is True
+
+        # Assert - 30초 후 (재발송 불가)
+        assert token.can_resend(now=base_time + timedelta(seconds=30)) is False
 
     def test_mark_as_used_method(self, unverified_user):
         """mark_as_used() 메서드 테스트"""

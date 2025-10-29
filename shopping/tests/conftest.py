@@ -3,6 +3,7 @@ from decimal import Decimal
 import pytest
 from django.conf import settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from shopping.models.cart import Cart, CartItem
@@ -109,6 +110,65 @@ def unverified_user(db):
         password="testpass123",
         is_email_verified=False,
     )
+
+
+@pytest.fixture
+def inactive_user(db):
+    """
+    비활성화된 사용자 (is_active=False)
+
+    관리자가 계정을 정지시킨 경우를 시뮬레이션
+    로그인 시도 시 "비활성화된 계정입니다." 에러 발생
+
+    사용 예시:
+        def test_login_inactive(api_client, inactive_user):
+            response = api_client.post(login_url, {
+                "username": "inactive_user",
+                "password": "testpass123"
+            })
+            assert response.status_code == 400
+    """
+    return User.objects.create_user(
+        username="inactive_user",
+        email="inactive@example.com",
+        password="testpass123",
+        phone_number="010-5555-5555",
+        is_active=False,  # 계정 비활성화
+        is_email_verified=True,
+    )
+
+
+@pytest.fixture
+def withdrawn_user(db):
+    """
+    탈퇴한 사용자 (is_withdrawn=True)
+
+    회원 탈퇴 처리가 완료된 사용자
+    로그인 시도 시 "탈퇴한 회원입니다." 에러 발생
+
+    주의: 탈퇴 시 is_active도 False로 변경됨
+
+    사용 예시:
+        def test_login_withdrawn(api_client, withdrawn_user):
+            response = api_client.post(login_url, {
+                "username": "withdrawn_user",
+                "password": "testpass123"
+            })
+            assert response.status_code == 400
+    """
+    user = User.objects.create_user(
+        username="withdrawn_user",
+        email="withdrawn@example.com",
+        password="testpass123",
+        phone_number="010-6666-6666",
+        is_email_verified=True,
+    )
+    # 탈퇴 처리
+    user.is_withdrawn = True
+    user.withdrawn_at = timezone.now()
+    user.is_active = False  # 탈퇴 시 계정도 비활성화
+    user.save()
+    return user
 
 
 @pytest.fixture

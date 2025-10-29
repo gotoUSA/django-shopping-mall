@@ -58,10 +58,11 @@ class EmailVerificationToken(models.Model):
 
         return code
 
-    def is_expired(self):
+    def is_expired(self, now=None):
         """토큰 만료 여부 확인 (24시간)"""
+        now = now or timezone.now()
         expiry_time = self.created_at + timedelta(hours=24)
-        return timezone.now() > expiry_time
+        return now > expiry_time
 
     def mark_as_used(self):
         """토큰을 사용됨으로 표시"""
@@ -69,10 +70,11 @@ class EmailVerificationToken(models.Model):
         self.used_at = timezone.now()
         self.save(update_fields=["is_used", "used_at"])
 
-    def can_resend(self):
+    def can_resend(self, now=None):
         """재발송 가능 여부 (1분 제한)"""
+        now = now or timezone.now()
         time_limit = self.created_at + timedelta(minutes=1)
-        return timezone.now() > time_limit
+        return now > time_limit
 
     def __str__(self):
         return f"{self.user.email} - {self.verification_code} ({'사용됨' if self.is_used else '미사용'})"

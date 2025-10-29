@@ -17,6 +17,7 @@ class Notification(models.Model):
         ("point_earned", "포인트 적립"),
         ("point_expiring", "포인트 만료 예정"),
         ("review_reply", "리뷰 답글"),
+        ("return", "교환/환불"),
     ]
 
     # 기본 정보

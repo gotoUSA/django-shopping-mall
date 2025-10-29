@@ -14,6 +14,8 @@ from .models.payment import Payment, PaymentLog
 from .models.point import PointHistory
 from .models.product_qa import ProductAnswer, ProductQuestion
 
+from shopping.models import Return, ReturnItem
+
 # ==========================================
 # 소셜 로그인 Admin 설정
 # ==========================================
@@ -1091,6 +1093,307 @@ class ProductAnswerAdmin(admin.ModelAdmin):
         return obj.content
 
     content_preview.short_description = "답변 내용"
+
+
+# ReturnItem Inline
+class ReturnItemInline(admin.TabularInline):
+    """Return 편집 페이지에서 ReturnItem을 함께 관리"""
+
+    model = ReturnItem
+    extra = 0
+    readonly_fields = ["product_name", "product_price", "quantity", "get_subtotal"]
+    can_delete = False
+
+    def get_subtotal(self, obj):
+        """반품 금액 표시"""
+        if obj.id:
+            return f"₩{obj.get_subtotal():,.0f}"
+        return "-"
+
+    get_subtotal.short_description = "반품 금액"
+
+
+# Return Admin
+@admin.register(Return)
+class ReturnAdmin(admin.ModelAdmin):
+    """
+    교환/환불 관리
+    - 상태별 필터링
+    - 승인/거부 처리
+    - 반품 상품 함께 관리
+    """
+
+    list_display = [
+        "return_number",
+        "colored_type",
+        "colored_status",
+        "order_link",
+        "user_display",
+        "refund_amount_display",
+        "created_at",
+    ]
+
+    list_filter = [
+        "type",
+        "status",
+        "reason",
+        "created_at",
+    ]
+
+    search_fields = [
+        "return_number",
+        "order__order_number",
+        "user__username",
+        "user__email",
+    ]
+
+    date_hierarchy = "created_at"
+
+    ordering = ["-created_at"]
+
+    readonly_fields = [
+        "return_number",
+        "created_at",
+        "updated_at",
+        "approved_at",
+        "completed_at",
+    ]
+
+    # 상세 페이지 필드 구성
+    fieldsets = (
+        (
+            "기본 정보",
+            {
+                "fields": (
+                    "return_number",
+                    "order",
+                    "user",
+                    "type",
+                    "status",
+                )
+            },
+        ),
+        (
+            "사유",
+            {
+                "fields": (
+                    "reason",
+                    "reason_detail",
+                )
+            },
+        ),
+        (
+            "반품 배송 정보",
+            {
+                "fields": (
+                    "return_shipping_company",
+                    "return_tracking_number",
+                    "return_shipping_fee",
+                )
+            },
+        ),
+        (
+            "환불 정보",
+            {
+                "fields": (
+                    "refund_amount",
+                    "refund_method",
+                    "refund_account_bank",
+                    "refund_account_number",
+                    "refund_account_holder",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "교환 정보",
+            {
+                "fields": (
+                    "exchange_product",
+                    "exchange_shipping_company",
+                    "exchange_tracking_number",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "처리 정보",
+            {
+                "fields": (
+                    "admin_memo",
+                    "rejected_reason",
+                    "approved_at",
+                    "completed_at",
+                )
+            },
+        ),
+        (
+            "시간 정보",
+            {
+                "fields": ("created_at", "updated_at"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    # 인라인으로 반품 상품 표시
+    inlines = [ReturnItemInline]
+
+    # 액션 추가
+    actions = ["approve_returns", "reject_returns", "mark_as_received"]
+
+    def colored_type(self, obj):
+        """타입을 색상으로 표시"""
+        colors = {
+            "refund": "#dc3545",  # 빨강
+            "exchange": "#0d6efd",  # 파랑
+        }
+        color = colors.get(obj.type, "#6c757d")
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{}</span>',
+            color,
+            obj.get_type_display(),
+        )
+
+    colored_type.short_description = "타입"
+
+    def colored_status(self, obj):
+        """상태를 색상으로 표시"""
+        colors = {
+            "requested": "#0d6efd",  # 파랑
+            "approved": "#198754",  # 초록
+            "rejected": "#dc3545",  # 빨강
+            "shipping": "#fd7e14",  # 주황
+            "received": "#6610f2",  # 보라
+            "completed": "#198754",  # 초록
+        }
+        color = colors.get(obj.status, "#6c757d")
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px;">{}</span>',
+            color,
+            obj.get_status_display(),
+        )
+
+    colored_status.short_description = "상태"
+
+    def order_link(self, obj):
+        """주문번호 링크"""
+        from django.urls import reverse
+        from django.utils.html import format_html
+
+        url = reverse("admin:shopping_order_change", args=[obj.order.id])
+        return format_html('<a href="{}">{}</a>', url, obj.order.order_number)
+
+    order_link.short_description = "주문번호"
+
+    def user_display(self, obj):
+        """사용자 정보"""
+        return f"{obj.user.username} ({obj.user.email})"
+
+    user_display.short_description = "신청자"
+
+    def refund_amount_display(self, obj):
+        """환불 금액 표시"""
+        if obj.type == "refund":
+            return f"₩{obj.refund_amount:,.0f}"
+        return "-"
+
+    refund_amount_display.short_description = "환불 금액"
+
+    # 액션 메서드
+    def approve_returns(self, request, queryset):
+        """선택된 교환/환불을 승인"""
+        count = 0
+        for return_obj in queryset.filter(status="requested"):
+            try:
+                return_obj.approve()
+                count += 1
+            except ValueError as e:
+                self.message_user(request, f"{return_obj.return_number}: {str(e)}", level="error")
+
+        self.message_user(request, f"{count}개의 교환/환불을 승인했습니다.")
+
+    approve_returns.short_description = "선택된 교환/환불 승인"
+
+    def reject_returns(self, request, queryset):
+        """선택된 교환/환불을 거부"""
+        count = 0
+        for return_obj in queryset.filter(status="requested"):
+            try:
+                return_obj.reject("관리자에 의해 일괄 거부됨")
+                count += 1
+            except ValueError as e:
+                self.message_user(request, f"{return_obj.return_number}: {str(e)}", level="error")
+
+        self.message_user(request, f"{count}개의 교환/환불을 거부했습니다.")
+
+    reject_returns.short_description = "선택된 교환/환불 거부"
+
+    def mark_as_received(self, request, queryset):
+        """선택된 교환/환불을 반품 도착으로 변경"""
+        count = 0
+        for return_obj in queryset.filter(status="shipping"):
+            try:
+                return_obj.confirm_receive()
+                count += 1
+            except ValueError as e:
+                self.message_user(request, f"{return_obj.return_number}: {str(e)}", level="error")
+
+        self.message_user(request, f"{count}개의 교환/환불을 반품 도착으로 변경했습니다.")
+
+    mark_as_received.short_description = "선택된 교환/환불을 반품 도착으로 변경"
+
+
+# ReturnItem Admin (개별 관리용)
+@admin.register(ReturnItem)
+class ReturnItemAdmin(admin.ModelAdmin):
+    """반품 상품 개별 관리"""
+
+    list_display = [
+        "id",
+        "return_number",
+        "product_name",
+        "quantity",
+        "product_price",
+        "subtotal_display",
+        "created_at",
+    ]
+
+    list_filter = [
+        "created_at",
+        "return_request__type",
+        "return_request__status",
+    ]
+
+    search_fields = [
+        "product_name",
+        "return_request__return_number",
+    ]
+
+    readonly_fields = [
+        "return_request",
+        "order_item",
+        "product_name",
+        "product_price",
+        "quantity",
+        "created_at",
+    ]
+
+    def return_number(self, obj):
+        """교환/환불 번호"""
+        return obj.return_request.return_number
+
+    return_number.short_description = "교환/환불 번호"
+
+    def subtotal_display(self, obj):
+        """반품 금액"""
+        return f"₩{obj.get_subtotal():,.0f}"
+
+    subtotal_display.short_description = "반품 금액"
+
+    def has_add_permission(self, request):
+        """직접 추가 방지"""
+        return False
 
 
 # Admin 사이트 설정

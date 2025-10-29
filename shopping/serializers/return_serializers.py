@@ -147,13 +147,21 @@ class ReturnCreateSerializer(serializers.ModelSerializer):
             # 판매자에게 알림 발송
             from shopping.models import Notification
 
-            Notification.objects.create(
-                user=return_obj.order.user,  # 주문자가 아닌 판매자에게 알림 (향후 개선)
-                type="return",
-                title=f"새로운 {return_obj.get_type_display()} 신청",
-                message=f"{return_obj.return_number} - {return_obj.get_reason_display()}",
-                metadata={"return_id": return_obj.id, "return_number": return_obj.return_number},
-            )
+            # 반품하는 상품들의 판매자 찾기
+            sellers = set()
+            for return_item in return_obj.return_items.all():
+                if return_item.order_item.product and return_item.order_item.product.seller:
+                    sellers.add(return_item.order_item.product.seller)
+
+            # 각 판매자에게 알림
+            for seller in sellers:
+                Notification.objects.create(
+                    user=seller,  # 판매자에게 알림
+                    notification_type="return",
+                    title=f"새로운 {return_obj.get_type_display()} 신청",
+                    message=f"{return_obj.return_number} - {return_obj.get_reason_display()}",
+                    metadata={"return_id": return_obj.id, "return_number": return_obj.return_number},
+                )
 
         return return_obj
 
@@ -306,19 +314,25 @@ class ReturnUpdateSerializer(serializers.ModelSerializer):
         # 판매자에게 알림
         from shopping.models import Notification
 
-        Notification.objects.create(
-            user=instance.order.user,  # 판매자 (향후 개선)
-            type="return",
-            title="반품 상품 발송",
-            message=f"{instance.return_number} - 고객이 반품 상품을 발송했습니다. 송장번호: {instance.return_tracking_number}",
-            metadata={
-                "return_id": instance.id,
-                "return_number": instance.return_number,
-                "tracking_number": instance.return_tracking_number,
-            },
-        )
+        # 반품하는 상품들의 판매자 찾기
+        sellers = set()
+        for return_item in instance.return_items.all():
+            if return_item.order_item.product and return_item.order_item.product.seller:
+                sellers.add(return_item.order_item.product.seller)
 
-        return instance
+        # 각 판매자에게 알림
+        for seller in sellers:
+            Notification.objects.create(
+                user=seller,  # 판매자에게 알림
+                notification_type="return",
+                title="반품 상품 발송",
+                message=f"{instance.return_number} - 고객이 반품 상품을 발송했습니다. 송장번호: {instance.return_tracking_number}",
+                metadata={
+                    "return_id": instance.id,
+                    "return_number": instance.return_number,
+                    "tracking_number": instance.return_tracking_number,
+                },
+            )
 
 
 class ReturnApproveSerializer(serializers.Serializer):

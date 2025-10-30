@@ -1,5 +1,6 @@
 from django.contrib.auth import update_session_auth_hash
 from django.utils import timezone
+from django.db import transaction
 
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -8,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from shopping.models.email_verification import EmailVerificationToken
@@ -272,9 +274,16 @@ def withdraw(request):
     """
     회원 탈퇴 API
     - POST: 비밀번호 확인 후 탈퇴 처리
+
+    처리 내용:
+    1. 비밀번호 확인
+    2. 사용자 상태 변경 (is_withdrawn, is_active)
+    3. 모든 JWT 토큰 무효화 (보안 강화)
+    4. 포인트 및 주문 내역은 보존
     """
     password = request.data.get("password")
 
+    # 비밀번호 누락 확인
     if not password:
         return Response({"error": "비밀번호를 입력해주세요."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -287,10 +296,28 @@ def withdraw(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # 탈퇴 처리 (실제로 삭제하지 않고 플래그만 변경)
-    user.is_withdrawn = True
-    user.withdrawn_at = timezone.now()
-    user.is_active = False  # 비활성화
-    user.save()
+    try:
+        # 트랜잭션으로 원자성 보장
+        with transaction.atomic():
+            # 1. 사용자 탈퇴 처리
+            user.is_withdrawn = True
+            user.withdrawn_at = timezone.now()
+            user.is_active = False
+            user.save()
 
-    return Response({"message": "회원 탈퇴가 완료되었습니다."}, status=status.HTTP_200_OK)
+            # 2. 모든 JWT 토큰 무효화
+            # OutstandingToken에서 해당 사용자의 모든 토큰을 찾아 블랙리스트에 추가
+            outstanding_tokens = OutstandingToken.objects.filter(user=user)
+
+            for outstanding_token in outstanding_tokens:
+                # 이미 블랙리스트에 없는 토큰만 추가
+                BlacklistedToken.objects.get_or_create(token=outstanding_token)
+
+        return Response({"message": "회원 탈퇴가 완료되었습니다."}, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        # 예외 발생 시 자동 롤백 (transaction.atomic이 처리)
+        return Response(
+            {"error": f"탈퇴 처리 중 오류가 발생했습니다: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )

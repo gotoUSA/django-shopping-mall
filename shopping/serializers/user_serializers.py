@@ -63,6 +63,36 @@ class UserSerializer(serializers.ModelSerializer):
             is_used=False,
         ).exists()
 
+    def validate_email(self, value):
+        """이메일 중복 검사 및 형식 검증"""
+        # 현재 사용자의 이메일과 같으면 통과
+        if self.instance and self.instance.email == value:
+            return value
+
+        # 다른 사용자가 이미 사용중인 이메일인지 확인
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("이미 사용중인 이메일입니다.")
+
+        return value
+
+    def update(self, instance, validated_data):
+        """
+        프로필 업데이트
+        이메일 변경 시 재인증 필요
+        """
+        # 이메일이 변경되었는지 확인
+        email_changed = "email" in validated_data and validated_data["email"] != instance.email
+
+        # 기본 업데이트 수행
+        instance = super().update(instance, validated_data)
+
+        # 이메일이 변경된 경우 인증 상태 초기화
+        if email_changed:
+            instance.is_email_verified = False
+            instance.save(update_fields=["is_email_verified"])
+
+        return instance
+
 
 class RegisterSerializer(serializers.ModelSerializer):
     """

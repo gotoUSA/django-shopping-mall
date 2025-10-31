@@ -2,6 +2,7 @@ from .cart import Cart, CartItem
 from .email_verification import EmailLog, EmailVerificationToken
 from .notification import Notification
 from .order import Order, OrderItem
+from .password_reset import PasswordResetToken
 from .payment import Payment, PaymentLog
 from .point import PointHistory
 from .product import Category, Product, ProductImage, ProductReview
@@ -26,6 +27,7 @@ __all__ = [
     "PointHistory",
     "EmailVerificationToken",
     "EmailLog",
+    "PasswordResetToken",
     "Notification",
     "ProductQuestion",
     "ProductAnswer",

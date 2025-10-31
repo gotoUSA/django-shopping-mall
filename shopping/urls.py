@@ -11,10 +11,10 @@ from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import SocialLoginView
 from rest_framework.routers import DefaultRouter
 
-# notification import
+# notification
 from rest_framework_nested import routers
 
-# Auth Views import
+# Auth Views
 from shopping.views.auth_views import (
     CustomTokenRefreshView,
     LoginView,
@@ -28,7 +28,7 @@ from shopping.views.auth_views import (
 )
 from shopping.views.cart_views import CartItemViewSet, CartViewSet
 
-# Email Verification Views import
+# Email Verification Views
 from shopping.views.email_verification_views import (
     ResendVerificationEmailView,
     SendVerificationEmailView,
@@ -37,7 +37,7 @@ from shopping.views.email_verification_views import (
 )
 from shopping.views.order_views import OrderViewSet
 
-# Payment Views import
+# Payment Views
 from shopping.views.payment_views import (
     PaymentCancelView,
     PaymentConfirmView,
@@ -49,22 +49,28 @@ from shopping.views.payment_views import (
     payment_test_page,
 )
 
-# ViewSet import
+# ViewSet
 from shopping.views.product_views import CategoryViewSet, ProductViewSet
 
-# wishlist import
+# wishlist
 from shopping.views.wishlist_views import WishlistViewSet
 
-# Webhook import
+# Webhook
 from shopping.webhooks.toss_webhook_view import toss_webhook
 
-# Point view import
+# Point view
 from .views import point_views
 from .views.notification_views import NotificationViewSet
 from .views.product_qa_views import MyQuestionViewSet, ProductQuestionViewSet
 
 # return_request view
 from shopping.views.return_views import ReturnViewSet
+
+# password_reset view
+from shopping.views.password_reset_views import (
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
+)
 
 
 # 소셜 로그인 뷰 정의
@@ -142,7 +148,19 @@ urlpatterns = [
     path("auth/token/verify/", check_token, name="token-verify"),
     # 프로필 관리
     path("auth/profile/", ProfileView.as_view(), name="auth-profile"),
+    # 비밀번호 변경
     path("auth/password/change/", PasswordChangeView.as_view(), name="password-change"),
+    # 비밀번호 재설정
+    path(
+        "auth/password/reset/request/",
+        PasswordResetRequestView.as_view(),
+        name="password-reset-request",
+    ),
+    path(
+        "auth/password/reset/confirm/",
+        PasswordResetConfirmView.as_view(),
+        name="password-reset-confirm",
+    ),
     # 이메일 인증
     path(
         "auth/email/send/",

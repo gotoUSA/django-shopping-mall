@@ -9,12 +9,13 @@ from .cleanup_tasks import (
     cleanup_used_tokens_task,
     delete_unverified_users_task,
 )
-from .email_tasks import retry_failed_emails_task, send_verification_email_task
+from .email_tasks import retry_failed_emails_task, send_verification_email_task, send_email_task
 from .point_tasks import expire_points_task, send_email_notification, send_expiry_notification_task
 
 __all__ = [
     # 이메일 태스크
     "send_verification_email_task",
+    "send_email_task",
     "retry_failed_emails_task",
     # 정리 태스크
     "delete_unverified_users_task",

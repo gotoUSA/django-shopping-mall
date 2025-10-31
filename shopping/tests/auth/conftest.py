@@ -494,3 +494,51 @@ def mock_time():
             yield frozen_datetime
 
     return _freeze_time
+
+
+# ==========================================
+# 5. 비밀번호 재설정 관련 Fixture
+# ==========================================
+
+from shopping.models.password_reset import PasswordResetToken
+
+
+@pytest.fixture
+def password_reset_token(user):
+    """
+    유효한 비밀번호 재설정 토큰
+
+    방금 생성되어 아직 사용되지 않은 정상 토큰 (24시간 이내)
+
+    사용 예시:
+        def test_reset_password(api_client, password_reset_token):
+            response = api_client.post("/api/auth/password/reset/confirm/", {
+                "token": str(password_reset_token.token),
+                "new_password": "NewPass123!",
+                "new_password2": "NewPass123!"
+            })
+            assert response.status_code == 200
+    """
+    return PasswordResetToken.objects.create(user=user)
+
+
+@pytest.fixture
+def expired_password_reset_token(user):
+    """
+    만료된 비밀번호 재설정 토큰 (24시간 경과)
+
+    사용 예시:
+        def test_reset_with_expired_token(api_client, expired_password_reset_token):
+            response = api_client.post("/api/auth/password/reset/confirm/", {
+                "token": str(expired_password_reset_token.token),
+                "new_password": "NewPass123!",
+                "new_password2": "NewPass123!"
+            })
+            assert response.status_code == 400
+            assert "만료" in response.data
+    """
+    token = PasswordResetToken.objects.create(user=user)
+    # 24시간 + 1초 전으로 설정
+    token.created_at = timezone.now() - timedelta(hours=24, seconds=1)
+    token.save()
+    return token

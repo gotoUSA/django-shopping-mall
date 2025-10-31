@@ -205,3 +205,101 @@ def retry_failed_emails_task(self):
             "success": False,
             "message": str(e),
         }
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+    autoretry_for=(Exception,),
+)
+def send_email_task(
+    self,
+    subject,
+    message,
+    recipient_list,
+    user_id=None,
+    email_type="general",
+    html_message=None,
+):
+    """
+    범용 이메일 발송 태스크 (비동기)
+
+    비밀번호 재설정, 일반 알림 등 모든 이메일 발송에 사용 가능
+
+    Args:
+        self: Celery task 인스턴스 (bind=True)
+        subject: 이메일 제목
+        message: 이메일 본문 (텍스트)
+        recipient_list: 수신자 이메일 리스트
+        user_id: 사용자 ID (선택, 로그용)
+        email_type: 이메일 유형 (선택, 기본값: "general")
+        token: 관련 토큰 객체 (선택, 로그용)
+        html_message: HTML 본문 (선택)
+
+    Returns:
+        dict: 발송 결과 {'success': bool, 'message': str}
+    """
+    try:
+        # 사용자 조회 (있는 경우)
+        user = None
+        if user_id:
+            try:
+                user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                logger.warning(f"사용자를 찾을 수 없습니다: user_id={user_id}")
+
+        # EmailLog 조회 또는 생성
+        if user and email_type:
+            email_log, created = EmailLog.objects.get_or_create(
+                user=user,
+                email_type=email_type,
+                recipient_email=recipient_list[0] if recipient_list else "",
+                subject=subject,
+                status="pending",
+                defaults={
+                    "status": "pending",
+                },
+            )
+
+            # 이미 발송 성공한 경우 중복 발송 방지
+            if not created and email_log.status == "sent":
+                logger.info(f"이미 발송된 이메일입니다: {recipient_list[0]}")
+                return {
+                    "success": True,
+                    "message": "이미 발송된 이메일입니다.",
+                }
+        else:
+            email_log = None
+
+        # 이메일 발송
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=recipient_list,
+            html_message=html_message,
+            fail_silently=False,
+        )
+
+        # 발송 성공 처리
+        if email_log:
+            email_log.mark_as_sent()
+
+        logger.info(f"✅ 이메일 발송 성공: {recipient_list}")
+
+        return {
+            "success": True,
+            "message": "이메일이 성공적으로 발송되었습니다.",
+            "recipients": recipient_list,
+        }
+
+    except Exception as e:
+        logger.error(f"❌ 이메일 발송 실패: {recipient_list} - {str(e)}")
+
+        # 이메일 로그 실패 처리
+        if "email_log" in locals() and email_log:
+            email_log.mark_as_failed(str(e))
+
+        # Celery 재시도
+        raise self.retry(exc=e, countdown=60)

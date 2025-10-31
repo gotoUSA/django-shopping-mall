@@ -269,7 +269,7 @@ class CartViewSet(viewsets.GenericViewSet):
             "items": [
                 {"product_id": 1, "quantity": 2},
                 {"product_id": 3, "quantity": 1}
-                ]
+            ]
         }
 
         찜 목록에서 여러 상품을 한 번에 담을 때 유용합니다.

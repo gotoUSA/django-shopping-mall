@@ -22,9 +22,20 @@ from shopping.serializers.wishlist_serializers import (
 
 class WishlistViewSet(GenericViewSet):
     """
-    찜하기 관리 ViewSet
+    찜하기(위시리스트) 관리 ViewSet
 
-    인증된 사용자만 사용 가능하며, 본인의 찜 목록만 조회/관리 가능합니다.
+    엔드포인트:
+    - GET    /api/wishlist/             - 찜 목록 조회
+    - POST   /api/wishlist/toggle/      - 찜하기 토글 (추가/제거)
+    - POST   /api/wishlist/add/         - 찜 추가
+    - DELETE /api/wishlist/remove/      - 찜 제거
+    - POST   /api/wishlist/bulk_add/    - 여러 상품 일괄 추가
+    - DELETE /api/wishlist/clear/       - 찜 목록 전체 삭제
+    - GET    /api/wishlist/check/       - 찜 상태 확인
+    - GET    /api/wishlist/stats/       - 찜 목록 통계
+    - POST   /api/wishlist/move_to_cart/ - 장바구니로 이동
+
+    권한: 인증 필요 (본인 찜 목록만 관리 가능)
     """
 
     permission_classes = [permissions.IsAuthenticated]
@@ -41,8 +52,10 @@ class WishlistViewSet(GenericViewSet):
 
         쿼리 파라미터:
         - ordering: 정렬 (created_at, -created_at, price, -price, name)
-        - is_available: 구매 가능한 상품만 필터링 (true/false)
-        - on_sale: 세일 중인 상품만 필터링 (true/false)
+        - is_available: 구매 가능 상품만 (true/false)
+        - on_sale: 세일 중인 상품만 (true/false)
+
+        권한: 인증 필요
         """
         queryset = self.get_queryset()
 
@@ -80,10 +93,13 @@ class WishlistViewSet(GenericViewSet):
 
         응답:
         {
-            "is_wished": true,  // 현재 찜 상태
+            "is_wished": true,
             "message": "찜 목록에 추가되었습니다.",
-            "wishlist_count": 123  // 이 상품의 전체 찜 개수
+            "wishlist_count": 123
         }
+
+        특징: 하트 버튼 구현에 최적화
+        권한: 인증 필요
         """
         serializer = WishlistToggleSerializer(data=request.data)
 
@@ -118,13 +134,16 @@ class WishlistViewSet(GenericViewSet):
     @action(detail=False, methods=["post"])
     def add(self, request):
         """
-        찜 목록에 추가만 하기 (이미 있으면 무시)
+        찜 목록에 상품 추가
         POST /api/wishlist/add/
 
         요청 본문:
         {
             "product_id": 1
         }
+
+        특징: 이미 찜한 상품이면 무시 (에러 없음)
+        권한: 인증 필요
         """
         serializer = WishlistToggleSerializer(data=request.data)
 
@@ -160,8 +179,16 @@ class WishlistViewSet(GenericViewSet):
     @action(detail=False, methods=["delete"])
     def remove(self, request):
         """
-        찜 목록에서 제거
+        찜 목록에서 상품 제거
         DELETE /api/wishlist/remove/?product_id=1
+
+        쿼리 파라미터:
+        - product_id: 제거할 상품 ID (필수)
+
+        권한: 인증 필요
+        에러:
+        - 400: product_id 누락
+        - 404: 찜 목록에 없는 상품
         """
         product_id = request.query_params.get("product_id")
 
@@ -190,7 +217,7 @@ class WishlistViewSet(GenericViewSet):
     @action(detail=False, methods=["post"])
     def bulk_add(self, request):
         """
-        여러 상품 한번에 찜하기
+        여러 상품 일괄 찜하기
         POST /api/wishlist/bulk_add/
 
         요청 본문:
@@ -198,7 +225,16 @@ class WishlistViewSet(GenericViewSet):
             "product_ids": [1, 2, 3]
         }
 
-        장바구니에서 여러 상품을 한번에 찜할 때 유용합니다.
+        응답:
+        {
+            "message": "2개 상품이 찜 목록에 추가되었습니다.",
+            "added_count": 2,
+            "skipped_count": 1,
+            "total_wishlist_count": 10
+        }
+
+        특징: 중복 자동 제외, 이미 찜한 상품은 건너뜀
+        권한: 인증 필요
         """
         serializer = WishlistBulkAddSerializer(data=request.data)
 
@@ -243,10 +279,15 @@ class WishlistViewSet(GenericViewSet):
     def clear(self, request):
         """
         찜 목록 전체 삭제
-        DELETE /api/wishlist/clear/
+        DELETE /api/wishlist/clear/?confirm=true
 
         쿼리 파라미터:
-        - confirm: true (실수 방지)
+        - confirm: true (필수, 실수 방지용)
+
+        권한: 인증 필요
+        주의: 복구 불가능
+        에러:
+        - 400: confirm 파라미터 없음
         """
         confirm = request.query_params.get("confirm")
 
@@ -269,6 +310,19 @@ class WishlistViewSet(GenericViewSet):
         """
         특정 상품의 찜 상태 확인
         GET /api/wishlist/check/?product_id=1
+
+        쿼리 파라미터:
+        - product_id: 확인할 상품 ID (필수)
+
+        응답:
+        {
+            "product_id": 1,
+            "is_wished": true,
+            "wishlist_count": 123
+        }
+
+        용도: 하트 버튼 초기 상태 표시
+        권한: 인증 필요
         """
         product_id = request.query_params.get("product_id")
 
@@ -291,19 +345,26 @@ class WishlistViewSet(GenericViewSet):
     @action(detail=False, methods=["get"])
     def stats(self, request):
         """
-        내 찜 목록 통계
+        찜 목록 통계 조회
         GET /api/wishlist/stats/
 
         응답:
         {
-            "total_count": 10,  // 전체 찜한 상품 수
-            "available_count": 8,  // 구매 가능한 상품 수
-            "out_of_stock_count": 2,  // 품절 상품 수
-            "on_sale_count": 3,  // 세일 중인 상품 수
-            "total_price": 500000,  // 정가 총합
-            "total_sale_price": 450000,  // 실제 가격 총합
-            "total_discount": 50000  // 총 할인 금액
+            "total_count": 10,
+            "available_count": 8,
+            "out_of_stock_count": 2,
+            "on_sale_count": 3,
+            "total_price": 500000,
+            "total_sale_price": 450000,
+            "total_discount": 50000
         }
+
+        포함 정보:
+        - 전체/구매가능/품절 상품 수
+        - 세일 중인 상품 수
+        - 가격 합계 및 할인 금액
+
+        권한: 인증 필요
         """
         user = request.user
         products = user.wishlist_products.all()
@@ -353,9 +414,24 @@ class WishlistViewSet(GenericViewSet):
 
         요청 본문:
         {
-            "product_ids": [1, 2, 3],  // 이동할 상품 ID들
-            "remove_from_wishlist": true  // 찜 목록에서 제거 여부 (기본: false)
+            "product_ids": [1, 2, 3],
+            "remove_from_wishlist": true
         }
+
+        응답:
+        {
+            "message": "2개 상품이 장바구니에 추가되었습니다.",
+            "added_items": ["노트북", "마우스"],
+            "already_in_cart": ["키보드"],
+            "out_of_stock": []
+        }
+
+        특징:
+        - 재고 자동 확인
+        - 이미 장바구니에 있으면 건너뜀
+        - remove_from_wishlist=true 시 찜 목록에서 제거
+
+        권한: 인증 필요
         """
         try:
             from shopping.models.cart import Cart, CartItem

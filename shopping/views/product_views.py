@@ -53,17 +53,29 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
 
 class ProductViewSet(viewsets.ModelViewSet):
     """
-    상품 CRUD 및 검색/필터링 기능을 제공하는 ViewSet
+    상품 CRUD 및 검색/필터링 ViewSet
 
-    지원 기능:
-    - 목록 조회 (GET /api/products/)
-    - 상세 조회 (GET /api/products/{id})
-    - 생성 (POST /api/product/) - 인증 필요
-    - 수정 (PUT/PATCH /api/products/{id}/) - 판매자만
-    - 삭제 (DELELTE /api/products/{id}/) - 판매자만
-    - 검색 (GET /api/products/?search=검색어)
-    - 필터링 (GET /api/products/?category=1&min_price=10000)
-    - 정렬 (GET /api/products/?ordering=-created_at)
+    엔드포인트:
+    - GET    /api/products/              - 상품 목록 조회
+    - GET    /api/products/{id}/         - 상품 상세 조회
+    - POST   /api/products/              - 상품 생성 (인증 필요)
+    - PUT    /api/products/{id}/         - 상품 전체 수정 (판매자만)
+    - PATCH  /api/products/{id}/         - 상품 부분 수정 (판매자만)
+    - DELETE /api/products/{id}/         - 상품 삭제 (판매자만)
+    - GET    /api/products/{id}/reviews/ - 리뷰 목록
+    - POST   /api/products/{id}/add_review/ - 리뷰 작성
+    - GET    /api/products/popular/      - 인기 상품
+    - GET    /api/products/best_rating/  - 평점 높은 상품
+    - GET    /api/products/low_stock/    - 재고 부족 상품
+
+    검색/필터링 파라미터:
+    - search: 검색어 (상품명, 설명, 카테고리명)
+    - category: 카테고리 ID
+    - min_price: 최소 가격
+    - max_price: 최대 가격
+    - in_stock: 재고 여부 (true/false)
+    - seller: 판매자 ID
+    - ordering: 정렬 (price, -price, created_at, -created_at, stock, name)
     """
 
     queryset = Product.objects.all()
@@ -89,10 +101,11 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     def get_serializer_class(self):
         """
-        액션에 따라 다른 Serializer 사용
-        - list: 목록 조회용 간단한 Serializer
-        - retrieve: 상세 조회용 자세한 Serializer
-        - create/update/partial_update: 생성/수정용 Serializer
+        액션별 Serializer 선택
+
+        - list: ProductListSerializer (간단한 정보)
+        - retrieve: ProductDetailSerializer (전체 정보)
+        - create/update/partial_update: ProductCreateUpdateSerializer
         """
         if self.action == "list":
             return ProductListSerializer
@@ -106,10 +119,19 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        쿼리셋 최적화 및 필터링
-        - select_related: seller, category (1:1, N:1 관계)
-        - prefetch_related: images, reviews (1:N 관계)
-        - 활성 상품만 표시 (is_active=True)
+        상품 쿼리셋 조회 및 필터링
+
+        성능 최적화:
+        - select_related: seller, category (JOIN 최적화)
+        - prefetch_related: images, reviews (N+1 문제 방지)
+        - annotate: avg_rating, review_cnt (집계)
+
+        필터링:
+        - category: 카테고리 및 하위 카테고리 포함
+        - min_price, max_price: 가격 범위
+        - in_stock: 재고 여부
+        - seller: 판매자
+        - is_active: 활성 상품만 (기본)
         """
         queryset = (
             Product.objects.filter(is_active=True)
@@ -168,8 +190,12 @@ class ProductViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """
         상품 생성 시 추가 처리
-        - 현재 로그인한 사용자를 판매자로 설정
-        - slug 자동 생성 (한글 상품명 지원)
+        POST /api/products/
+
+        자동 처리:
+        - seller: 현재 로그인한 사용자로 설정
+        - slug: 상품명으로 자동 생성 (한글 지원)
+        - slug 중복 시 숫자 추가 (예: product-1, product-2)
         """
         # slug가 없으면 상품명으로 생성
         if not serializer.validated_data.get("slug"):
@@ -192,7 +218,10 @@ class ProductViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         """
         상품 수정 시 추가 처리
-        - slug 업데이트 시 중복 체크
+        PUT/PATCH /api/products/{id}/
+
+        - name 변경 시 slug 자동 재생성
+        - slug 중복 시 숫자 추가
         """
 
         # slug 변경시 중복 체크
@@ -216,12 +245,14 @@ class ProductViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"])
     def reviews(self, request, pk=None):
         """
-        특정 상품의 리뷰 목록 조회
+        상품 리뷰 목록 조회
         GET /api/products/{id}/reviews/
 
         쿼리 파라미터:
-        - ordering: created_at, -created_at, rating, -raing
+        - ordering: 정렬 (created_at, -created_at, rating, -rating)
         - page: 페이지 번호
+
+        권한: 누구나 조회 가능
         """
         product = self.get_object()
         reviews = product.reviews.all().select_related("user")
@@ -251,6 +282,11 @@ class ProductViewSet(viewsets.ModelViewSet):
             "rating": 5,
             "comment": "좋은 상품입니다!"
         }
+
+        권한: 인증 필요
+        제약: 상품당 1개 리뷰만 작성 가능
+        에러:
+        - 400: 이미 리뷰 작성한 경우
         """
         product = self.get_object()
 
@@ -272,8 +308,12 @@ class ProductViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"])
     def popular(self, request):
         """
-        인기 상품 목록 조회 (리뷰가 많은 순)
+        인기 상품 목록 조회
         GET /api/products/popular/
+
+        정렬: 리뷰 많은 순
+        개수: 최대 12개
+        권한: 누구나 조회 가능
         """
         popular_products = (
             self.get_queryset()
@@ -290,6 +330,11 @@ class ProductViewSet(viewsets.ModelViewSet):
         """
         평점 높은 상품 목록 조회
         GET /api/products/best_rating/
+
+        조건: 리뷰 3개 이상인 상품만
+        정렬: 평균 평점 높은 순
+        개수: 최대 12개
+        권한: 누구나 조회 가능
         """
         best_products = (
             self.get_queryset()
@@ -304,8 +349,14 @@ class ProductViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"])
     def low_stock(self, request):
         """
-        재고 부족 상품 목록 (판매자 전용)
+        재고 부족 상품 목록 조회 (판매자 전용)
         GET /api/products/low_stock/
+
+        조건: 재고 10개 이하
+        정렬: 재고 적은 순
+        권한: 본인 상품만 조회 가능
+        에러:
+        - 401: 인증 필요
         """
         if not request.user.is_authenticated:
             return Response({"error": "로그인이 필요합니다."}, status=status.HTTP_401_UNAUTHORIZED)
@@ -319,10 +370,15 @@ class ProductViewSet(viewsets.ModelViewSet):
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    카테고리 조회 전용 ViewSet
-    - 목록 조회: GET /api/categories/
-    - 상세 조회: GET /api/categories/{id}
-    - 계층 구조 조회: GET /api/categories/tree/
+    카테고리 조회 전용 ViewSet (읽기 전용)
+
+    엔드포인트:
+    - GET /api/categories/             - 카테고리 목록
+    - GET /api/categories/{id}/        - 카테고리 상세
+    - GET /api/categories/tree/        - 계층 구조 조회
+    - GET /api/categories/{id}/products/ - 카테고리별 상품 목록
+
+    권한: 누구나 조회 가능
     """
 
     queryset = Category.objects.all()
@@ -330,9 +386,10 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_serializer_class(self):
         """
-        액션에 따라 다른 Serializer 사용
-        - tree 액션: CategoryTreeSerializer
-        - 기본: CategorySerializer
+        액션별 Serializer 선택
+
+        - tree: CategoryTreeSerializer (계층 구조)
+        - 기본: CategorySerializer (일반 정보)
         """
         if self.action == "tree":
             return CategoryTreeSerializer
@@ -340,7 +397,11 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         """
-        활성 카테고리만 조회하고 상품 수 포함
+        카테고리 쿼리셋 조회
+
+        - 활성 카테고리만 표시 (is_active=True)
+        - select_related: parent (JOIN 최적화)
+        - annotate: products_count (상품 개수 집계)
         """
         return (
             Category.objects.filter(is_active=True)
@@ -351,10 +412,12 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=["get"])
     def tree(self, request):
         """
-        카테고리 트리 구조 조회
+        카테고리 계층 구조 조회
         GET /api/categories/tree/
 
-        최상위 카테고리부터 계층적으로 표시
+        응답: 최상위부터 하위까지 재귀적 구조
+        각 카테고리에 상품 개수 포함
+        권한: 누구나 조회 가능
         """
 
         def build_tree(parent=None):
@@ -377,10 +440,15 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=["get"])
     def products(self, request, pk=None):
         """
-        특정 카테고리의 상품 목록 조회
+        카테고리별 상품 목록 조회
         GET /api/categories/{id}/products/
 
-        하위 카테고리의 상품도 포함
+        특징:
+        - 하위 카테고리 상품 포함 (MPTT 활용)
+        - 페이지네이션 적용
+        - 활성 상품만 표시
+
+        권한: 누구나 조회 가능
         """
         category = self.get_object()
 

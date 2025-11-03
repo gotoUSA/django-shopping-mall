@@ -445,7 +445,7 @@ REST_AUTH_TOKEN_CREATOR = None
 
 # allauth 어댑터 (기본값이지만 명시)
 ACCOUNT_ADAPTER = "allauth.account.adapter.DefaultAccountAdapter"
-SOCIALACCOUNT_ADAPTER = "allauth.socialaccount.adapter.DefaultSocialAccountAdapter"
+SOCIALACCOUNT_ADAPTER = "shopping.adapters.CustomSocialAccountAdapter"
 
 # ========== 소셜 로그인 제공자별 설정 ==========
 SOCIALACCOUNT_PROVIDERS = {

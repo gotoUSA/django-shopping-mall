@@ -71,6 +71,9 @@ def user(db):
     - 포인트: 5000
     - 이메일 인증: 완료
     """
+    # 기존 user가 있다면 삭제 (중복 방지)
+    User.objects.filter(username="testuser").delete()
+
     return User.objects.create_user(
         username="testuser",
         email="test@example.com",

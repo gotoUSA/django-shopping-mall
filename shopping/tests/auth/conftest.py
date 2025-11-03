@@ -23,12 +23,66 @@ from datetime import timedelta
 from datetime import timezone as dt_timezone
 
 import pytest
+from unittest.mock import MagicMock, Mock
 from django.contrib.sites.models import Site
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
-from allauth.socialaccount.models import SocialApp
+from allauth.socialaccount.models import SocialApp, SocialAccount, SocialLogin
 from shopping.models.email_verification import EmailVerificationToken
+from shopping.models.user import User
+
+from requests.exceptions import ConnectionError, Timeout
+
+
+# ==========================================
+# 소셜 앱 설정 상수 (모든 fixture에서 동일하게 사용)
+# ==========================================
+
+SOCIAL_APP_CONFIG = {
+    "google": {
+        "name": "Google Test App",
+        "client_id": "test_google_client_id_unified",
+        "secret": "test_google_secret_unified",
+    },
+    "kakao": {
+        "name": "Kakao Test App",
+        "client_id": "test_kakao_client_id_unified",
+        "secret": "test_kakao_secret_unified",
+    },
+    "naver": {
+        "name": "Naver Test App",
+        "client_id": "test_naver_client_id_unified",
+        "secret": "test_naver_secret_unified",
+    },
+}
+
+
+@pytest.fixture(autouse=True, scope="function")
+def reset_social_models(db, settings):
+    """
+    각 테스트 전후 소셜 로그인 관련 모델 정리
+
+    단위 테스트용 - 간단한 정리만 수행
+    """
+    # 기본 설정
+    settings.SOCIALACCOUNT_PROVIDERS = {}
+
+    # 데이터 정리
+    SocialAccount.objects.all().delete()
+    SocialApp.objects.all().delete()
+    User.objects.all().delete()
+
+    # Site 설정
+    Site.objects.exclude(id=1).delete()
+    Site.objects.get_or_create(id=1, defaults={"domain": "testserver", "name": "testserver"})
+
+    yield
+
+    # 테스트 후 정리
+    SocialAccount.objects.all().delete()
+    SocialApp.objects.all().delete()
+    User.objects.all().delete()
 
 
 # ==========================================
@@ -309,8 +363,12 @@ def social_site():
     Django Site 객체 (소셜 앱에 필요)
 
     allauth는 django.contrib.sites를 사용하므로 필수
+
+    - get_or_create 대신 get만 사용 (authouse fixture에서 생성)
+    - 중복 생성 방지
     """
-    site, _ = Site.objects.get_or_create(id=1, defaults={"domain": "testserver", "name": "testserver"})
+    # autouse fixture에서 이미 생성했으므로 get만 사용
+    site = Site.objects.get(id=1)
     return site
 
 
@@ -320,22 +378,26 @@ def social_app_google(db, social_site):
     Google 소셜 앱 설정
 
     테스트용 Google OAuth 앱 설정
+    get_or_create를 사용하여 중복 생성 완전 방지
 
     사용 예시:
         def test_google_login(api_client, social_app_google):
             # social_app_google이 설정된 상태에서 테스트
             response = api_client.post("/api/auth/social/google/", {...})
     """
-    # 기존 Google 앱 모두 삭제 (중복 방지)
-    SocialApp.objects.filter(provider="google").delete()
+    config = SOCIAL_APP_CONFIG["google"]
 
+    # 단순 생성 (reset_social_models가 이미 정리함)
     app = SocialApp.objects.create(
         provider="google",
-        name="Google Test",
-        client_id="test_google_client_id_12345",
-        secret="test_google_secret_67890",
+        name=config["name"],
+        client_id=config["client_id"],
+        secret=config["secret"],
     )
+
+    # sites 관계 설정
     app.sites.add(social_site)
+
     return app
 
 
@@ -345,20 +407,25 @@ def social_app_kakao(db, social_site):
     Kakao 소셜 앱 설정
 
     테스트용 Kakao OAuth 앱 설정
+    reset_social_models가 이미 정리하므로 단순 생성만 수행
 
     사용 예시:
         def test_kakao_login(api_client, social_app_kakao):
             response = api_client.post("/api/auth/social/kakao/", {...})
     """
-    SocialApp.objects.filter(provider="kakao").delete()
+    config = SOCIAL_APP_CONFIG["kakao"]
 
+    # 단순 생성 (reset_social_models가 이미 정리함)
     app = SocialApp.objects.create(
         provider="kakao",
-        name="Kakao Test",
-        client_id="test_kakao_rest_api_key_12345",
-        secret="test_kakao_secret_67890",
+        name=config["name"],
+        client_id=config["client_id"],
+        secret=config["secret"],
     )
+
+    # sites 관계 설정
     app.sites.add(social_site)
+
     return app
 
 
@@ -368,20 +435,25 @@ def social_app_naver(db, social_site):
     Naver 소셜 앱 설정
 
     테스트용 Naver OAuth 앱 설정
+    get_or_create를 사용하여 중복 생성 완전 방지
 
     사용 예시:
         def test_naver_login(api_client, social_app_naver):
             response = api_client.post("/api/auth/social/naver/", {...})
     """
-    SocialApp.objects.filter(provider="naver").delete()
+    config = SOCIAL_APP_CONFIG["naver"]
 
+    # 단순 생성 (reset_social_models가 이미 정리함)
     app = SocialApp.objects.create(
         provider="naver",
-        name="Naver Test",
-        client_id="test_naver_client_id_12345",
-        secret="test_naver_secret_67890",
+        name=config["name"],
+        client_id=config["client_id"],
+        secret=config["secret"],
     )
+
+    # sites 관계 설정
     app.sites.add(social_site)
+
     return app
 
 
@@ -542,3 +614,179 @@ def expired_password_reset_token(user):
     token.created_at = timezone.now() - timedelta(hours=24, seconds=1)
     token.save()
     return token
+
+
+# ==========================================
+# 6. 소셜 로그인 Mock 헬퍼 함수
+# ==========================================
+
+
+def _create_social_login_mock(mocker, provider, oauth_data, provider_config):
+    """
+    소셜 로그인 Mock 생성 헬퍼 함수
+
+    - 실제 User 인스턴스 사용
+
+    Args:
+        mocker: pytest-mock의 mocker fixture
+        provider: provider 이름 (google, kakao, naver)
+        oauth_data: OAuth 응답 데이터
+        provider_config: provider별 설정 (email_path, uid_path, adapter_path)
+    """
+    # email 추출 (nested path 지원)
+    email = oauth_data
+    for key in provider_config["email_path"]:
+        email = email[key]
+
+    # 실제 User 생성 (DB에 저장)
+    user = User.objects.create(
+        email=email,
+        username=email.split("@")[0],
+        is_email_verified=True,
+        is_active=True,
+    )
+
+    # SocialLogin은 Mock
+    mock_social_login = MagicMock(spec=SocialLogin)
+    mock_social_login.user = user  # 실제 User
+    mock_social_login.account = MagicMock(spec=SocialAccount)
+    mock_social_login.account.provider = provider
+
+    # uid 추출 (nested path 지원)
+    uid = oauth_data
+    for key in provider_config["uid_path"]:
+        uid = uid[key]
+    if provider_config.get("uid_to_str"):
+        uid = str(uid)
+    mock_social_login.account.uid = uid
+    mock_social_login.account.extra_data = oauth_data
+
+    mock_user = MagicMock()
+    mock_user.email = email
+    mock_user.username = email.split("@")[0]
+    mock_user.is_email_verified = True
+    mock_user.is_active = True
+    mock_user.pk = None  # 신규 사용자
+    mock_user.id = None
+    # django-allauth가 email_addresses를 QuerySet처럼 사용
+    mock_user.emailaddress_set.all.return_value = []
+    mock_user.emailaddress_set.filter.return_value.exists.return_value = False
+
+    mock_social_login.user = mock_user
+    mock_social_login.is_existing = False
+    mock_social_login.state = MagicMock()  # 모든 provider에 추가
+
+    mock_email = MagicMock()
+    mock_email.email = email
+    mock_email.verified = True
+    mock_email.primary = True
+    mock_social_login.email_addresses = [mock_email]
+
+    # 패치 방식 통일 (side_effect로)
+    mock = mocker.patch(
+        provider_config["adapter_path"],
+        side_effect=lambda request, app, token, **kwargs: mock_social_login,
+    )
+    return mock
+
+
+# Provider별 설정
+PROVIDER_CONFIGS = {
+    "google": {
+        "email_path": ["email"],
+        "uid_path": ["id"],
+        "uid_to_str": False,
+        "adapter_path": "allauth.socialaccount.providers.google.views.GoogleOAuth2Adapter.complete_login",
+    },
+    "kakao": {
+        "email_path": ["kakao_account", "email"],
+        "uid_path": ["id"],
+        "uid_to_str": True,
+        "adapter_path": "allauth.socialaccount.providers.kakao.views.KakaoOAuth2Adapter.complete_login",
+    },
+    "naver": {
+        "email_path": ["response", "email"],
+        "uid_path": ["response", "id"],
+        "uid_to_str": False,
+        "adapter_path": "allauth.socialaccount.providers.naver.views.NaverOAuth2Adapter.complete_login",
+    },
+}
+
+
+# ==========================================
+# 7. 기존 사용자 관련 Fixture
+# ==========================================
+
+
+@pytest.fixture
+def user_with_google_account(db, user, social_site):
+    """
+    이미 Google 계정이 연결된 사용자
+
+    소셜 계정 연결 테스트용
+    reset_social_models가 이미 정리하므로 단순 생성만 수행
+
+    사용 예시:
+        def test_duplicate_social_account(user_with_google_account):
+            # 이미 Google 계정이 연결된 상태에서 테스트
+            assert user_with_google_account.socialaccount_set.count() == 1
+    """
+    config = SOCIAL_APP_CONFIG["google"]
+
+    # Google SocialApp 생성
+    app = SocialApp.objects.create(
+        provider="google",
+        name=config["name"],
+        client_id=config["client_id"],
+        secret=config["secret"],
+    )
+
+    # sites 관계 설정
+    app.sites.add(social_site)
+
+    # SocialAccount 생성
+    SocialAccount.objects.create(
+        user=user,
+        provider="google",
+        uid="googld_user_id_123456",  # mock_google_oauth_data의 id와 동일하게
+        extra_data={"email": user.email},
+    )
+
+    return user
+
+
+@pytest.fixture
+def user_with_multiple_social_accounts(db, user, social_site):
+    """
+    여러 소셜 계정이 연결된 사용자
+
+    Google + Kakao + Naver 모두 연결됨
+    reset_social_models가 이미 정리하므로 단순 생성만 수행
+
+    사용 예시:
+        def test_multiple_providers(user_with_multiple_social_accounts):
+            assert user_with_multiple_social_accounts.socialaccount_set.count() == 3
+    """
+    # 각 provider의 SocialApp 생성
+    for provider_name, config in SOCIAL_APP_CONFIG.items():
+        app = SocialApp.objects.create(
+            provider=provider_name,
+            name=config["name"],
+            client_id=config["client_id"],
+            secret=config["secret"],
+        )
+
+        # sites 관계 설정
+        app.sites.add(social_site)
+
+    # 각 provider에 대한 SocialAccount 생성
+    social_accounts_config = [
+        ("google", "google_uid_123", "user@gmail.com"),
+        ("kakao", "kakao_uid_456", "user@kakao.com"),
+        ("naver", "naver_uid_789", "user@naver.com"),
+    ]
+
+    for provider, uid, email in social_accounts_config:
+        SocialAccount.objects.create(user=user, provider=provider, uid=uid, extra_data={"email": email})
+
+    return user

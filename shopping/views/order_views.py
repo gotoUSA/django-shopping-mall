@@ -1,8 +1,10 @@
 import logging
 
 from django.db import transaction
+from django_filters.rest_framework import DjangoFilterBackend
 
-from rest_framework import permissions, status, viewsets
+from rest_framework import permissions, status, viewsets, filters
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -12,10 +14,27 @@ from ..serializers.order_serializers import OrderCreateSerializer, OrderDetailSe
 logger = logging.getLogger(__name__)
 
 
+class OrderPagination(PageNumberPagination):
+    """주문 목록 페이지네이션"""
+
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
 class OrderViewSet(viewsets.ModelViewSet):
     """주문 관리 ViewSet"""
 
     permission_classes = [permissions.IsAuthenticated]
+
+    # 페이지네이션 설정
+    pagination_class = OrderPagination
+
+    # 필터링 및 정렬 설정
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ["status"]  # status 필터 지원
+    ordering_fields = ["created_at"]  # created_at 정렬만 지원
+    ordering = ["-created_at"]  # 기본 정렬: 최신순
 
     def get_queryset(self):
         """주문 조회 - 관리자는 전체, 일반 사용자는 본인 것만"""

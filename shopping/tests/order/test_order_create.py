@@ -1,14 +1,3 @@
-"""
-주문 생성 테스트
-
-테스트 구조:
-1. TestOrderCreateHappyPath - 정상 케이스
-2. TestOrderCreateBoundary - 경계값 테스트
-3. TestOrderCreateException - 예외 케이스
-
-각 테스트는 AAA (Arrange-Act-Assert) 패턴을 따릅니다.
-"""
-
 import pytest
 from decimal import Decimal
 from django.utils import timezone

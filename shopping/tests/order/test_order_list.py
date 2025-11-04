@@ -1,14 +1,3 @@
-"""
-주문 목록 조회 테스트
-
-테스트 구조:
-1. TestOrderListHappyPath - 정상 케이스
-2. TestOrderListBoundary - 경계값 테스트
-3. TestOrderListException - 예외 케이스
-
-각 테스트는 AAA (Arrange-Act-Assert) 패턴을 따릅니다.
-"""
-
 import pytest
 from datetime import timedelta
 from decimal import Decimal

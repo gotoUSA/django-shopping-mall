@@ -12,17 +12,17 @@ class TestLoginSuccess:
 
     def test_login_with_valid_credentials(self, api_client, user):
         """정상 로그인"""
-        # Arrange - 로그인 데이터 준비
+        # Arrange
         login_url = reverse("auth-login")
         login_data = {
             "username": "testuser",  # conftest.py의 user fixture 참조
             "password": "testpass123",
         }
 
-        # Act - 로그인 API 호출
+        # Act
         response = api_client.post(login_url, login_data, format="json")
 
-        # Assert - 응답 검증
+        # Assert
         assert response.status_code == status.HTTP_200_OK
 
         response_data = response.json()
@@ -49,7 +49,7 @@ class TestLoginSuccess:
         # Act
         response = api_client.post(login_url, login_data, format="json")
 
-        # Assert - 응답 구조 검증
+        # Assert
         assert response.status_code == status.HTTP_200_OK
 
         response_data = response.json()

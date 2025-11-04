@@ -27,11 +27,6 @@ from shopping.models.email_verification import EmailVerificationToken
 from shopping.models.user import User
 
 
-# ==========================================
-# 1. 소셜 계정 생성 및 연결 테스트
-# ==========================================
-
-
 @pytest.mark.django_db
 class TestSocialAccountCreation:
     """소셜 계정 생성 기본 로직 테스트"""
@@ -112,7 +107,10 @@ class TestSocialAccountCreation:
 
         # Act - 같은 이메일로 소셜 계정 연결
         social_account = SocialAccount.objects.create(
-            user=existing_user, provider="kakao", uid="kakao_uid_789", extra_data={"email": "existing@example.com"}
+            user=existing_user,
+            provider="kakao",
+            uid="kakao_uid_789",
+            extra_data={"email": "existing@example.com"},
         )
 
         # 소셜 연결 시 이메일 자동 인증
@@ -167,11 +165,6 @@ class TestSocialAccountCreation:
         assert "google" in providers
         assert "kakao" in providers
         assert "naver" in providers
-
-
-# ==========================================
-# 2. 이메일 자동 인증 로직 테스트
-# ==========================================
 
 
 @pytest.mark.django_db
@@ -271,11 +264,6 @@ class TestSocialLoginEmailVerification:
         assert token2.is_used is True
 
 
-# ==========================================
-# 3. SocialApp 설정 검증
-# ==========================================
-
-
 @pytest.mark.django_db
 class TestSocialAppConfiguration:
     """소셜 앱 설정 검증 테스트"""
@@ -322,11 +310,6 @@ class TestSocialAppConfiguration:
 
         for provider in providers:
             assert SocialApp.objects.filter(provider=provider).exists()
-
-
-# ==========================================
-# 4. 예외 상황 테스트
-# ==========================================
 
 
 @pytest.mark.django_db
@@ -405,11 +388,6 @@ class TestSocialAccountExceptions:
         assert user.is_active is False
         assert social_account.user == user
         # 실제 로그인 시도는 View 레벨에서 차단됨
-
-
-# ==========================================
-# 5. SocialAccount 데이터 구조 검증
-# ==========================================
 
 
 @pytest.mark.django_db
@@ -491,11 +469,6 @@ class TestSocialAccountDataStructure:
         # Assert
         assert social_account.date_joined is not None
         assert before_create <= social_account.date_joined <= after_create
-
-
-# ==========================================
-# 6. 통합 시나리오 테스트
-# ==========================================
 
 
 @pytest.mark.django_db

@@ -274,4 +274,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                 },
             )
 
+        # 4. 주문 완료 후 장바구니 비우기
+        cart.items.all().delete()
+
         return order

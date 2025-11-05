@@ -10,7 +10,7 @@ from shopping.models.cart import Cart, CartItem
 
 @pytest.mark.django_db
 class TestOrderCreateHappyPath:
-    """주문 생성 정상 케이스 - 성공 시나리오"""
+    """주문 생성 정상 케이스"""
 
     def test_create_order_single_product(self, authenticated_client, user, product, add_to_cart_helper, shipping_data):
         """단일 상품 주문 생성"""
@@ -393,7 +393,7 @@ class TestOrderCreateBoundary:
 
 @pytest.mark.django_db
 class TestOrderCreateException:
-    """주문 생성 예외 케이스 - 실패 시나리오"""
+    """주문 생성 예외 케이스"""
 
     def test_create_order_without_authentication(self, api_client, shipping_data):
         """인증 없이 주문 시도"""
@@ -501,10 +501,12 @@ class TestOrderCreateException:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert
-        # 비활성 상품 검증이 구현되어 있다면 400, 아니면 201
-        # 현재 구현 상태에 따라 조정 필요
-        assert response.status_code in [status.HTTP_400_BAD_REQUEST, status.HTTP_201_CREATED]
+        # Assert - 비활성 상품은 주문할 수 없어야함
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        # 에러 메세지 확인 (cart_items 키에 에러 리스트가 있어야 함)
+        assert "cart_items" in response.data
+        assert any("판매하지 않는 상품" in str(error) for error in response.data["cart_items"])
 
     def test_create_order_with_invalid_shipping_info(
         self, authenticated_client, user, product, add_to_cart_helper, invalid_shipping_data

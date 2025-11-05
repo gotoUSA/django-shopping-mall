@@ -135,6 +135,54 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             "use_points",
         ]
 
+    def _validate_cart_items(self, cart):
+        """
+            장바구니 항목 검증 (별도 메서드)
+
+        검증 항목:
+        - 비활성 상품 (is_active=False)
+        - 품절 상품 (stock=0)
+        - 재고 부족 (stock < quantity)
+
+        Args:
+            cart: 검증할 장바구니 객체
+
+        Returns:
+            QuerySet: 검증된 장바구니 항목들
+
+        Raises:
+            ValidationError: 검증 실패 시 (모든 에러를 리스트로 반환)
+        """
+        cart_items = cart.items.select_related("product")
+
+        if not cart_items.exists():
+            raise serializers.ValidationError("장바구니가 비어있습니다.")
+
+        # 검증 에러 목록
+        errors = []
+
+        for item in cart_items:
+            product = item.product
+
+            # 1. 비활성 상품 체크
+            if not product.is_active:
+                errors.append(f"'{product.name}'은(는) 현재 판매하지 않는 상품입니다.")
+                continue
+
+            # 2. 품절 체크
+            if product.stock == 0:
+                errors.append(f"'{product.name}'은(는) 품절되었습니다.")
+
+            # 3. 재고 부족 체크
+            if product.stock < item.quantity:
+                errors.append(f"'{product.name}'의 재고가 부족합니다. " f"(요청: {item.quantity}개, 재고: {product.stock}개)")
+
+        # 에러가 있으면 모두 반환
+        if errors:
+            raise serializers.ValidationError({"cart_items": errors})
+
+        return cart_items
+
     def validate(self, attrs):
         """장바구니 검증"""
         user = self.context["request"].user
@@ -148,12 +196,8 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         if not cart or not cart.items.exists():
             raise serializers.ValidationError("장바구니가 비어있습니다.")
 
-        # 재고 확인 (차감하지 않고 체크만)
-        for item in cart.items.all():
-            if item.product.stock < item.quantity:
-                raise serializers.ValidationError(
-                    f"{item.product.name}의 재고가 부족합니다. " f"(현재 재고: {item.product.stock}개)"
-                )
+        # 장바구니 항목 검증 (비활성 상품, 품절, 재고 부족)
+        self._validate_cart_items(cart)
 
         # 배송비 미리 계산
         total_amount = cart.total_amount

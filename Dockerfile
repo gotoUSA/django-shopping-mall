@@ -14,10 +14,10 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt /code/
 COPY requirements-dev.txt /code/
 
-# Python 패키지 설치
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt && \
-    pip install -r requirements-dev.txt
+# Python 패키지 설치 (에러 발생 시 빌드 중단)
+RUN pip install --upgrade pip 
+RUN pip install --no-cache-dir -r requirements.txt || exit 1
+RUN pip install --no-cache-dir -r requirements-dev.txt || exit 1
 
 # 프로젝트 파일 복사
 COPY . /code/

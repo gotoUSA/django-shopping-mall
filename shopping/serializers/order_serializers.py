@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.db import transaction
-
+from django.db.models import F
 from rest_framework import serializers
 
 from ..models.cart import Cart
@@ -291,7 +291,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                     f"{product.name}의 재고가 부족합니다. " f"(요청: {cart_item.quantity}개, 재고: {product.stock}개)"
                 )
 
-            # OrderItem 생성 (재고는 차감하지 않음)
+            # OrderItem 생성 및 재고 차감 (주문 시 재고 예약)
             OrderItem.objects.create(
                 order=order,
                 product=cart_item.product,
@@ -299,6 +299,9 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                 quantity=cart_item.quantity,
                 price=cart_item.product.price,
             )
+
+            # 재고 차감 (F() 객체로 안전하게)
+            Product.objects.filter(pk=cart_item.product.pk).update(stock=F("stock") - cart_item.quantity)
 
         # 3. 포인트 사용 처리
         if use_points > 0:

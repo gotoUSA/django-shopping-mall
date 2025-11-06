@@ -136,24 +136,12 @@ def handle_payment_done(event_data):
         logger.info(f"Order already paid: {order_id}")
         return
 
-    # 재고 차감
-    for order_item in order.order_items.select_for_update():
-        if order_item.product:
-            product = Product.objects.select_for_update().get(pk=order_item.product.pk)
-
-            # 재고 확인
-            if product.stock < order_item.quantity:
-                logger.error(
-                    f"Insufficient stock for product {product.id}: " f"stock={product.stock}, requested={order_item.quantity}"
-                )
-                # 웹훅에서는 취소 처리하지 않음 (별도 배치 처리)
-                continue
-
-            # 재고 차감
-            Product.objects.filter(pk=product.pk).update(
-                stock=F("stock") - order_item.quantity,
-                sold_count=F("sold_count") + order_item.quantity,
-            )
+    # sold_count만 증가 (재고는 이미 주문 시 차감됨)
+    if order.status != "paid":
+        for order_item in order.order_item.select_for_update():
+            if order_item.product:
+                # sold_count만 증가 (F 객체로 안전하게)
+                Product.objects.filter(pk=order_item.product.pk).update(sold_count=F("sold_count") + order_item.quantity)
 
     # 주문 상태 변경
     order.status = "paid"

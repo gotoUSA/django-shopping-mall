@@ -163,33 +163,9 @@ class PaymentConfirmView(APIView):
 
             # 3. 재고 차감 (select_for_update로 동시성 제어)
             for order_item in order.order_items.select_for_update():
-                product = Product.objects.select_for_update().get(pk=order_item.product.pk)
-
-                # 재고 확인
-                if product.stock < order_item.quantity:
-                    # 재고 부족시 결제 취소
-                    try:
-                        toss_client.cancel_payment(
-                            payment_key=payment.payment_key,
-                            cancel_reason=f"{product.name} 재고 부족",
-                        )
-                    except Exception:
-                        pass  # 취소 실패해도 진행
-
-                    return Response(
-                        {
-                            "error": "재고 부족",
-                            "message": f"{product.name}의 재고가 부족합니다. "
-                            f"(재고: {product.stock}개, 요청: {order_item.quantity}개)",
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
-                # 재고 차감 (F 객체로 안전하게)
-                Product.objects.filter(pk=product.pk).update(
-                    stock=F("stock") - order_item.quantity,
-                    sold_count=F("sold_count") + order_item.quantity,
-                )
+                if order_item.product:
+                    # sold_count만 증가 (F 객체로 안전하게)
+                    Product.objects.filter(pk=order_item.product.pk).update(sold_count=F("sold_count") + order_item.quantity)
 
             # 4. 주문 상태 변경
             order.status = "paid"

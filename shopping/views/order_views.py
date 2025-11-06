@@ -94,19 +94,18 @@ class OrderViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # 주문 상태가 "paid"인 경우에만 재고 북구 및 sold_count 차감
-            if order.status == "paid":
-                # 재고 복구 및 sold_count 차감 (결제 완료된 주문만)
-                for item in order.order_items.select_for_update():
-                    if item.product:
-                        product = Product.objects.select_for_update().get(pk=item.product.pk)
-
-                        # F() 객체로 안전하게 재고 복구 및 sold_count 차감
-                        Product.objects.filter(pk=product.pk).update(
+            # 주문 상태에 따라 재고/sold_count 복구
+            for item in order.order_items.select_for_update():
+                if item.product:
+                    if order.status == "paid":
+                        # paid 상태: 재고 복구 + sold_count 차감
+                        Product.objects.filter(pk=item.product.pk).update(
                             stock=F("stock") + item.quantity,
                             sold_count=F("sold_count") - item.quantity,
                         )
-            # pending 상태는 재초 처리 안 함
+                    elif order.status == "pending":
+                        # pending 상태: 재고만 복구 (sold_count는 아직 증가 안했음)
+                        Product.objects.filter(pk=item.product.pk).update(stock=F("stock") + item.quantity)
 
             # 주문 상태 변경
             order.status = "canceled"

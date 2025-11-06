@@ -571,8 +571,10 @@ def paid_order(db, user, product):
 
     - 상태: paid (결제 완료)
     - 상품 1개 포함
+    - 결제 흐름 시뮬레이션 (재고 차감 + sold_count 증가)
     """
     from shopping.models.order import Order, OrderItem
+    from django.db.models import F
 
     order = Order.objects.create(
         user=user,
@@ -592,6 +594,19 @@ def paid_order(db, user, product):
         quantity=1,
         price=product.price,
     )
+
+    # 결제 흐름 시뮬레이션
+    # 1. 주문 생성 시: 재고 차감
+    # 2. 결제 완료 시: sold_count 증가
+    from shopping.models.product import Product
+
+    Product.objects.filter(pk=product.pk).update(
+        stock=F("stock") - 1,
+        sold_count=F("sold_count") + 1,
+    )
+
+    # product 객체 갱신
+    product.refresh_from_db()
 
     return order
 

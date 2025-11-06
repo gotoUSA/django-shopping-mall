@@ -1,6 +1,7 @@
 import logging
 
 from django.db import transaction
+from django.db.models import F
 from django_filters.rest_framework import DjangoFilterBackend
 
 from rest_framework import permissions, status, viewsets, filters
@@ -8,6 +9,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from ..models.product import Product
 from ..models.order import Order
 from ..serializers.order_serializers import OrderCreateSerializer, OrderDetailSerializer, OrderListSerializer
 
@@ -81,22 +83,34 @@ class OrderViewSet(viewsets.ModelViewSet):
         """주문 취소"""
         order = self.get_object()
 
-        if not order.can_cancel:
-            return Response(
-                {"error": "취소할 수 없는 주문입니다."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         with transaction.atomic():
-            # 재고 복구
-            for item in order.order_items.all():
-                if item.product:
-                    item.product.stock += item.quantity
-                    item.product.save()
+            # 동시성 제어: 주문 잠금 (select_for_update)
+            order = Order.objects.select_for_update().get(pk=order.pk)
+
+            # 트랜잭션 내에서 다시 취소 가능 여부 체크
+            if not order.can_cancel:
+                return Response(
+                    {"error": "취소할 수 없는 주문입니다."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # 주문 상태가 "paid"인 경우에만 재고 북구 및 sold_count 차감
+            if order.status == "paid":
+                # 재고 복구 및 sold_count 차감 (결제 완료된 주문만)
+                for item in order.order_items.select_for_update():
+                    if item.product:
+                        product = Product.objects.select_for_update().get(pk=item.product.pk)
+
+                        # F() 객체로 안전하게 재고 복구 및 sold_count 차감
+                        Product.objects.filter(pk=product.pk).update(
+                            stock=F("stock") + item.quantity,
+                            sold_count=F("sold_count") - item.quantity,
+                        )
+            # pending 상태는 재초 처리 안 함
 
             # 주문 상태 변경
             order.status = "canceled"
-            order.save()
+            order.save(update_fields=["status", "updated_at"])
 
         return Response({"message": "주문이 취소되었습니다."})
 

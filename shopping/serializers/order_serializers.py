@@ -126,6 +126,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
+            "id",
             "shipping_name",
             "shipping_phone",
             "shipping_postal_code",
@@ -134,6 +135,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             "order_memo",
             "use_points",
         ]
+        read_only_fields = ["id"]
 
     def _validate_cart_items(self, cart):
         """

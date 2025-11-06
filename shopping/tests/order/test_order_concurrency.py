@@ -52,7 +52,7 @@ class TestOrderConcurrencyHappyPath:
 
     def test_concurrent_order_creation_sufficient_stock(self, authenticated_client, user, product, shipping_data):
         """여러 사용자가 동시 주문 생성 - 충분한 재고"""
-        # Arrange - 재고 충분한 상품
+        # Arrange
         product.stock = 100
         product.save()
 
@@ -113,12 +113,12 @@ class TestOrderConcurrencyHappyPath:
 
         assert success_count == 5, f"5명 모두 성공해야 함. 성공: {success_count}, 결과: {results}"
 
-        # 재고 확인
+        # 재고 확인 (100 - 5명 x 2개 = 90개)
         product.refresh_from_db()
-        assert product.stock == 100, "재고는 아직 차감되지 않음 (결제 전)"
+        assert product.stock == 90, f"재고가 10개 차감되어야 함 (5명 x 2개). 실제 재고: {product.stock}"
 
     def test_concurrent_order_with_points_sufficient_balance(self, user, product, shipping_data):
-        """여러 사용자가 포인트 사용하며 동시 주문 - 충분한 포인트"""
+        """여러 사용자가 포인트 사용하며 동시 주문"""
         # Arrange
         product.stock = 50
         product.price = Decimal("10000")
@@ -181,6 +181,9 @@ class TestOrderConcurrencyHappyPath:
 
         assert success_count == 3, f"3명 모두 성공해야 함. 성공: {success_count}, 결과: {results}"
 
+        # 재고 확인 (50 - 3명 x 1개 = 47개)
+        product.refresh_from_db()
+        assert product.stock == 47, f"재고가 3개 차감되어야 함. 실제: {product.stock}"
         # 각 사용자의 포인트 차감 확인
         for u in users:
             u.refresh_from_db()
@@ -189,14 +192,10 @@ class TestOrderConcurrencyHappyPath:
 
 @pytest.mark.django_db(transaction=True)
 class TestOrderConcurrencyBoundary:
-    """
-    2단계: 경계값 테스트 (Boundary)
-
-    재고나 포인트가 딱 맞는 경계 상황에서의 동시성 테스트
-    """
+    """재고나 포인트가 딱 맞는 경계 상황에서의 동시성 테스트"""
 
     def test_concurrent_order_stock_exact_boundary(self, product, shipping_data):
-        """재고 10개에 10명이 각 1개씩 동시 주문 - 모두 성공해야 함"""
+        """재고 10개에 10명이 각 1개씩 동시 주문"""
         # Arrange
         product.stock = 10
         product.save()
@@ -268,6 +267,7 @@ class TestOrderConcurrencyBoundary:
                 username=f"boundary_fail{i}",
                 email=f"boundaryfail{i}@test.com",
                 phone_number=f"010-3333-000{i}",
+                points=5000,
             )
             users.append(u)
 
@@ -309,18 +309,21 @@ class TestOrderConcurrencyBoundary:
         for t in threads:
             t.join()
 
-        # Assert - 2명만 성공 (5개 재고 - 2개 - 2개 = 1개 남음)
+        # Assert - 2명만 성공 (5개 재고 - 2개 - 2개 = 1개 남음, 세 번째는 재고 부족)
         success_count = sum(1 for r in results if r.get("success", False))
         failed_count = sum(1 for r in results if r.get("status") == status.HTTP_400_BAD_REQUEST or "error" in r)
 
         if success_count != 2:
             print(f"\n결과: {results}")
 
-        assert success_count == 3, f"3명 모두 성공해야 함 (주문 생성 시점에는 재고 확인만). 성공: {success_count}"
+        assert (
+            success_count == 2
+        ), f"2명만 성공해야 함 (재고 5개 -> 2개 주문 -> 2개 주문 -> 실패 성공: {success_count}, 실패: {failed_count})"
+        assert failed_count == 1, f"1명은 재고 부족으로 실패해야 함. 실패: {failed_count}"
 
-        # 재고는 아직 차감되지 않음 (결제 전)
+        # 재고 확인 (5 - 2 - 2 = 1개 남음)
         product.refresh_from_db()
-        assert product.stock == 5, "주문 생성만으로는 재고가 차감되지 않음"
+        assert product.stock == 1, f"최종 재고는 1개여야 함. 실제: {product.stock}"
 
     def test_concurrent_point_usage_boundary(self, product, shipping_data):
         """포인트 딱 맞게 사용하는 동시 주문"""
@@ -453,18 +456,19 @@ class TestOrderConcurrencyException:
         for t in threads:
             t.join()
 
-        # Assert - 1명만 성공
+        # Assert - 1명만 성공 (재고 1개, 5명이 각 1개씩 주문)
         success_count = sum(1 for r in results if r.get("success", False))
         failed_count = len(results) - success_count
 
         if success_count != 1:
             print(f"\n결과: {results}")
 
-        assert success_count == 5, f"5명 모두 성공해야 함 (주문 생성 시점에는 재고 확인만). 성공: {success_count}"
+        assert success_count == 1, f"1명만 성공해야 함 (재고 1개). 성공: {success_count}, 실패: {failed_count}"
+        assert failed_count == 4, f"4명은 재고 부족으로 실패해야 함. 실패: {failed_count}"
 
-        # 재고는 아직 차감되지 않음 (결제 전)
+        # 재고 확인 (1 - 1 = 0개)
         product.refresh_from_db()
-        assert product.stock == 1, "주문 생성만으로는 재고가 차감되지 않음"
+        assert product.stock == 0, f"최종 재고는 0개여야 함. 실제: {product.stock}"
 
     def test_concurrent_order_insufficient_points(self, product, shipping_data):
         """보유 포인트 부족 시 동시 주문"""
@@ -819,6 +823,10 @@ class TestOrderConcurrencyAdvanced:
 
         assert success_count == 3, f"3명 모두 성공해야 함. 성공: {success_count}"
 
+        # 재고 확인 (3 - 3명 x 1개 = 0개)
+        product.refresh_from_db()
+        assert product.stock == 0, f"재고는 모두 차감되어야 함. 실제 재고: {product.stock}"
+
     def test_high_concurrency_order_creation(self, product, shipping_data):
         """대량 동시 주문 요청 (50명)"""
         # Arrange
@@ -946,14 +954,15 @@ class TestOrderConcurrencyAdvanced:
         if success_count != 2:
             print(f"\n결과: {results}")
 
-        assert success_count == 3, f"3명 모두 성공해야 함 (주문 생성 시점에는 재고 확인만). 성공: {success_count}"
+        assert success_count == 2, f"2명만 성공해야 함 (재고 2개). 성공: {success_count}, 실패: {failed_count}"
+        assert failed_count == 1, f"1명은 재고 부족으로 실패해야 함. 실패: {failed_count}"
 
-        # 재고는 아직 차감되지 않음 (결제 전)
+        # 재고 확인 (2 - 2명 x 1개 = 0개)
         product.refresh_from_db()
-        assert product.stock == 2, "주문 생성만으로는 재고가 차감되지 않음"
+        assert product.stock == 0, f"재고가 모두 차감되어야 함. 실재 재고: {product.stock}"
 
         # 성공한 사용자는 포인트 차감 확인
-        for r in results:
-            if r.get("success"):
-                u = User.objects.get(username=r["user"])
-                assert u.points == 4000, f"{u.username}의 포인트가 1000P 차감되어야 함"
+        success_users = [r["user"] for r in results if r.get("success", False)]
+        for username in success_users:
+            u = User.objects.get(username=username)
+            assert u.points == 4000, f"{u.username}의 포인트가 1000P 차감되어야 함"

@@ -291,7 +291,10 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                     f"{product.name}의 재고가 부족합니다. " f"(요청: {cart_item.quantity}개, 재고: {product.stock}개)"
                 )
 
-            # OrderItem 생성 및 재고 차감 (주문 시 재고 예약)
+            # F() 객체를 사용한 안전한 재고 차감
+            Product.objects.filter(pk=product.pk).update(stock=F("stock") - cart_item.quantity)
+
+            # OrderItem 생성
             OrderItem.objects.create(
                 order=order,
                 product=cart_item.product,

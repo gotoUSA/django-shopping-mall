@@ -136,12 +136,15 @@ def handle_payment_done(event_data):
         logger.info(f"Order already paid: {order_id}")
         return
 
-    # sold_count만 증가 (재고는 이미 주문 시 차감됨)
+    # 재고 차감 및 sold_count 증가 (결제 완료 시점)
     if order.status != "paid":
         for order_item in order.order_item.select_for_update():
             if order_item.product:
-                # sold_count만 증가 (F 객체로 안전하게)
-                Product.objects.filter(pk=order_item.product.pk).update(sold_count=F("sold_count") + order_item.quantity)
+                # 재고 차감 및 sold_count 증가 (F 객체로 안전하게)
+                Product.objects.filter(pk=order_item.product.pk).update(
+                    stock=F("stock") - order_item.quantity,
+                    sold_count=F("sold_count") + order_item.quantity,
+                )
 
     # 주문 상태 변경
     order.status = "paid"

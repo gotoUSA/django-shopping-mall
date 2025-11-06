@@ -300,9 +300,6 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                 price=cart_item.product.price,
             )
 
-            # 재고 차감 (F() 객체로 안전하게)
-            Product.objects.filter(pk=cart_item.product.pk).update(stock=F("stock") - cart_item.quantity)
-
         # 3. 포인트 사용 처리
         if use_points > 0:
             # 포인트 차감

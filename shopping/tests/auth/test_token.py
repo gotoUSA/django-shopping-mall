@@ -1,12 +1,12 @@
 import base64
 import json
 from datetime import timedelta
-from concurrent.futures import ThreadPoolExecutor
 
-import pytest
 from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
+
+import pytest
 from rest_framework import status
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 

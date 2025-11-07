@@ -1,10 +1,9 @@
-from decimal import Decimal
-
 from django.db import transaction
 from django.utils import timezone
+
 from rest_framework import serializers
 
-from shopping.models import Order, OrderItem, Product, Return, ReturnItem
+from shopping.models import Order, OrderItem, Return, ReturnItem
 
 
 class ReturnItemSerializer(serializers.ModelSerializer):

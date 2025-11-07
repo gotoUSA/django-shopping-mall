@@ -8,10 +8,7 @@ from rest_framework.views import APIView
 
 from shopping.models.email_verification import EmailLog
 from shopping.models.password_reset import PasswordResetToken
-from shopping.serializers.password_reset_serializers import (
-    PasswordResetConfirmSerializer,
-    PasswordResetRequestSerializer,
-)
+from shopping.serializers.password_reset_serializers import PasswordResetConfirmSerializer, PasswordResetRequestSerializer
 from shopping.tasks.email_tasks import send_email_task
 
 User = get_user_model()

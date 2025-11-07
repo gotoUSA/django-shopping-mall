@@ -1,6 +1,7 @@
-import pytest
 from django.urls import reverse
 from django.utils import timezone
+
+import pytest
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -336,7 +337,6 @@ class TestWithdrawalEdgeCases:
 
         # Act - 두 번째 탈퇴 시도
         # 새로운 토큰 필요 (이미 무효화되었으므로)
-        from rest_framework_simplejwt.tokens import RefreshToken
 
         # is_active=False이므로 토큰 발급 불가
         # 이 테스트는 탈퇴 후 재로그인이 불가능함을 확인

@@ -1,15 +1,15 @@
 from decimal import Decimal
 
-import pytest
 from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
+
+import pytest
 from rest_framework.test import APIClient
 
 from shopping.models.cart import Cart, CartItem
 from shopping.models.product import Category, Product
 from shopping.models.user import User
-
 
 # ==========================================
 # 1. 전역 설정 (Session Scope)
@@ -520,7 +520,6 @@ def freeze_time(mocker):
             freeze_time(frozen_time)
             # 테스트 코드
     """
-    from django.utils import timezone
 
     def _freeze(dt):
         return mocker.patch("django.utils.timezone.now", return_value=dt)
@@ -573,8 +572,9 @@ def paid_order(db, user, product):
     - 상품 1개 포함
     - 결제 흐름 시뮬레이션 (재고 차감 + sold_count 증가)
     """
-    from shopping.models.order import Order, OrderItem
     from django.db.models import F
+
+    from shopping.models.order import Order, OrderItem
 
     order = Order.objects.create(
         user=user,
@@ -671,8 +671,9 @@ def paid_payment(db, paid_order):
     - 상태: done (결제 완료)
     - 토스 결제 정보 포함
     """
-    from shopping.models.payment import Payment
     from django.utils import timezone
+
+    from shopping.models.payment import Payment
 
     return Payment.objects.create(
         order=paid_order,
@@ -694,8 +695,9 @@ def canceled_payment(db, order):
 
     - 상태: canceled (취소됨)
     """
-    from shopping.models.payment import Payment
     from django.utils import timezone
+
+    from shopping.models.payment import Payment
 
     return Payment.objects.create(
         order=order,

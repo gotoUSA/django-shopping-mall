@@ -1,6 +1,6 @@
-import pytest
-from decimal import Decimal
 from django.urls import reverse
+
+import pytest
 from rest_framework import status
 
 from shopping.models.order import Order, OrderItem
@@ -305,7 +305,7 @@ class TestOrderStockRestore:
     def test_cancel_restores_large_quantity(self, authenticated_client, user, product):
         """대량 주문 취소 시 재고 정확히 복구"""
         # Arrange
-        initial_stock = product.stock
+        product.stock
         large_quantity = 50
 
         product.stock = 100
@@ -386,7 +386,7 @@ class TestOrderStockRestore:
     def test_already_canceled_order_no_double_restore(self, authenticated_client, order, product):
         """이미 취소된 주문 재취소 시 재고 중복 복구 방지"""
         # Arrange
-        initial_stock = product.stock
+        product.stock
 
         # 첫 번째 취소
         url = reverse("order-cancel", kwargs={"pk": order.id})

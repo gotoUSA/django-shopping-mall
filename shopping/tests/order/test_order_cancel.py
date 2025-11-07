@@ -1,6 +1,6 @@
-import pytest
-from decimal import Decimal
 from django.urls import reverse
+
+import pytest
 from rest_framework import status
 
 from shopping.models.order import Order, OrderItem
@@ -387,7 +387,7 @@ class TestOrderCancelException:
         )
 
         product_id = product.id
-        initial_stock = product.stock
+        product.stock
 
         # 상품 삭제 (OrderItem의 product는 NULL로 설정됨)
         product.delete()

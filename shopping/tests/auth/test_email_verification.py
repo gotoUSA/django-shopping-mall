@@ -1,12 +1,12 @@
 import uuid
-from datetime import timedelta, datetime
+from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
 from unittest.mock import patch
 
-import pytest
-from django.core import mail
 from django.urls import reverse
 from django.utils import timezone
+
+import pytest
 from rest_framework import status
 
 from shopping.models.email_verification import EmailVerificationToken

@@ -1,7 +1,7 @@
-import pytest
 from django.urls import reverse
-from rest_framework import status
 
+import pytest
+from rest_framework import status
 
 from shopping.models.user import User
 
@@ -223,7 +223,7 @@ class TestProfileEmailChange:
         user.is_email_verified = True
         user.save()
 
-        original_email = user.email
+        user.email
         new_email = "newemail@example.com"
 
         # Act

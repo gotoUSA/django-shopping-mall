@@ -7,8 +7,9 @@
 - 도서산간 추가비: 3,000원 (우편번호 63xxx, 59xxx, 52xxx)
 """
 
-import pytest
 from decimal import Decimal
+
+import pytest
 from rest_framework import status
 
 from shopping.models.order import Order

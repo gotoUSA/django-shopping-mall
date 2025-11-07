@@ -20,20 +20,17 @@ auth 테스트에만 필요한 특화된 fixture를 정의합니다.
 import base64
 import json
 from datetime import timedelta
-from datetime import timezone as dt_timezone
+from unittest.mock import MagicMock
 
-import pytest
-from unittest.mock import MagicMock, Mock
 from django.contrib.sites.models import Site
 from django.utils import timezone
+
+import pytest
+from allauth.socialaccount.models import SocialAccount, SocialApp, SocialLogin
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
-from allauth.socialaccount.models import SocialApp, SocialAccount, SocialLogin
 from shopping.models.email_verification import EmailVerificationToken
 from shopping.models.user import User
-
-from requests.exceptions import ConnectionError, Timeout
-
 
 # ==========================================
 # 소셜 앱 설정 상수 (모든 fixture에서 동일하게 사용)
@@ -557,8 +554,8 @@ def mock_time():
                 token = EmailVerificationToken.objects.create(...)
                 assert token.created_at == frozen_time
     """
-    from unittest.mock import patch
     from contextlib import contextmanager
+    from unittest.mock import patch
 
     @contextmanager
     def _freeze_time(frozen_datetime):

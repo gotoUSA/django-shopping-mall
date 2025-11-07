@@ -18,11 +18,12 @@ E2E 테스트의 한계:
 - 스테이징 환경 통합 테스트
 """
 
-import pytest
 from django.contrib.sites.models import Site
 from django.utils import timezone
 
+import pytest
 from allauth.socialaccount.models import SocialAccount, SocialApp
+
 from shopping.models.email_verification import EmailVerificationToken
 from shopping.models.user import User
 

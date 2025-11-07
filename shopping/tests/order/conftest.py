@@ -16,13 +16,13 @@ order 테스트에만 필요한 특화된 fixture를 정의합니다.
 - shipping_data: 기본 배송 정보
 """
 
-import pytest
 from decimal import Decimal
 
-from shopping.models.user import User
-from shopping.models.product import Product
-from shopping.models.cart import Cart, CartItem
+import pytest
 
+from shopping.models.cart import Cart, CartItem
+from shopping.models.product import Product
+from shopping.models.user import User
 
 # ==========================================
 # 1. 포인트 보유 사용자 Fixture

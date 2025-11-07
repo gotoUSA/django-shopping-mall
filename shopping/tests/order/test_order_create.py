@@ -1,11 +1,13 @@
-import pytest
 from decimal import Decimal
+
 from django.utils import timezone
+
+import pytest
 from rest_framework import status
 
-from shopping.models.order import Order, OrderItem
+from shopping.models.cart import Cart
+from shopping.models.order import Order
 from shopping.models.point import PointHistory
-from shopping.models.cart import Cart, CartItem
 
 
 @pytest.mark.django_db

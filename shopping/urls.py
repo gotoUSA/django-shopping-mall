@@ -37,6 +37,9 @@ from shopping.views.email_verification_views import (
 )
 from shopping.views.order_views import OrderViewSet
 
+# password_reset view
+from shopping.views.password_reset_views import PasswordResetConfirmView, PasswordResetRequestView
+
 # Payment Views
 from shopping.views.payment_views import (
     PaymentCancelView,
@@ -52,6 +55,9 @@ from shopping.views.payment_views import (
 # ViewSet
 from shopping.views.product_views import CategoryViewSet, ProductViewSet
 
+# return_request view
+from shopping.views.return_views import ReturnViewSet
+
 # wishlist
 from shopping.views.wishlist_views import WishlistViewSet
 
@@ -62,15 +68,6 @@ from shopping.webhooks.toss_webhook_view import toss_webhook
 from .views import point_views
 from .views.notification_views import NotificationViewSet
 from .views.product_qa_views import MyQuestionViewSet, ProductQuestionViewSet
-
-# return_request view
-from shopping.views.return_views import ReturnViewSet
-
-# password_reset view
-from shopping.views.password_reset_views import (
-    PasswordResetConfirmView,
-    PasswordResetRequestView,
-)
 
 
 # 소셜 로그인 뷰 정의

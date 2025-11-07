@@ -2,13 +2,14 @@ import threading
 import time
 from decimal import Decimal
 
-import pytest
 from django.db.models import F
 from django.urls import reverse
+
+import pytest
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from shopping.models import Order, OrderItem, Product
+from shopping.models import Product
 from shopping.models.cart import Cart, CartItem
 from shopping.models.user import User
 
@@ -566,7 +567,7 @@ class TestOrderConcurrencyException:
         def cancel_order():
             """주문 취소"""
             try:
-                from django.db import connections
+                pass
 
                 cancel_client = APIClient()
                 cancel_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
@@ -618,7 +619,7 @@ class TestOrderConcurrencyException:
         def create_order_from_same_cart():
             """같은 장바구니로 주문 생성"""
             try:
-                from django.db import connections
+                pass
 
                 order_client = APIClient()
                 order_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
@@ -671,7 +672,7 @@ class TestOrderConcurrencyException:
         def create_order():
             """주문 생성"""
             try:
-                from django.db import connections
+                pass
 
                 order_client = APIClient()
                 order_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")

@@ -1,10 +1,9 @@
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
-from unittest.mock import patch
+
+from django.urls import reverse
 
 import pytest
-from django.core import mail
-from django.urls import reverse
 from rest_framework import status
 
 from shopping.models.password_reset import PasswordResetToken

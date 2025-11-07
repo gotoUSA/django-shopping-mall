@@ -1,16 +1,12 @@
 from decimal import Decimal
-from unittest.mock import patch
+
+from django.urls import reverse
 
 import pytest
 from rest_framework import status
-from django.db.models import F
-from django.urls import reverse
-from django.utils import timezone
 
 from shopping.models.cart import Cart
-from shopping.models.order import Order
 from shopping.models.payment import Payment, PaymentLog
-from shopping.models.product import Product
 
 
 @pytest.mark.django_db

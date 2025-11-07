@@ -1,9 +1,8 @@
-import pytest
 from django.urls import reverse
 from django.utils import timezone
-from rest_framework import status
 
-from shopping.models.user import User
+import pytest
+from rest_framework import status
 
 
 @pytest.mark.django_db

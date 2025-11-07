@@ -5,6 +5,8 @@ from django.utils.html import format_html
 
 from mptt.admin import DraggableMPTTAdmin
 
+from shopping.models import Return, ReturnItem
+
 # 이메일 인증 모델
 from shopping.models.email_verification import EmailLog, EmailVerificationToken
 
@@ -13,8 +15,6 @@ from .models.notification import Notification
 from .models.payment import Payment, PaymentLog
 from .models.point import PointHistory
 from .models.product_qa import ProductAnswer, ProductQuestion
-
-from shopping.models import Return, ReturnItem
 
 # ==========================================
 # 소셜 로그인 Admin 설정

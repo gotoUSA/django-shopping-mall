@@ -1,6 +1,6 @@
 import logging
-
 from decimal import Decimal
+
 from django.db import transaction
 from django.db.models import F
 from django.views.decorators.csrf import csrf_exempt

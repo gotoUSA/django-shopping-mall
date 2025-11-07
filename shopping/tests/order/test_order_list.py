@@ -1,8 +1,10 @@
-import pytest
 from datetime import timedelta
 from decimal import Decimal
-from django.utils import timezone
+
 from django.urls import reverse
+from django.utils import timezone
+
+import pytest
 from rest_framework import status
 
 from shopping.models.order import Order, OrderItem

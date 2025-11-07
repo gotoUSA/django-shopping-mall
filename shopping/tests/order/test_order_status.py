@@ -1,6 +1,8 @@
-import pytest
 from decimal import Decimal
+
 from django.urls import reverse
+
+import pytest
 from rest_framework import status
 
 from shopping.models.order import Order

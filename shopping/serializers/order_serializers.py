@@ -327,3 +327,10 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         cart.items.all().delete()
 
         return order
+
+    def to_representation(self, instance):
+        """
+        생성 응답시 OrderDetailSerializer 사용
+        배송비 등 모든 정보를 응답에 포함
+        """
+        return OrderDetailSerializer(instance, context=self.context).data

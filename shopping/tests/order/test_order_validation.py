@@ -1,16 +1,3 @@
-"""
-주문 생성 검증 테스트
-
-주문 생성 시 발생하는 다양한 검증 로직을 테스트합니다.
-
-테스트 범위:
-1. 정상 케이스 (Happy Path): 유효한 주문 생성
-2. 경계값 테스트 (Boundary): 최소/최대 포인트, 배송비 경계값
-3. 예외 케이스 (Exception): 검증 실패 시나리오
-
-API: POST /api/orders/
-"""
-
 import pytest
 from decimal import Decimal
 from django.urls import reverse
@@ -18,11 +5,6 @@ from rest_framework import status
 
 from shopping.models.cart import Cart, CartItem
 from shopping.models.order import Order
-
-
-# ==========================================
-# 1단계: 정상 케이스 (Happy Path)
-# ==========================================
 
 
 @pytest.mark.django_db
@@ -130,11 +112,6 @@ class TestOrderValidationHappyPath:
         order = Order.objects.get(user=user)
         assert order.order_items.first().quantity == 3
         assert order.total_amount == product.price * 3
-
-
-# ==========================================
-# 2단계: 경계값 테스트 (Boundary)
-# ==========================================
 
 
 @pytest.mark.django_db
@@ -266,11 +243,6 @@ class TestOrderValidationBoundary:
         assert response.status_code == status.HTTP_201_CREATED
         order = Order.objects.get(user=user)
         assert order.used_points == 0
-
-
-# ==========================================
-# 3단계: 예외 케이스 (Exception)
-# ==========================================
 
 
 @pytest.mark.django_db

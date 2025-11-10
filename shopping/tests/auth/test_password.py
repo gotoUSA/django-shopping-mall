@@ -11,7 +11,7 @@ class TestPasswordChangeSuccess:
     def test_change_password_success(self, authenticated_client, user):
         """정상 비밀번호 변경 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             "new_password": "NewSecurePass456!",
@@ -34,7 +34,7 @@ class TestPasswordChangeSuccess:
     def test_login_with_new_password(self, api_client, authenticated_client, user):
         """비밀번호 변경 후 새 비밀번호로 로그인 테스트"""
         # Arrange
-        change_url = reverse("password-change")
+        change_url = reverse("user-password-change")
         change_data = {
             "old_password": "testpass123",
             "new_password": "ChangedPassword789!",
@@ -74,7 +74,7 @@ class TestPasswordChangeBoundary:
     def test_minimum_password_length(self, authenticated_client):
         """최소 길이 비밀번호 테스트 (8자)"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             "new_password": "Pass123!",  # 정확히 8자 (최소 길이)
@@ -90,7 +90,7 @@ class TestPasswordChangeBoundary:
     def test_same_as_old_password(self, authenticated_client):
         """현재 비밀번호와 동일한 새 비밀번호 입력 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             "new_password": "testpass123",  # 현재 비밀번호와 동일
@@ -113,7 +113,7 @@ class TestPasswordChangeBoundary:
     def test_password_with_special_characters(self, authenticated_client):
         """특수문자가 포함된 비밀번호 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             "new_password": "P@ssw0rd!#$%",  # 특수문자 포함
@@ -134,7 +134,7 @@ class TestPasswordChangeErrors:
     def test_wrong_old_password(self, authenticated_client):
         """잘못된 현재 비밀번호 입력 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "WrongPassword123!",  # 잘못된 현재 비밀번호
             "new_password": "NewSecurePass456!",
@@ -152,7 +152,7 @@ class TestPasswordChangeErrors:
     def test_new_password_mismatch(self, authenticated_client):
         """새 비밀번호 불일치 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             "new_password": "NewSecurePass456!",
@@ -170,7 +170,7 @@ class TestPasswordChangeErrors:
     def test_weak_new_password_too_short(self, authenticated_client):
         """너무 짧은 새 비밀번호 테스트 (8자 미만)"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             "new_password": "Pass1!",  # 6자 (너무 짧음)
@@ -187,7 +187,7 @@ class TestPasswordChangeErrors:
     def test_weak_new_password_numeric_only(self, authenticated_client):
         """숫자로만 구성된 새 비밀번호 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             "new_password": "12345678",  # 숫자만 (8자)
@@ -204,7 +204,7 @@ class TestPasswordChangeErrors:
     def test_weak_new_password_common(self, authenticated_client):
         """흔한 비밀번호 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             "new_password": "password",  # 너무 흔한 비밀번호
@@ -221,7 +221,7 @@ class TestPasswordChangeErrors:
     def test_password_similar_to_username(self, authenticated_client, user):
         """사용자명과 유사한 비밀번호 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             "new_password": "testuser",  # username과 동일
@@ -243,7 +243,7 @@ class TestPasswordChangeAuthentication:
     def test_change_password_without_authentication(self, api_client):
         """인증 없이 비밀번호 변경 시도 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             "new_password": "NewSecurePass456!",
@@ -260,7 +260,7 @@ class TestPasswordChangeAuthentication:
         """잘못된 JWT 토큰으로 비밀번호 변경 시도 테스트"""
         # Arrange
         api_client.credentials(HTTP_AUTHORIZATION="Bearer invalid_token_here")
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             "new_password": "NewSecurePass456!",
@@ -281,7 +281,7 @@ class TestPasswordChangeMissingFields:
     def test_missing_old_password(self, authenticated_client):
         """old_password 필드 누락 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             # old_password 누락
             "new_password": "NewSecurePass456!",
@@ -298,7 +298,7 @@ class TestPasswordChangeMissingFields:
     def test_missing_new_password(self, authenticated_client):
         """new_password 필드 누락 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             # new_password 누락
@@ -315,7 +315,7 @@ class TestPasswordChangeMissingFields:
     def test_missing_new_password2(self, authenticated_client):
         """new_password2 필드 누락 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             "new_password": "NewSecurePass456!",
@@ -332,7 +332,7 @@ class TestPasswordChangeMissingFields:
     def test_all_fields_missing(self, authenticated_client):
         """모든 필드 누락 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {}  # 빈 데이터
 
         # Act
@@ -367,12 +367,12 @@ class TestPasswordChangeTokens:
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
 
         # 먼저 프로필 조회 가능한지 확인 (토큰 유효성 확인)
-        profile_url = reverse("auth-profile")
+        profile_url = reverse("user-profile")
         profile_response = api_client.get(profile_url)
         assert profile_response.status_code == status.HTTP_200_OK
 
         # Act
-        change_url = reverse("password-change")
+        change_url = reverse("user-password-change")
         change_data = {
             "old_password": "testpass123",
             "new_password": "ChangedPassword999!",
@@ -403,7 +403,7 @@ class TestPasswordChangeTokens:
         access_token = initial_login.data["access"]
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
 
-        change_url = reverse("password-change")
+        change_url = reverse("user-password-change")
         change_data = {
             "old_password": "testpass123",
             "new_password": "SuperNewPass888!",
@@ -441,7 +441,7 @@ class TestPasswordChangeEdgeCases:
     def test_empty_password_fields(self, authenticated_client):
         """빈 문자열 비밀번호 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "",
             "new_password": "",
@@ -457,7 +457,7 @@ class TestPasswordChangeEdgeCases:
     def test_whitespace_only_password(self, authenticated_client):
         """공백만 있는 비밀번호 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             "new_password": "        ",
@@ -473,7 +473,7 @@ class TestPasswordChangeEdgeCases:
     def test_extremely_long_password(self, authenticated_client):
         """매우 긴 비밀번호 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         very_long_password = "A1b2C3d4!" * 20  # 180자
         data = {
             "old_password": "testpass123",
@@ -492,7 +492,7 @@ class TestPasswordChangeEdgeCases:
     def test_unicode_characters_in_password(self, authenticated_client):
         """유니코드 문자(한글, 이모지 등) 포함 비밀번호 테스트"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {
             "old_password": "testpass123",
             "new_password": "비밀번호123!😀",

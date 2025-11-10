@@ -19,12 +19,9 @@ from shopping.views.auth_views import (
     CustomTokenRefreshView,
     LoginView,
     LogoutView,
-    PasswordChangeView,
-    ProfileView,
     RegisterView,
     check_token,
     email_verification_request,
-    withdraw,
 )
 from shopping.views.cart_views import CartItemViewSet, CartViewSet
 
@@ -68,6 +65,13 @@ from shopping.webhooks.toss_webhook_view import toss_webhook
 from .views import point_views
 from .views.notification_views import NotificationViewSet
 from .views.product_qa_views import MyQuestionViewSet, ProductQuestionViewSet
+
+# user view
+from shopping.views.user_views import (
+    PasswordChangeView,
+    ProfileView,
+    withdraw,
+)
 
 
 # 소셜 로그인 뷰 정의
@@ -143,10 +147,10 @@ urlpatterns = [
     # 토큰 관리
     path("auth/token/refresh/", CustomTokenRefreshView.as_view(), name="token-refresh"),
     path("auth/token/verify/", check_token, name="token-verify"),
-    # 프로필 관리
-    path("auth/profile/", ProfileView.as_view(), name="auth-profile"),
-    # 비밀번호 변경
-    path("auth/password/change/", PasswordChangeView.as_view(), name="password-change"),
+    # 사용자 관리 (User Management)
+    path("users/profile/", ProfileView.as_view(), name="user-profile"),
+    path("users/password/change/", PasswordChangeView.as_view(), name="user-password-change"),
+    path("users/withdraw/", withdraw, name="user-withdraw"),
     # 비밀번호 재설정
     path(
         "auth/password/reset/request/",
@@ -179,9 +183,7 @@ urlpatterns = [
         check_verification_status,
         name="email-verification-status",
     ),
-    # 추가 기능
     path("auth/email/verify/", email_verification_request, name="email-verify"),
-    path("auth/withdraw/", withdraw, name="auth-withdraw"),
     # Cart 관련 커스텀 URLs (CartViewSet의 actions)
     path("cart/", CartViewSet.as_view({"get": "retrieve"}), name="cart-detail"),
     path("cart/summary/", CartViewSet.as_view({"get": "summary"}), name="cart-summary"),

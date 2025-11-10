@@ -112,7 +112,7 @@ class TestTokenExpiry:
         # Arrange
         tokens = get_tokens
         access_token = tokens["access"]
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
@@ -126,7 +126,7 @@ class TestTokenExpiry:
     def test_expired_access_token(self, api_client, user):
         """만료된 Access Token으로 API 접근 실패"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         # 이미 만료된 access token 생성
         token = AccessToken.for_user(user)
         token.set_exp(lifetime=timedelta(seconds=-1))  # 1초 전에 만료
@@ -154,7 +154,7 @@ class TestTokenExpiry:
     def test_inactive_user_token(self, api_client, user):
         """비활성화된 사용자의 토큰으로 접근 실패"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         # 토큰 먼저 발급
         token = AccessToken.for_user(user)
 
@@ -172,7 +172,7 @@ class TestTokenExpiry:
     def test_with_drawn_user_token(self, api_client, user):
         """탈퇴한 사용자의 토큰으로 접근 실패"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         # 토큰 먼저 발급
         token = AccessToken.for_user(user)
 
@@ -197,7 +197,7 @@ class TestTokenTampering:
     def test_tampered_payload(self, api_client, user):
         """변조된 payload (user_id 변경)"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         token = AccessToken.for_user(user)
         token_str = str(token)
 
@@ -224,7 +224,7 @@ class TestTokenTampering:
     def test_invalid_signature(self, api_client, user):
         """잘못된 signature"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         token = AccessToken.for_user(user)
         token_str = str(token)
 
@@ -253,7 +253,7 @@ class TestTokenTampering:
         # Act - user2의 토큰으로 user1의 프로필 접근 시도
         # (프로필은 자기 자신만 조회 가능)
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {user2_token}")
-        profile_response = api_client.get(reverse("auth-profile"))
+        profile_response = api_client.get(reverse("user-profile"))
 
         # Assert - user2의 정보가 나와야 함 (user1 정보 아님)
         assert profile_response.status_code == status.HTTP_200_OK
@@ -269,7 +269,7 @@ class TestTokenFormat:
         """Bearer 문자열 없이 토큰만 전송"""
         # Arrange
         tokens = get_tokens
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act - "Bearer" 없이 토큰만 전송
         api_client.credentials(HTTP_AUTHORIZATION=tokens["access"])
@@ -282,7 +282,7 @@ class TestTokenFormat:
         """Bearer 철자 오류"""
         # Arrange
         tokens = get_tokens
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act - "Beare" 오타
         api_client.credentials(HTTP_AUTHORIZATION=f"Beare {tokens['access']}")
@@ -295,7 +295,7 @@ class TestTokenFormat:
         """Bearer와 토큰 사이 공백 없음"""
         # Arrange
         tokens = get_tokens
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act - 공백 없음
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer{tokens['access']}")
@@ -308,7 +308,7 @@ class TestTokenFormat:
         """소문자 bearer"""
         # Arrange
         tokens = get_tokens
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act - 소문자 "bearer"
         api_client.credentials(HTTP_AUTHORIZATION=f"bearer {tokens['access']}")
@@ -322,7 +322,7 @@ class TestTokenFormat:
         """여러 개의 Bearer 토큰"""
         # Arrange
         tokens = get_tokens
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act - Bearer 토큰 2개 전송
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']} Bearer {tokens['access']}")
@@ -388,7 +388,7 @@ class TestTokenWithoutAuth:
     def test_access_profile_without_token(self, api_client):
         """토큰 없이 프로필 접근"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act - Authorization 헤더 없이 요청
         response = api_client.get(url)
@@ -399,7 +399,7 @@ class TestTokenWithoutAuth:
     def test_access_password_change_without_token(self, api_client):
         """토큰 없이 비밀번호 변경 시도"""
         # Arrange
-        url = reverse("password-change")
+        url = reverse("user-password-change")
         data = {"old_password": "oldpass", "new_password": "newpass123!", "new_password2": "newpass123!"}
 
         # Act
@@ -416,7 +416,7 @@ class TestInvalidTokenFormat:
     def test_malformed_token(self, api_client):
         """형식이 완전히 잘못된 토큰"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         malformed_token = "this_is_not_a_valid_jwt_token"
 
         # Act
@@ -429,7 +429,7 @@ class TestInvalidTokenFormat:
     def test_incomplete_token(self, api_client):
         """불완전한 JWT 토큰 (. 구분자 부족)"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         # JWT는 header.payload.signature 3부분이어야 하는데 2부분만 있음
         incomplete_token = "header.payload"
 
@@ -443,7 +443,7 @@ class TestInvalidTokenFormat:
     def test_non_json_payload(self, api_client, user):
         """JSON이 아닌 payload"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         token = AccessToken.for_user(user)
         token_str = str(token)
         parts = token_str.split(".")
@@ -462,7 +462,7 @@ class TestInvalidTokenFormat:
     def test_null_token(self, api_client):
         """NULL 토큰"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act - None을 전달 (실제로는 빈 헤더)
         api_client.credentials(HTTP_AUTHORIZATION="Bearer ")
@@ -474,7 +474,7 @@ class TestInvalidTokenFormat:
     def test_empty_token(self, api_client):
         """빈 문자열 토큰"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act
         api_client.credentials(HTTP_AUTHORIZATION="Bearer ")
@@ -486,7 +486,7 @@ class TestInvalidTokenFormat:
     def test_whitespace_only_token(self, api_client):
         """공백만 있는 토큰"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act
         api_client.credentials(HTTP_AUTHORIZATION="Bearer     ")
@@ -498,7 +498,7 @@ class TestInvalidTokenFormat:
     def test_very_long_token(self, api_client):
         """매우 긴 토큰 (버퍼 오버플로우 테스트)"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         # 10KB 길이의 토큰
         very_long_token = "a" * 10000
 
@@ -512,7 +512,7 @@ class TestInvalidTokenFormat:
     def test_special_characters_token(self, api_client):
         """특수문자만으로 구성된 토큰"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         special_token = "!@#$%^&*()_+-=[]{}|;:',.<>?/~`"
 
         # Act
@@ -530,7 +530,7 @@ class TestTokenSecurity:
     def test_future_iat_token(self, api_client, user):
         """미래 시간의 iat (issued at)"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         token = AccessToken.for_user(user)
 
         # iat를 미래 시간으로 변조

@@ -13,7 +13,7 @@ class TestWithdrawalSuccess:
     def test_withdraw_success(self, authenticated_client, user):
         """정상 탈퇴"""
         # Arrange
-        url = reverse("auth-withdraw")
+        url = reverse("user-withdraw")
         data = {"password": "testpass123"}
 
         # Act
@@ -32,7 +32,7 @@ class TestWithdrawalSuccess:
     def test_withdraw_response_structure(self, authenticated_client):
         """탈퇴 응답 구조 검증"""
         # Arrange
-        url = reverse("auth-withdraw")
+        url = reverse("user-withdraw")
         data = {"password": "testpass123"}
 
         # Act
@@ -51,7 +51,7 @@ class TestWithdrawalPasswordValidation:
     def test_withdraw_wrong_password(self, authenticated_client):
         """잘못된 비밀번호로 탈퇴 실패"""
         # Arrange
-        url = reverse("auth-withdraw")
+        url = reverse("user-withdraw")
         data = {"password": "wrongpassword123"}
 
         # Act
@@ -64,7 +64,7 @@ class TestWithdrawalPasswordValidation:
     def test_withdraw_without_password(self, authenticated_client):
         """비밀번호 누락"""
         # Arrange
-        url = reverse("auth-withdraw")
+        url = reverse("user-withdraw")
         data = {}
 
         # Act
@@ -77,7 +77,7 @@ class TestWithdrawalPasswordValidation:
     def test_withdraw_empty_password(self, authenticated_client):
         """빈 비밀번호"""
         # Arrange
-        url = reverse("auth-withdraw")
+        url = reverse("user-withdraw")
         data = {"password": ""}
 
         # Act
@@ -96,7 +96,7 @@ class TestWithdrawalAuthentication:
     def test_withdraw_without_auth(self, api_client):
         """인증 없이 탈퇴 시도"""
         # Arrange
-        url = reverse("auth-withdraw")
+        url = reverse("user-withdraw")
         data = {"password": "testpass123"}
 
         # Act
@@ -113,7 +113,7 @@ class TestWithdrawalStateVerification:
     def test_withdrawal_flags_updated(self, authenticated_client, user):
         """is_withdrawn, is_active, withdrawn_at 상태 확인"""
         # Arrange
-        url = reverse("auth-withdraw")
+        url = reverse("user-withdraw")
         data = {"password": "testpass123"}
 
         # 탈퇴 전 상태 저장
@@ -163,12 +163,12 @@ class TestWithdrawalTokenInvalidation:
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
 
         # 탈퇴 처리
-        withdraw_url = reverse("auth-withdraw")
+        withdraw_url = reverse("user-withdraw")
         withdraw_data = {"password": "testpass123"}
         api_client.post(withdraw_url, withdraw_data, format="json")
 
         # Act - 탈퇴 후 프로필 접근 시도
-        profile_url = reverse("auth-profile")
+        profile_url = reverse("user-profile")
         response = api_client.get(profile_url)
 
         # Assert - 접근 실패해야 함 (is_active=False이므로)
@@ -184,12 +184,12 @@ class TestWithdrawalTokenInvalidation:
 
         # 첫 번째 토큰으로 탈퇴
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access1}")
-        withdraw_url = reverse("auth-withdraw")
+        withdraw_url = reverse("user-withdraw")
         api_client.post(withdraw_url, {"password": "testpass123"}, format="json")
 
         # Act - 두 번째 토큰으로 접근 시도
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access2}")
-        profile_url = reverse("auth-profile")
+        profile_url = reverse("user-profile")
         response = api_client.get(profile_url)
 
         # Assert - 모든 토큰이 무효화되어야 함
@@ -207,7 +207,7 @@ class TestWithdrawalDataPreservation:
         user.points = initial_points
         user.save()
 
-        url = reverse("auth-withdraw")
+        url = reverse("user-withdraw")
         data = {"password": "testpass123"}
 
         # Act
@@ -229,7 +229,7 @@ class TestWithdrawalDataPreservation:
         refresh = RefreshToken.for_user(user)
         authenticated_client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(refresh.access_token)}")
 
-        url = reverse("auth-withdraw")
+        url = reverse("user-withdraw")
         data = {"password": "testpass123"}
 
         # Act
@@ -257,7 +257,7 @@ class TestWithdrawalDataPreservation:
 
         initial_history_count = PointHistory.objects.filter(user=user).count()
 
-        url = reverse("auth-withdraw")
+        url = reverse("user-withdraw")
         data = {"password": "testpass123"}
 
         # Act
@@ -331,7 +331,7 @@ class TestWithdrawalEdgeCases:
     def test_withdraw_twice(self, authenticated_client, user):
         """이미 탈퇴한 사용자가 다시 탈퇴 시도"""
         # Arrange - 첫 번째 탈퇴
-        url = reverse("auth-withdraw")
+        url = reverse("user-withdraw")
         data = {"password": "testpass123"}
         authenticated_client.post(url, data, format="json")
 
@@ -355,7 +355,7 @@ class TestWithdrawalEdgeCases:
         refresh = RefreshToken.for_user(user)
         authenticated_client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(refresh.access_token)}")
 
-        url = reverse("auth-withdraw")
+        url = reverse("user-withdraw")
         data = {"password": "testpass123"}
 
         # Act
@@ -387,7 +387,7 @@ class TestWithdrawalSecurity:
         refresh = RefreshToken.for_user(user)
         authenticated_client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(refresh.access_token)}")
 
-        url = reverse("auth-withdraw")
+        url = reverse("user-withdraw")
         data = {"password": "Test@Pass#123!"}
 
         # Act
@@ -399,7 +399,7 @@ class TestWithdrawalSecurity:
     def test_withdraw_sql_injection_attempt(self, authenticated_client):
         """SQL Injection 시도"""
         # Arrange
-        url = reverse("auth-withdraw")
+        url = reverse("user-withdraw")
         data = {"password": "' OR '1'='1"}
 
         # Act

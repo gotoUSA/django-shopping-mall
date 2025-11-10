@@ -13,7 +13,7 @@ class TestProfileView:
     def test_get_profile_authenticated(self, authenticated_client, user):
         """인증된 사용자 프로필 조회 및 응답 구조 검증"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act
         response = authenticated_client.get(url)
@@ -42,7 +42,7 @@ class TestProfileView:
     def test_get_profile_unauthenticated(self, api_client):
         """인증 없이 프로필 조회 시도"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act
         response = api_client.get(url)
@@ -58,7 +58,7 @@ class TestProfileUpdate:
     def test_update_profile_patch(self, authenticated_client, user):
         """부분 수정 (PATCH)"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         update_data = {
             "first_name": "수정된",
             "last_name": "이름",
@@ -83,7 +83,7 @@ class TestProfileUpdate:
     def test_update_profile_put(self, authenticated_client, user):
         """전체 수정 (PUT)"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         update_data = {
             "email": user.email,
             "first_name": "홍",
@@ -107,7 +107,7 @@ class TestProfileUpdate:
     def test_readonly_fields_ignored(self, authenticated_client, user):
         """읽기 전용 필드 수정 시도 - 무시되어야 함"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         original_points = user.points
         original_level = user.membership_level
         original_username = user.username
@@ -136,7 +136,7 @@ class TestProfileUpdate:
     def test_put_vs_patch_difference(self, authenticated_client, user):
         """PUT과 PATCH의 동작 차이 검증"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         user.first_name = "원본"
         user.last_name = "이름"
         user.phone_number = "010-1234-5678"
@@ -178,7 +178,7 @@ class TestProfileValidation:
     def test_invalid_field_formats(self, authenticated_client, user):
         """잘못된 데이터 형식 - 이메일 형식"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act - 잘못된 이메일 형식
         invalid_email_data = {"email": "invalid-email-format"}
@@ -191,7 +191,7 @@ class TestProfileValidation:
     def test_boundary_values(self, authenticated_client, user):
         """경계값 테스트 - 빈 문자열, 매우 긴 문자열"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act - 빈 문자열
         empty_data = {
@@ -219,7 +219,7 @@ class TestProfileEmailChange:
     def test_email_change_requires_reverification(self, authenticated_client, user):
         """이메일 변경 시 재인증 필요"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         user.is_email_verified = True
         user.save()
 
@@ -240,7 +240,7 @@ class TestProfileEmailChange:
     def test_email_duplicate_not_allowed(self, authenticated_client, user, db):
         """이메일 중복 불가"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # 다른 사용자 생성
         other_user = User.objects.create_user(
@@ -262,7 +262,7 @@ class TestProfileEmailChange:
     def test_email_change_to_same_email(self, authenticated_client, user):
         """같은 이메일로 변경 시도 - 허용되어야 함 (인증 상태 유지)"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         user.is_email_verified = True
         user.save()
 
@@ -287,7 +287,7 @@ class TestProfileResponseStructure:
     def test_response_structure_get(self, authenticated_client, user):
         """GET 응답 구조"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
 
         # Act
         response = authenticated_client.get(url)
@@ -326,7 +326,7 @@ class TestProfileResponseStructure:
     def test_response_structure_update(self, authenticated_client, user):
         """PATCH/PUT 응답 구조"""
         # Arrange
-        url = reverse("auth-profile")
+        url = reverse("user-profile")
         update_data = {"first_name": "테스트"}
 
         # Act

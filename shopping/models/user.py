@@ -60,6 +60,13 @@ class User(AbstractUser):
 
     points = models.PositiveIntegerField(default=0, verbose_name="포인트")
 
+    # 판매자 여부
+    is_seller = models.BooleanField(
+        default=False,
+        verbose_name="판매자 여부",
+        help_text="체크 시 상품 등록/관리 및 교환/환불 처리 권한 부여",
+    )
+
     # 추가 메타 정보
     last_login_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name="마지막 로그인 IP")
 
@@ -106,6 +113,27 @@ class User(AbstractUser):
             self.save(update_fields=["points"])
             return True
         return False
+
+    def get_earn_rate(self):
+        """
+        회원 등급별 포인트 적립률 반환
+
+        적립률:
+        - bronze: 1%
+        - silver: 2%
+        - gold: 3%
+        - vip: 5%
+
+        Returns:
+            int: 포인트 적립률 (백분율)
+        """
+        earn_rates = {
+            "bronze": 1,
+            "silver": 2,
+            "gold": 3,
+            "vip": 5,
+        }
+        return earn_rates.get(self.membership_level, 1)  # 기본값 1%
 
     @property
     def is_vip(self):

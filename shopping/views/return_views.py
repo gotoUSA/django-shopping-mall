@@ -61,15 +61,26 @@ class ReturnViewSet(viewsets.ModelViewSet):
         """
         현재 사용자의 교환/환불만 조회
 
-        향후 판매자 권한 추가 시:
-        - 판매자는 자신의 상품에 대한 교환/환불 조회 가능
+        판매자의 경우:
+        - 본인 상품에 대한 교환/환불 조회 가능
         """
         user = self.request.user
-        queryset = (
-            Return.objects.filter(user=user)
-            .select_related("order", "exchange_product")
-            .prefetch_related("return_items__order_item__product")
-        )
+
+        # 판매자인 경우: 본인 상품에 대한 교환/환불 조치
+        if user.is_seller:
+            queryset = (
+                Return.objects.filter(return_items__order_item__product__seller=user)
+                .distinct()
+                .select_related("order", "exchange_product", "user")
+                .prefetch_related("return_items__order_item__product")
+            )
+        else:
+            # 일반 사용자: 본인이 신청한 교환/환불만
+            queryset = (
+                Return.objects.filter(user=user)
+                .select_related("order", "exchange_product")
+                .prefetch_related("return_items__order_item__product")
+            )
 
         # 필터링
         status_filter = self.request.query_params.get("status")
@@ -81,6 +92,33 @@ class ReturnViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(type=type_filter)
 
         return queryset
+
+    def _check_seller_permission(self, return_obj):
+        """
+        판매자 권한 확인 헬퍼 메서드
+
+        해당 교환/환불의 모든 상품이 요청자의 상품인지 확인
+
+        Args:
+            return_obj: Return 객체
+
+        Returns:
+            tuple: (bool, str) - (권한 여부, 에러 메시지)
+        """
+        user = self.request.user
+
+        # 판매자가 아닌 경우
+        if not user.is_seller:
+            return False, "판매자만 접근할 수 있습니다."
+
+        # 교환/환불에 포함된 모든 상품의 판매자 확인
+        return_items = return_obj.return_items.select_related("order_item__product__seller").all()
+
+        for item in return_items:
+            if item.order_item.product.seller != user:
+                return False, "본인 상품에 대한 교환/환불만 처리할 수 있습니다."
+
+        return True, ""
 
     def create(self, request, *args, **kwargs):
         """
@@ -135,9 +173,10 @@ class ReturnViewSet(viewsets.ModelViewSet):
         """
         return_obj = self.get_object()
 
-        # 권한 확인 (향후 판매자 권한 체크 추가)
-        # if not request.user.is_seller:
-        #     return Response({"message": "판매자만 승인할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        # 판매자 권한 확인
+        has_permission, error_mesasge = self._check_seller_permission(return_obj)
+        if not has_permission:
+            return Response({"message": error_message}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = self.get_serializer(data=request.data, context={"return_obj": return_obj})
         serializer.is_valid(raise_exception=True)
@@ -158,9 +197,10 @@ class ReturnViewSet(viewsets.ModelViewSet):
         """
         return_obj = self.get_object()
 
-        # 권한 확인 (향후 판매자 권한 체크 추가)
-        # if not request.user.is_seller:
-        #     return Response({"message": "판매자만 거부할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        # 판매자 권한 확인
+        has_permission, error_message = self._check_seller_permission(return_obj)
+        if not has_permission:
+            return Response({"message": error_message}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = self.get_serializer(data=request.data, context={"return_obj": return_obj})
         serializer.is_valid(raise_exception=True)
@@ -180,9 +220,10 @@ class ReturnViewSet(viewsets.ModelViewSet):
         """
         return_obj = self.get_object()
 
-        # 권한 확인 (향후 판매자 권한 체크 추가)
-        # if not request.user.is_seller:
-        #     return Response({"message": "판매자만 수령 확인할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        # 판매자 권한 확인
+        has_permission, error_message = self._check_seller_permission(return_obj)
+        if not has_permission:
+            return Response({"message": error_message}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = self.get_serializer(data={}, context={"return_obj": return_obj})
         serializer.is_valid(raise_exception=True)
@@ -205,9 +246,10 @@ class ReturnViewSet(viewsets.ModelViewSet):
         """
         return_obj = self.get_object()
 
-        # 권한 확인 (향후 판매자 권한 체크 추가)
-        # if not request.user.is_seller:
-        #     return Response({"message": "판매자만 완료 처리할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        # 판매자 권한 확인
+        has_permission, error_message = self._check_seller_permission(return_obj)
+        if not has_permission:
+            return Response({"message": error_message}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = self.get_serializer(data=request.data, context={"return_obj": return_obj})
         serializer.is_valid(raise_exception=True)

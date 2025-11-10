@@ -178,14 +178,17 @@ class PaymentConfirmView(APIView):
             # 6. 포인트 적립 (구매 금액의 1%)
             # 포인트로만 결제한 경우는 적립하지 않음
             if order.final_amount > 0:
-                points_to_add = int(order.final_amount * Decimal("0.01"))
+                # 등급별 적립률 적용
+                earn_rate = request.user.get_earn_rate()  # 1, 2, 3, 5 (%)
+                points_to_add = int(order.final_amount * Decimal(earn_rate) / Decimal("100"))
+
                 if points_to_add > 0:
                     # 포인트 적립
                     request.user.add_points(points_to_add)
 
                     # 주문에 적립 포인트 기록
                     order.earned_points = points_to_add
-                    order.save(update_fields=["earned_points"])
+                    order.save(updated_fields=["earned_points"])
 
                     # 포인트 적립 이력 기록
                     PointHistory.create_history(
@@ -198,7 +201,8 @@ class PaymentConfirmView(APIView):
                             "order_id": order.id,
                             "order_number": order.order_number,
                             "payment_amount": str(order.final_amount),
-                            "earn_rate": "1%",
+                            "earn_rate": f"{earn_rate}%",
+                            "membership_level": request.user.membership_level,
                         },
                     )
 

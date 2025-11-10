@@ -19,7 +19,9 @@ from shopping.serializers import (
     ProductReviewSerializer,
 )
 
-# Swagger
+# 권한
+
+from shopping.permissions import IsSeller, IsSellerAndOwner
 
 
 class ProductPagination(PageNumberPagination):
@@ -32,23 +34,6 @@ class ProductPagination(PageNumberPagination):
     page_size = 12  # 페이지당 기본 아이템수
     page_size_query_param = "page_size"  # 클라이언트가 페이지 크기를 조정할 수 있는 파라미터
     max_page_size = 100  # 최대 페이지 크기 제한
-
-
-class IsOwnerOrReadOnly(permissions.BasePermission):
-    """
-    객체 수준 권한 설정
-    - 누구나 읽기 가능
-    - 수정/삭제는 소유자(판매자)만 가능
-    """
-
-    def has_object_permission(self, request, view, obj):
-        # 읽기 권한은 모두에게 허용
-        if request.method in permissions.SAFE_METHODS:
-            return True
-
-        # 쓰기 권한은 소유자에게만 허용
-        # seller가 None인 경우도 고려 (legacy 데이터)
-        return obj.seller == request.user if obj.seller else False
 
 
 class ProductViewSet(viewsets.ModelViewSet):
@@ -80,7 +65,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     queryset = Product.objects.all()
     pagination_class = ProductPagination
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsSellerAndOwner]
 
     # 검색 필드 설정
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -357,14 +342,23 @@ class ProductViewSet(viewsets.ModelViewSet):
         권한: 본인 상품만 조회 가능
         에러:
         - 401: 인증 필요
+        - 403: 판매자 권한 필요
         """
+        # 판매자 권한 체크
         if not request.user.is_authenticated:
             return Response({"error": "로그인이 필요합니다."}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # 현재 사용자의 상품 중 재고가 10개 이하인 상품
-        low_stock_products = self.get_queryset().filter(seller=request.user, stock__lte=10).order_by("stock")
+        if not request.user.is_seller:
+            return Response({"error": "판매자만 조회할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
 
-        serializer = ProductListSerializer(low_stock_products, many=True)
+        # 본인 상품 중 재고 부족 상품 조회
+        low_stock_products = (
+            Product.objects.filter(seller=request.user, is_active=True, stock__lte=10)  # 본인 상품만  # 재고 10개 이하
+            .select_related("category")
+            .order_by("stock", "-created_at")  # 재고 적은 순, 최신 순
+        )
+
+        serializer = ProductListSerializer(low_stock_products, many=True, context={"request": request})
         return Response(serializer.data)
 
 

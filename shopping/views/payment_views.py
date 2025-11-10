@@ -204,7 +204,7 @@ class PaymentConfirmView(APIView):
 
                     # 포인트 적립 로그
                     PaymentLog.objects.create(
-                        payment.payment,
+                        payment=payment,
                         log_type="approve",
                         message=f"포인트 {points_to_add}점 적립",
                         data={"points": points_to_add},

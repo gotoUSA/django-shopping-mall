@@ -188,7 +188,7 @@ class PaymentConfirmView(APIView):
 
                     # 주문에 적립 포인트 기록
                     order.earned_points = points_to_add
-                    order.save(updated_fields=["earned_points"])
+                    order.save(update_fields=["earned_points"])
 
                     # 포인트 적립 이력 기록
                     PointHistory.create_history(

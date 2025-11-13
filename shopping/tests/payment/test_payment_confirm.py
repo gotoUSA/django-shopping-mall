@@ -4,7 +4,7 @@ from unittest.mock import Mock
 import pytest
 from rest_framework import status
 
-from shopping.models.cart import Cart
+from shopping.models.cart import Cart, CartItem
 from shopping.models.order import Order
 from shopping.models.payment import Payment, PaymentLog
 from shopping.models.point import PointHistory
@@ -124,6 +124,7 @@ class TestPaymentConfirm:
         authenticated_client,
         user,
         product,
+        add_to_cart_helper,
         shipping_data,
         mocker,
     ):
@@ -132,11 +133,7 @@ class TestPaymentConfirm:
         user.points = 5000
         user.save()
 
-        # 장바구니에 상품 추가 (직접 생성)
-        from shopping.models.cart import Cart, CartItem
-
-        cart = Cart.objects.create(user=user, is_active=True)
-        CartItem.objects.create(cart=cart, product=product, quantity=1)
+        add_to_cart_helper(user, product, quantity=1)
 
         # 주문 생성 (2000P 사용)
         order_data = {**shipping_data, "use_points": 2000}
@@ -289,6 +286,7 @@ class TestPaymentConfirmBoundary:
         authenticated_client,
         user,
         product,
+        add_to_cart_helper,
         shipping_data,
         mocker,
     ):
@@ -297,11 +295,7 @@ class TestPaymentConfirmBoundary:
         user.points = 50000
         user.save()
 
-        # 장바구니에 상품 추가
-        from shopping.models.cart import Cart, CartItem
-
-        cart = Cart.objects.create(user=user, is_active=True)
-        CartItem.objects.create(cart=cart, product=product, quantity=1)
+        add_to_cart_helper(user, product, quantity=1)
 
         # 전액 포인트 결제 (final_amount = 0)
         order_data = {**shipping_data, "use_points": 13000}
@@ -378,13 +372,12 @@ class TestPaymentConfirmBoundary:
         authenticated_client,
         user_factory,
         product,
+        add_to_cart_helper,
         shipping_data,
         mocker,
     ):
         """등급별 포인트 적립률 (bronze 1%, silver 2%, gold 3%, vip 5%)"""
         # Arrange
-        from shopping.models.cart import Cart, CartItem
-
         membership_levels = ["bronze", "silver", "gold", "vip"]
         expected_rates = {"bronze": 1, "silver": 2, "gold": 3, "vip": 5}
 
@@ -395,9 +388,7 @@ class TestPaymentConfirmBoundary:
                 membership_level=level,
             )
 
-            # 장바구니에 상품 추가
-            cart = Cart.objects.create(user=user, is_active=True)
-            CartItem.objects.create(cart=cart, product=product, quantity=1)
+            add_to_cart_helper(user, product, quantity=1)
 
             authenticated_client.force_authenticate(user=user)
 

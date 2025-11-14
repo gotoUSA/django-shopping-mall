@@ -32,8 +32,8 @@ class TestPaymentDetailNormalCase:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000001",
         )
+        order.refresh_from_db()  # order_number 자동 생성 반영
         OrderItem.objects.create(
             order=order,
             product=product,
@@ -75,7 +75,6 @@ class TestPaymentDetailNormalCase:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000002",
         )
         OrderItem.objects.create(
             order=order,
@@ -138,7 +137,6 @@ class TestPaymentDetailNormalCase:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000003",
         )
         OrderItem.objects.create(
             order=order,
@@ -186,7 +184,6 @@ class TestPaymentDetailNormalCase:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000004",
         )
         OrderItem.objects.create(
             order=order,
@@ -213,7 +210,7 @@ class TestPaymentDetailNormalCase:
 
         data = response.data
         assert data["order"] == order.id
-        assert data["order_number"] == "20250115000004"
+        assert data["order_number"] == order.order_number
 
     def test_card_number_masking(
         self,
@@ -232,7 +229,6 @@ class TestPaymentDetailNormalCase:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000005",
         )
         OrderItem.objects.create(
             order=order,
@@ -282,7 +278,6 @@ class TestPaymentDetailNormalCase:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000006",
         )
         OrderItem.objects.create(
             order=order,
@@ -331,7 +326,6 @@ class TestPaymentDetailNormalCase:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000007",
         )
         OrderItem.objects.create(
             order=order,
@@ -377,7 +371,6 @@ class TestPaymentDetailNormalCase:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000008",
         )
         OrderItem.objects.create(
             order=order,
@@ -422,7 +415,6 @@ class TestPaymentDetailNormalCase:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000009",
         )
         OrderItem.objects.create(
             order=order,
@@ -474,7 +466,6 @@ class TestPaymentDetailNormalCase:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000010",
         )
         OrderItem.objects.create(
             order=order,
@@ -515,7 +506,6 @@ class TestPaymentDetailNormalCase:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000011",
         )
         OrderItem.objects.create(
             order=order,
@@ -562,7 +552,6 @@ class TestPaymentDetailBoundary:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000012",
         )
         OrderItem.objects.create(
             order=order,
@@ -610,7 +599,6 @@ class TestPaymentDetailBoundary:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000013",
         )
         OrderItem.objects.create(
             order=order,
@@ -661,7 +649,6 @@ class TestPaymentDetailBoundary:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000014",
         )
         OrderItem.objects.create(
             order=order,
@@ -710,7 +697,6 @@ class TestPaymentDetailBoundary:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000015",
         )
         OrderItem.objects.create(
             order=order,
@@ -777,7 +763,6 @@ class TestPaymentDetailException:
             shipping_postal_code="54321",
             shipping_address="부산시 해운대구",
             shipping_address_detail="202동",
-            order_number="20250115000016",
         )
         OrderItem.objects.create(
             order=order,
@@ -820,7 +805,6 @@ class TestPaymentDetailException:
             shipping_postal_code="12345",
             shipping_address="서울시 강남구",
             shipping_address_detail="101동",
-            order_number="20250115000017",
         )
         OrderItem.objects.create(
             order=order,

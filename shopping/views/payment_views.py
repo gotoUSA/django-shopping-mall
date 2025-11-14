@@ -19,6 +19,7 @@ from ..models.product import Product
 from ..serializers.payment_serializers import (
     PaymentCancelSerializer,
     PaymentConfirmSerializer,
+    PaymentFailSerializer,
     PaymentRequestSerializer,
     PaymentSerializer,
 )
@@ -463,6 +464,87 @@ class PaymentCancelView(APIView):
                     "deducted_points": (points_deducted if order.earned_points > 0 else 0),
                 },
                 status=status.HTTP_200_OK,
+            )
+
+
+class PaymentFailView(APIView):
+    """
+    결제 실패 처리 뷰
+
+    토스페이먼츠 결제창에서 실패/취소 시 호출됩니다.
+    Payment 상태를 aborted로 변경하고 실패 로그를 기록합니다.
+
+    POST /api/payments/fail/
+    """
+
+    permission_classes = [permissions.AllowAny]  # 토스 콜백은 인증 불필요
+
+    def post(self, request):
+        """
+        결제 실패 처리
+
+        요청 본문:
+        {
+            "code": "USER_CANCEL",
+            "message": "사용자가 결제를 취소했습니다",
+            "order_id": "20250115000001"
+        }
+        """
+        serializer = PaymentFailSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        payment = serializer.payment
+        fail_code = serializer.validated_data["code"]
+        fail_message = serializer.validated_data["message"]
+
+        try:
+            # 1. Payment 상태를 aborted로 변경
+            payment.status = "aborted"
+            payment.fail_reason = f"[{fail_code}] {fail_message}"
+            payment.save(update_fields=["status", "fail_reason", "updated_at"])
+
+            # 2. 실패 로그 기록
+            PaymentLog.objects.create(
+                payment=payment,
+                log_type="error",
+                message=f"결제 실패: {fail_code}",
+                data={
+                    "code": fail_code,
+                    "message": fail_message,
+                    "order_id": serializer.validated_data["order_id"],
+                },
+            )
+
+            logger.info(
+                f"결제 실패 처리 완료 - Payment ID: {payment.id}, "
+                f"Code: {fail_code}, Message: {fail_message}"
+            )
+
+            return Response(
+                {
+                    "message": "결제 실패가 처리되었습니다.",
+                    "payment_id": payment.id,
+                    "order_id": payment.order.id,
+                    "order_number": payment.order.order_number,
+                    "status": payment.status,
+                    "fail_code": fail_code,
+                    "fail_message": fail_message,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            # 예외 발생 시 로그 기록
+            logger.error(f"결제 실패 처리 중 오류 발생: {str(e)}")
+
+            return Response(
+                {
+                    "error": "결제 실패 처리 중 오류가 발생했습니다.",
+                    "message": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 

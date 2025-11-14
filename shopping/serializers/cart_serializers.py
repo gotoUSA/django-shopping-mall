@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
@@ -56,7 +60,7 @@ class CartItemSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["added_at", "updated_at"]
 
-    def get_subtotal(self, obj):
+    def get_subtotal(self, obj: CartItem) -> str:
         """
         소계 계산 (모델의 property 활용)
 
@@ -65,7 +69,7 @@ class CartItemSerializer(serializers.ModelSerializer):
         """
         return str(obj.subtotal)
 
-    def get_is_available(self, obj):
+    def get_is_available(self, obj: CartItem) -> bool:
         """
         구매 가능 여부 확인
 
@@ -100,7 +104,7 @@ class CartItemCreateSerializer(serializers.ModelSerializer):
         model = CartItem
         fields = ["product_id", "quantity"]
 
-    def validate_product_id(self, value):
+    def validate_product_id(self, value: int) -> int:
         """
         상품 ID 유효성 검증
 
@@ -125,7 +129,7 @@ class CartItemCreateSerializer(serializers.ModelSerializer):
         self.product = product
         return value
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """
         전체 유효성 검증
 
@@ -140,7 +144,7 @@ class CartItemCreateSerializer(serializers.ModelSerializer):
 
         return attrs
 
-    def create(self, validated_data):
+    def create(self, validated_data: dict[str, Any]) -> CartItem:
         """
         장바구니 아이템 생성 또는 수량 증가
 
@@ -170,7 +174,7 @@ class CartItemCreateSerializer(serializers.ModelSerializer):
 
             return cart_item
 
-    def to_representation(self, instance):
+    def to_representation(self, instance: CartItem) -> dict[str, Any]:
         """
         응답 시 CartItemSerializer 형식으로 변환
 
@@ -197,7 +201,7 @@ class CartItemUpdateSerializer(serializers.ModelSerializer):
         model = CartItem
         fields = ["quantity"]
 
-    def validate_quantity(self, value):
+    def validate_quantity(self, value: int) -> int:
         """
         수량 유효성 검증
 
@@ -210,7 +214,7 @@ class CartItemUpdateSerializer(serializers.ModelSerializer):
 
         return value
 
-    def update(self, instance, validated_data):
+    def update(self, instance: CartItem, validated_data: dict[str, Any]) -> CartItem:
         """
         수량 업데이트
 
@@ -278,25 +282,25 @@ class CartSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["created_at", "updated_at", "is_active"]
 
-    def get_total_amount(self, obj):
+    def get_total_amount(self, obj: Cart) -> str:
         """
         총 금액 계산 (모델의 property 활용)
         """
         return str(obj.total_amount)
 
-    def get_total_quantity(self, obj):
+    def get_total_quantity(self, obj: Cart) -> int:
         """
         총 수량 계산 (모델의 property 활용)
         """
         return obj.total_quantity
 
-    def get_item_count(self, obj):
+    def get_item_count(self, obj: Cart) -> int:
         """
         장바구니에 담긴 상품 종류 수
         """
         return obj.items.count()
 
-    def get_is_all_available(self, obj):
+    def get_is_all_available(self, obj: Cart) -> bool:
         """
         모든 상품이 구매 가능한지 확인
         """
@@ -306,7 +310,7 @@ class CartSerializer(serializers.ModelSerializer):
                 return False
         return True
 
-    def get_unavailable_items(self, obj):
+    def get_unavailable_items(self, obj: Cart) -> list[dict[str, Any]]:
         """
         구매 불가능한 상품 목록 반환
 
@@ -357,11 +361,11 @@ class SimpleCartSerializer(serializers.ModelSerializer):
             "item_count",
         ]
 
-    def get_total_amount(self, obj):
+    def get_total_amount(self, obj: Cart) -> str:
         """총 금액"""
         return str(obj.total_amount)
 
-    def get_total_quantity(self, obj):
+    def get_total_quantity(self, obj: Cart) -> int:
         return obj.total_quantity
 
 
@@ -374,7 +378,7 @@ class CartClearSerializer(serializers.Serializer):
 
     confirm = serializers.BooleanField(required=True, help_text="장바구니를 비우려면 true를 전송하세요.")
 
-    def validate_confirm(self, value):  # 특정 필드 검증
+    def validate_confirm(self, value: bool) -> bool:  # 특정 필드 검증
         """확인 값 검증"""
         if not value:
             raise serializers.ValidationError("장바구니 비우기를 확인해주세요.")

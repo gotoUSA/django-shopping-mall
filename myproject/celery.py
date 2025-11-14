@@ -3,6 +3,8 @@ Celery 설정 파일
 Redis를 브로커로 사용하여 비동기 작업 처리
 """
 
+from __future__ import annotations
+
 import os
 
 from celery import Celery
@@ -141,6 +143,6 @@ app.conf.update(
 
 
 @app.task(bind=True, ignore_result=True)
-def debug_task(self):
+def debug_task(self) -> None:
     """디버그용 태스크"""
     print(f"Request: {self.request!r}")

@@ -10,7 +10,16 @@ API 방식 소셜 로그인에 최적화
 - 이메일 자동 인증 처리
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+
+if TYPE_CHECKING:
+    from allauth.socialaccount.models import SocialLogin
+    from django.contrib.auth.models import AbstractBaseUser
+    from django.http import HttpRequest
 
 
 class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
@@ -21,7 +30,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
     API 응답으로 직접 처리
     """
 
-    def is_auto_signup_allowed(self, request, sociallogin):
+    def is_auto_signup_allowed(self, request: HttpRequest, sociallogin: SocialLogin) -> bool:
         """
         자동 가입 허용 여부
 
@@ -37,7 +46,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         """
         return True
 
-    def populate_user(self, request, sociallogin, data):
+    def populate_user(self, request: HttpRequest, sociallogin: SocialLogin, data: dict[str, Any]) -> AbstractBaseUser:
         """
         소셜 로그인 데이터로 User 객체 생성/업데이트
 
@@ -60,7 +69,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
 
         return user
 
-    def save_user(self, request, sociallogin, form=None):
+    def save_user(self, request: HttpRequest, sociallogin: SocialLogin, form: Any = None) -> AbstractBaseUser:
         """
         User 저장 시 추가 처리
 

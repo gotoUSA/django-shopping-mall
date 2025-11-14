@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from rest_framework import serializers
 
 from shopping.models.product import Product
@@ -27,22 +31,22 @@ class WishlistProductSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-    def get_is_available(self, obj):
+    def get_is_available(self, obj: Product) -> bool:
         """구매 가능 여부"""
         return obj.stock > 0 and obj.is_active
 
-    def get_wishlist_count(self, obj):
+    def get_wishlist_count(self, obj: Product) -> int:
         """이 상품을 찜한 사용자 수"""
         return obj.wished_by_users.count()
 
-    def get_discount_rate(self, obj):
+    def get_discount_rate(self, obj: Product) -> float:
         """할인율 계산"""
         if obj.compare_price and obj.compare_price > obj.price:
             rate = (obj.compare_price - obj.price / obj.compare_price) * 100
             return round(rate, 1)
         return 0
 
-    def get_primary_image(self, obj):
+    def get_primary_image(self, obj: Product) -> str | None:
         """대표 이미지 URL"""
         primary = obj.images.filter(is_primary=True).first()
         if primary:
@@ -57,7 +61,7 @@ class WishlistToggleSerializer(serializers.Serializer):
 
     product_id = serializers.IntegerField(required=True, help_text="찜하기/취소할 상품 ID")
 
-    def validate_product_id(self, value):
+    def validate_product_id(self, value: int) -> int:
         """상품 존재 여부 확인"""
         if not Product.objects.filter(id=value).exists():
             raise serializers.ValidationError("존재하지 않는 상품입니다.")
@@ -74,7 +78,7 @@ class WishlistBulkAddSerializer(serializers.Serializer):
         help_text="찜할 상품 ID 리스트",
     )
 
-    def validate_product_ids(self, value):
+    def validate_product_ids(self, value: list[int]) -> list[int]:
         """상품들 존재 여부 확인"""
         if not value:
             raise serializers.ValidationError("상품 ID를 하나 이상 입력해주세요.")

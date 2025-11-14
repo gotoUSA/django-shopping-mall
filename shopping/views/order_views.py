@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import logging
+from typing import Any
 
 from django.db import transaction
 from django.db.models import F
@@ -7,7 +10,9 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer
 
 from ..models.order import Order
 from ..models.product import Product
@@ -38,7 +43,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     ordering_fields = ["created_at"]  # created_at 정렬만 지원
     ordering = ["-created_at"]  # 기본 정렬: 최신순
 
-    def get_queryset(self):
+    def get_queryset(self) -> Any:
         """주문 조회 - 관리자는 전체, 일반 사용자는 본인 것만"""
         if self.request.user.is_staff or self.request.user.is_superuser:
             # 관리자는 모든 주문 조회 가능
@@ -47,7 +52,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             # 일반 사용자는 본인 주문만 조회 가능
             return Order.objects.filter(user=self.request.user).prefetch_related("order_items__product")
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> type[BaseSerializer]:
         if self.action == "list":
             return OrderListSerializer
         elif self.action == "create":
@@ -55,7 +60,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         return OrderDetailSerializer
 
     # create 메서드 오버라이드
-    def create(self, request, *args, **kwargs):
+    def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """
         주문 생성
 
@@ -79,7 +84,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         return super().create(request, *args, **kwargs)
 
     @action(detail=True, methods=["post"])
-    def cancel(self, request, pk=None):
+    def cancel(self, request: Request, pk: int | None = None) -> Response:
         """주문 취소"""
         order = self.get_object()
 
@@ -113,7 +118,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         return Response({"message": "주문이 취소되었습니다."})
 
-    def list(self, request, *args, **kwargs):
+    def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """주문 목록 조회 - 페이지네이션 구조 확인"""
         queryset = self.filter_queryset(self.get_queryset())
 

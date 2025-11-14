@@ -3,15 +3,20 @@
 FIFO 방식 포인트 사용 및 만료 처리
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import timedelta
-from typing import Dict, List
+from typing import TYPE_CHECKING, Any
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 
 from shopping.models.point import PointHistory
+
+if TYPE_CHECKING:
+    from django.contrib.auth.models import AbstractBaseUser
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -20,7 +25,7 @@ logger = logging.getLogger(__name__)
 class PointService:
     """포인트 관련 서비스 클래스"""
 
-    def get_expired_points(self) -> List[PointHistory]:
+    def get_expired_points(self) -> list[PointHistory]:
         """
         만료된 포인트 조회
 
@@ -41,7 +46,7 @@ class PointService:
 
         return list(expired_points)
 
-    def get_expiring_points_soon(self, days: int = 7) -> List[PointHistory]:
+    def get_expiring_points_soon(self, days: int = 7) -> list[PointHistory]:
         """
         곧 만료될 포인트 조회 (기본 7일 이내)
 
@@ -140,7 +145,7 @@ class PointService:
         return max(0, remaining)
 
     @transaction.atomic
-    def use_points_fifo(self, user, amount: int) -> Dict:
+    def use_points_fifo(self, user: AbstractBaseUser, amount: int) -> dict[str, Any]:
         """
         FIFO 방식으로 포인트 사용
 
@@ -289,7 +294,7 @@ class PointService:
                     logger.error(f"알림 발송 실패: User={user.username}, " f"Error={str(e)}")
         return notification_count
 
-    def _create_expiry_notification_message(self, user, points: List[PointHistory], total: int) -> str:
+    def _create_expiry_notification_message(self, user: AbstractBaseUser, points: list[PointHistory], total: int) -> str:
         """
         만료 알림 메세지 생성
 

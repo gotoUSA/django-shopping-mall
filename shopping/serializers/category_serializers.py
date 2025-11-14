@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from rest_framework import serializers
 
 from ..models.product import Category
@@ -52,7 +56,7 @@ class CategorySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["slug", "created_at", "updated_at"]
 
-    def get_product_count(self, obj):
+    def get_product_count(self, obj: Category) -> int:
         """
         해당 카테고리의 활성 상품 수를 반환
 
@@ -65,11 +69,11 @@ class CategorySerializer(serializers.ModelSerializer):
         # 그렇지 않은 경우 직접 계산
         return obj.products.filter(is_active=True).count()
 
-    def get_children_count(self, obj):
+    def get_children_count(self, obj: Category) -> int:
         """직계 하위 카테고리 수 반환"""
         return obj.children.filter(is_active=True).count()
 
-    def get_full_path(self, obj):
+    def get_full_path(self, obj: Category) -> str:
         """
         카테고리의 전체 경로를 반환
         예: "전자제품 > 컴퓨터 > 노트북"
@@ -114,7 +118,7 @@ class CategoryTreeSerializer(serializers.ModelSerializer):
             "children",
         ]
 
-    def get_children(self, obj):
+    def get_children(self, obj: Category) -> list[dict[str, Any]]:
         """
         하위 카테고리들을 재귀적으로 반환
 
@@ -127,7 +131,7 @@ class CategoryTreeSerializer(serializers.ModelSerializer):
         # 재귀적으로 serializer 호출
         return CategoryTreeSerializer(children, many=True, context=self.context).data
 
-    def get_is_leaf(self, obj):
+    def get_is_leaf(self, obj: Category) -> bool:
         """리프 노드(하위 카테고리가 없는 노드)인지 확인"""
         return not obj.children.filter(is_active=True).exists()
 
@@ -167,7 +171,7 @@ class CategoryCreateUpdateSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id"]
 
-    def validate_name(self, value):
+    def validate_name(self, value: Category | None) -> Category | None:
         """
         부모 카테고리 검증
         - 자기 자신을 부모로 설정할 수 없음
@@ -189,7 +193,7 @@ class CategoryCreateUpdateSerializer(serializers.ModelSerializer):
 
         return value
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """전체 유효성 검증"""
         # 비활성화할 때 하위 카테고리나 상품이 있는지 확인
         if self.instance and not attrs.get("is_active", True):

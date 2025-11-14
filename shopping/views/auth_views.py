@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from django.contrib.auth import update_session_auth_hash
 from django.db import transaction
 from django.utils import timezone
@@ -5,6 +9,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
@@ -25,7 +30,7 @@ class RegisterView(APIView):
 
     permission_classes = [AllowAny]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = RegisterSerializer(data=request.data)
 
         if serializer.is_valid():
@@ -69,7 +74,7 @@ class LoginView(APIView):
 
     permission_classes = [AllowAny]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = LoginSerializer(data=request.data, context={"request": request})
 
         if serializer.is_valid():
@@ -112,7 +117,7 @@ class CustomTokenRefreshView(TokenRefreshView):
     기본 TokenRefreshView를 상속받아 커스터마이징
     """
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """
         요청 형식:
         {
@@ -148,7 +153,7 @@ class LogoutView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         try:
             # 요청에서 refresh token 가져오기
             refresh_token = request.data.get("refresh")
@@ -176,7 +181,7 @@ class LogoutView(APIView):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def check_token(request):
+def check_token(request: Request) -> Response:
     """
     토큰 유효성 확인 API
     - GET: 현재 Access Token이 유효한지 확인
@@ -193,7 +198,7 @@ def check_token(request):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def email_verification_request(request):
+def email_verification_request(request: Request) -> Response:
     """
     이메일 인증 요청 API (추후 구현)
     - POST: 인증 이메일 발송

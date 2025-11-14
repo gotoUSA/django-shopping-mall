@@ -1,5 +1,10 @@
+from __future__ import annotations
+
+from typing import Any
+
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
 
 from ..models.notification import Notification
@@ -23,11 +28,11 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
+    def get_queryset(self) -> Any:
         """현재 사용자의 알림만 조회"""
         return Notification.objects.filter(user=self.request.user)
 
-    def retrieve(self, request, pk=None):
+    def retrieve(self, request: Request, pk: int | None = None) -> Response:
         """
         알림 상세 조회
 
@@ -43,7 +48,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"])
-    def unread(self, request):
+    def unread(self, request: Request) -> Response:
         """
         읽지 않은 알림 개수 조회
         GET /api/notifications/unread/
@@ -66,7 +71,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         return Response({"count": count, "notifications": serializer.data})
 
     @action(detail=False, methods=["post"])
-    def mark_read(self, request):
+    def mark_read(self, request: Request) -> Response:
         """
         알림 읽음 처리
         POST /api/notifications/mark_read/
@@ -97,7 +102,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=["delete"])
-    def clear(self, request):
+    def clear(self, request: Request) -> Response:
         """
         읽은 알림 전체 삭제
         DELETE /api/notifications/clear/

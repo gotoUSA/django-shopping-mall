@@ -1,12 +1,13 @@
-import traceback
-from typing import Optional
+from __future__ import annotations
 
-from django.conf import settings
-from django.core.mail import send_mail
-from django.utils import timezone
+import traceback
+from typing import Any
 
 from celery import shared_task
 from celery.utils.log import get_task_logger
+from django.conf import settings
+from django.core.mail import send_mail
+from django.utils import timezone
 
 logger = get_task_logger(__name__)
 
@@ -16,7 +17,7 @@ logger = get_task_logger(__name__)
     max_retries=3,
     default_retry_delay=60,  # 1분 후 재시도
 )
-def expire_points_task() -> dict:
+def expire_points_task() -> dict[str, Any]:
     """
     포인트 만료 처리 태스크
     매일 새벽 2시에 실행됨
@@ -54,7 +55,7 @@ def expire_points_task() -> dict:
     max_retries=3,
     default_retry_delay=60,
 )
-def send_expiry_notification_task() -> dict:
+def send_expiry_notification_task() -> dict[str, Any]:
     """
     포인트 만료 예정 알림 발송 태스크
     매일 오전 10시에 실행됨
@@ -91,7 +92,7 @@ def send_expiry_notification_task() -> dict:
     max_retries=5,
     default_retry_delay=120,  # 2분 후 재시도
 )
-def send_email_notification(email: str, subject: str, message: str, html_message: Optional[str] = None) -> bool:
+def send_email_notification(email: str, subject: str, message: str, html_message: str | None = None) -> bool:
     """
     이메일 알림 발송 태스크
 

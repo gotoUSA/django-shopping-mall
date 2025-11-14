@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from django.utils import timezone
 
 from rest_framework import serializers
@@ -34,7 +38,7 @@ class NotificationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["created_at", "read_at"]
 
-    def get_created_at_display(self, obj):
+    def get_created_at_display(self, obj: Notification) -> str:
         """
         생성 시간을 상대적으로 표시
 
@@ -74,7 +78,7 @@ class NotificationMarkReadSerializer(serializers.Serializer):
         help_text="읽음 처리할 알림 ID 목록 (빈 리스트면 전체 읽음)",
     )
 
-    def validate_notification_ids(self, value):
+    def validate_notification_ids(self, value: list[int]) -> list[int]:
         """알림 ID가 실제로 존재하고, 현재 사용자의 것인지 확인"""
         user = self.context["request"].user
         if not value:
@@ -89,7 +93,7 @@ class NotificationMarkReadSerializer(serializers.Serializer):
             raise serializers.ValidationError(f"다음 알림을 찾을 수 없거나 권한이 없습니다: {missing}")
         return value
 
-    def mark_as_read(self):
+    def mark_as_read(self) -> int:
         """알림을 읽음 처리"""
         user = self.context["request"].user
         notification_ids = self.validated_data.get("notification_ids", [])

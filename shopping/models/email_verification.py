@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 import random
 import string
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+
+if TYPE_CHECKING:
+    from shopping.models.user import User
 
 
 class EmailVerificationToken(models.Model):
@@ -41,13 +47,13 @@ class EmailVerificationToken(models.Model):
             models.Index(fields=["created_at"]),
         ]
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         """저장시 6자리 코드 자동 생성"""
         if not self.verification_code:
             self.verification_code = self.generate_verification_code()
         super().save(*args, **kwargs)
 
-    def generate_verification_code(self):
+    def generate_verification_code(self) -> str:
         """6자리 영문+숫자 코드 생성"""
         characters = string.ascii_uppercase + string.digits
         code = "".join(random.choices(characters, k=6))
@@ -58,25 +64,25 @@ class EmailVerificationToken(models.Model):
 
         return code
 
-    def is_expired(self, now=None):
+    def is_expired(self, now: datetime | None = None) -> bool:
         """토큰 만료 여부 확인 (24시간)"""
         now = now or timezone.now()
         expiry_time = self.created_at + timedelta(hours=24)
         return now > expiry_time
 
-    def mark_as_used(self):
+    def mark_as_used(self) -> None:
         """토큰을 사용됨으로 표시"""
         self.is_used = True
         self.used_at = timezone.now()
         self.save(update_fields=["is_used", "used_at"])
 
-    def can_resend(self, now=None):
+    def can_resend(self, now: datetime | None = None) -> bool:
         """재발송 가능 여부 (1분 제한)"""
         now = now or timezone.now()
         time_limit = self.created_at + timedelta(minutes=1)
         return now > time_limit
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user.email} - {self.verification_code} ({'사용됨' if self.is_used else '미사용'})"
 
 
@@ -147,23 +153,23 @@ class EmailLog(models.Model):
             models.Index(fields=["created_at"]),
         ]
 
-    def mark_as_sent(self):
+    def mark_as_sent(self) -> None:
         """발송 완료 처리"""
         self.status = "sent"
         self.sent_at = timezone.now()
         self.save(update_fields=["status", "sent_at"])
 
-    def mark_as_failed(self, error_message=""):
+    def mark_as_failed(self, error_message: str = "") -> None:
         """발송 실패 처리"""
         self.status = "failed"
         self.error_message = error_message
         self.save(update_fields=["status", "error_message"])
 
-    def mark_as_verified(self):
+    def mark_as_verified(self) -> None:
         """인증 완료 처리"""
         self.status = "verified"
         self.verified_at = timezone.now()
         self.save(update_fields=["status", "verified_at"])
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.email_type} - {self.recipient_email} ({self.status})"

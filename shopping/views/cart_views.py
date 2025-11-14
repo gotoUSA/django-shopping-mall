@@ -1,10 +1,16 @@
+from __future__ import annotations
+
+from typing import Any
+
 from django.db import transaction
 from django.db.models import Prefetch
 
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound
+from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer
 
 # 모델 import
 from shopping.models.cart import Cart, CartItem
@@ -40,7 +46,7 @@ class CartViewSet(viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]  # 로그인 필수
     queryset = Cart.objects.none()
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> type[BaseSerializer]:
         """
         액션에 따라 적절한 Serializer 반환
         """
@@ -57,7 +63,7 @@ class CartViewSet(viewsets.GenericViewSet):
         else:
             return CartSerializer
 
-    def get_cart(self):
+    def get_cart(self) -> Cart:
         """
         현재 사용자의 활성 장바구니를 가져오거나 생성
 
@@ -79,7 +85,7 @@ class CartViewSet(viewsets.GenericViewSet):
 
         return cart
 
-    def retrieve(self, request):
+    def retrieve(self, request: Request) -> Response:
         """
         내 장바구니 전체 정보 조회
         GET /api/cart/
@@ -92,7 +98,7 @@ class CartViewSet(viewsets.GenericViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"])
-    def summary(self, request):
+    def summary(self, request: Request) -> Response:
         """
         장바구니 요약 정보 조회
         GET /api/cart/summary/
@@ -107,7 +113,7 @@ class CartViewSet(viewsets.GenericViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=["post"])
-    def add_item(self, request):
+    def add_item(self, request: Request) -> Response:
         """
         장바구니에 상품 추가
         POST /api/cart/add_item/
@@ -142,7 +148,7 @@ class CartViewSet(viewsets.GenericViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=["get"])
-    def items(self, request):
+    def items(self, request: Request) -> Response:
         """
         장바구니 아이템 목록 조회
         GET /api/cart/items/
@@ -155,7 +161,7 @@ class CartViewSet(viewsets.GenericViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=["patch"], url_path="items")
-    def update_item(self, request, pk=None):
+    def update_item(self, request: Request, pk: int | None = None) -> Response:
         """
         장바구니 아이템 수량 변경
         PATCH /api/cart/items/{id}/
@@ -199,7 +205,7 @@ class CartViewSet(viewsets.GenericViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=["delete"], url_path="items")
-    def delete_item(self, request, pk=None):
+    def delete_item(self, request: Request, pk: int | None = None) -> Response:
         """
         장바구니 아이템 삭제
         DELETE /api/cart/items/{id}/
@@ -223,7 +229,7 @@ class CartViewSet(viewsets.GenericViewSet):
         )
 
     @action(detail=False, methods=["post"])
-    def clear(self, request):
+    def clear(self, request: Request) -> Response:
         """
         장바구니 비우기
         POST /api/cart/clear/
@@ -259,7 +265,7 @@ class CartViewSet(viewsets.GenericViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=["post"])
-    def bulk_add(self, request):
+    def bulk_add(self, request: Request) -> Response:
         """
         여러 상품을 한 번에 장바구니에 추가
         POST /api/cart/bulk_add/
@@ -317,7 +323,7 @@ class CartViewSet(viewsets.GenericViewSet):
         return Response(response_data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["get"])
-    def check_stock(self, request):
+    def check_stock(self, request: Request) -> Response:
         """
         장바구니 상품들의 재고 확인
         GET /api/cart/check_stock/
@@ -393,7 +399,7 @@ class CartItemViewSet(viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = CartItemSerializer
 
-    def get_queryset(self):
+    def get_queryset(self) -> Any:
         """
         현재 사용자의 장바구니 아이템만 반환
         """
@@ -404,7 +410,7 @@ class CartItemViewSet(viewsets.GenericViewSet):
         except Cart.DoesNotExist:
             return CartItem.objects.none()
 
-    def list(self, request):
+    def list(self, request: Request) -> Response:
         """
         장바구니 아이템 목록
         GET /api/cart-items/
@@ -413,7 +419,7 @@ class CartItemViewSet(viewsets.GenericViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
-    def create(self, request):
+    def create(self, request: Request) -> Response:
         """
         장바구니에 아이템 추가
         POST /api/cart-items/
@@ -428,7 +434,7 @@ class CartItemViewSet(viewsets.GenericViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def update(self, request, pk=None):
+    def update(self, request: Request, pk: int | None = None) -> Response:
         """
         아이템 수량 변경
         PUT /api/cart-items/{id}/
@@ -451,7 +457,7 @@ class CartItemViewSet(viewsets.GenericViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def destroy(self, request, pk=None):
+    def destroy(self, request: Request, pk: int | None = None) -> Response:
         """
         아이템 삭제
         DELETE /api/cart-items/{id}/

@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from decimal import Decimal
+from typing import Any
 
 from django.db import models
 
@@ -164,20 +167,20 @@ class Payment(models.Model):
             models.Index(fields=["-created_at"]),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.toss_order_id} - {self.get_status_display()} ({self.amount:,}원)"
 
     @property
-    def is_paid(self):
+    def is_paid(self) -> bool:
         """결제 완료 여부"""
         return self.status == "done"
 
     @property
-    def can_cancel(self):
+    def can_cancel(self) -> bool:
         """취소 가능 여부"""
         return self.status == "done" and not self.is_canceled
 
-    def mark_as_paid(self, payment_data):
+    def mark_as_paid(self, payment_data: dict[str, Any]) -> None:
         """
         결제 완료 처리
         토스페이먼츠 승인 응답으로 정보 업데이트
@@ -202,13 +205,13 @@ class Payment(models.Model):
 
         self.save()
 
-    def mark_as_failed(self, reason=""):
+    def mark_as_failed(self, reason: str = "") -> None:
         """결제 실패 처리"""
         self.status = "aborted"
         self.fail_reason = reason
         self.save()
 
-    def mark_as_canceled(self, cancel_data):
+    def mark_as_canceled(self, cancel_data: dict[str, Any]) -> None:
         """
         결제 취소 처리
         토스페이먼츠 취소 응답으로 정보 업데이트
@@ -224,7 +227,7 @@ class Payment(models.Model):
 
         self.save()
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         """저장 전 처리"""
         # toss_order_id가 없으면 주문번호로 설정
         if not self.toss_order_id and self.order:
@@ -272,5 +275,5 @@ class PaymentLog(models.Model):
         verbose_name_plural = "결제 로그 목록"
         ordering = ["-created_at"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"[{self.get_log_type_display()}] {self.payment.order_id} - {self.created_at}"

@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 
@@ -50,7 +54,7 @@ class UserSerializer(serializers.ModelSerializer):
             "last_login",
         ]
 
-    def get_email_verification_pending(self, obj):
+    def get_email_verification_pending(self, obj: User) -> bool:
         """이메일 인증 대기중인지 확인"""
         if obj.is_email_verified:
             return False
@@ -63,7 +67,7 @@ class UserSerializer(serializers.ModelSerializer):
             is_used=False,
         ).exists()
 
-    def validate_email(self, value):
+    def validate_email(self, value: str) -> str:
         """이메일 중복 검사 및 형식 검증"""
         # 현재 사용자의 이메일과 같으면 통과
         if self.instance and self.instance.email == value:
@@ -75,7 +79,7 @@ class UserSerializer(serializers.ModelSerializer):
 
         return value
 
-    def update(self, instance, validated_data):
+    def update(self, instance: User, validated_data: dict[str, Any]) -> User:
         """
         프로필 업데이트
         이메일 변경 시 재인증 필요
@@ -140,25 +144,25 @@ class RegisterSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {"username": {"required": True}, "email": {"required": True}}
 
-    def validate_email(self, value):
+    def validate_email(self, value: str) -> str:
         """이메일 중복 검사"""
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("이미 사용중인 이메일입니다.")
         return value
 
-    def validate_username(self, value):
+    def validate_username(self, value: str) -> str:
         """사용자명 중복 검사"""
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("이미 사용중인 사용자명입니다.")
         return value
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """비밀번호 일치 검사"""
         if attrs["password"] != attrs["password2"]:
             raise serializers.ValidationError({"password": "비밀번호가 일치하지 않습니다."})
         return attrs
 
-    def create(self, validated_data):
+    def create(self, validated_data: dict[str, Any]) -> User:
         """사용자 생성"""
         # password2는 DB에 저장하지 않으므로 제거
         validated_data.pop("password2")
@@ -184,7 +188,7 @@ class LoginSerializer(serializers.Serializer):
         label="비밀번호",
     )
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """로그인 인증 검증"""
         username = attrs.get("username")
         password = attrs.get("password")
@@ -240,20 +244,20 @@ class PasswordChangeSerializer(serializers.Serializer):
         label="새 비밀번호 확인",
     )
 
-    def validate_old_password(self, value):
+    def validate_old_password(self, value: str) -> str:
         """현재 비밀번호 검증"""
         user = self.context["request"].user
         if not user.check_password(value):
             raise serializers.ValidationError("현재 비밀번호가 올바르지 않습니다.")
         return value
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """새 비밀번호 일치 검사"""
         if attrs["new_password"] != attrs["new_password2"]:
             raise serializers.ValidationError({"new_password": "새 비밀번호가 일치하지 않습니다"})
         return attrs
 
-    def save(self):
+    def save(self) -> User:
         """비밀번호 변경 저장"""
         user = self.context["request"].user
         user.set_password(self.validated_data["new_password"])

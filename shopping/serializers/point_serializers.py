@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from rest_framework import serializers
 
 from ..models.point import PointHistory
@@ -47,17 +51,17 @@ class UserPointSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["points"]
 
-    def get_total_earned(self, obj):
+    def get_total_earned(self, obj: User) -> int:
         """총 적립 포인트"""
         histories = obj.point_histories.filter(points__gt=0)
         return sum(h.points for h in histories)
 
-    def get_total_used(self, obj):
+    def get_total_used(self, obj: User) -> int:
         """총 사용 포인트"""
         histories = obj.point_histories.filter(points__lt=0)
         return abs(sum(h.points for h in histories))
 
-    def get_expiring_soon(self, obj):
+    def get_expiring_soon(self, obj: User) -> int:
         """30일 내 만료 예정 포인트"""
         from datetime import timedelta
 
@@ -80,7 +84,7 @@ class PointUseSerializer(serializers.Serializer):
     order_id = serializers.IntegerField(required=False, help_text="관련 주문 ID")
     description = serializers.CharField(max_length=255, required=False, help_text="사용 사유")
 
-    def validate_points(self, value):
+    def validate_points(self, value: int) -> int:
         """포인트 검증"""
         user = self.context["request"].user
 
@@ -96,7 +100,7 @@ class PointCheckSerializer(serializers.Serializer):
     order_amount = serializers.DecimalField(max_digits=10, decimal_places=0, help_text="주문 금액")
     use_points = serializers.IntegerField(min_value=0, help_text="사용하려는 포인트")
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """포인트 사용 가능 여부 검증"""
         user = self.context["request"].user
         order_amount = attrs["order_amount"]

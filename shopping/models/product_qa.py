@@ -1,5 +1,12 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 from django.conf import settings
 from django.db import models
+
+if TYPE_CHECKING:
+    from shopping.models.user import User
 
 
 class ProductQuestion(models.Model):
@@ -55,11 +62,11 @@ class ProductQuestion(models.Model):
             models.Index(fields=["is_answered"]),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         secret_mark = "[비밀]" if self.is_secret else ""
         return f"{secret_mark} {self.title}"
 
-    def can_view(self, user):
+    def can_view(self, user: User | None) -> bool:
         """
         해당 사용자가 이 문의를 볼 수 있는지 확인
 
@@ -123,10 +130,10 @@ class ProductAnswer(models.Model):
         verbose_name = "문의 답변"
         verbose_name_plural = "문의 답변"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.question.title}에 대한 답변"
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         """
         답변 저장 시 자동 처리:
         1. 문의를 답변 완료 상태로 변경

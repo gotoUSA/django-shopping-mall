@@ -581,12 +581,58 @@ class PaymentListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        """내 결제 목록 조회"""
+        """
+        내 결제 목록 조회
+
+        Query Parameters:
+        - page: 페이지 번호 (기본값: 1)
+        - page_size: 페이지 크기 (기본값: 10, 최대: 100)
+        - status: 결제 상태 필터링 (ready, done, canceled, aborted 등)
+        """
         payments = Payment.objects.filter(order__user=request.user).select_related("order").order_by("-created_at")
 
-        # 페이지네이션 (간단ver)
-        page = int(request.GET.get("page", 1))
-        page_size = int(request.GET.get("page_size", 10))
+        # 상태별 필터링
+        payment_status = request.GET.get("status")
+        if payment_status:
+            # 유효한 상태값인지 검증
+            valid_statuses = [choice[0] for choice in Payment.STATUS_CHOICES]
+            if payment_status not in valid_statuses:
+                return Response(
+                    {"error": f"유효하지 않은 상태값입니다. 사용 가능한 값: {', '.join(valid_statuses)}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            payments = payments.filter(status=payment_status)
+
+        # 페이지네이션 파라미터 검증
+        try:
+            page = int(request.GET.get("page", 1))
+            page_size = int(request.GET.get("page_size", 10))
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "page와 page_size는 정수여야 합니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 페이지네이션 값 검증
+        if page < 1:
+            return Response(
+                {"error": "page는 1 이상이어야 합니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if page_size < 1:
+            return Response(
+                {"error": "page_size는 1 이상이어야 합니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # page_size 최대값 제한 (DoS 방지)
+        MAX_PAGE_SIZE = 100
+        if page_size > MAX_PAGE_SIZE:
+            return Response(
+                {"error": f"page_size는 최대 {MAX_PAGE_SIZE}까지 가능합니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         start = (page - 1) * page_size
         end = start + page_size

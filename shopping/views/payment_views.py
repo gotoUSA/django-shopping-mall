@@ -322,6 +322,10 @@ class PaymentCancelView(APIView):
         # 토스페이먼츠 API 클라이언트
         toss_client = TossPaymentClient()
 
+        # 포인트 변수 초기화 (함수 시작 시)
+        points_refunded = 0
+        points_deducted = 0
+
         try:
             # 1. 토스페이먼츠에 취소 요청
             cancel_data = toss_client.cancel_payment(payment_key=payment.payment_key, cancel_reason=cancel_reason)
@@ -344,8 +348,8 @@ class PaymentCancelView(APIView):
             # 5. 포인트 처리
             # 5-1. 사용한 포인트 환불
             if order.used_points > 0:
-                # 포인트 환불
-                request.user.add_points(order.used_points)
+                points_refunded = order.used_points  # 변수에 저장
+                request.user.add_points(points_refunded)
 
                 # 포인트 환불 이력 기록
                 PointHistory.create_history(
@@ -372,14 +376,14 @@ class PaymentCancelView(APIView):
             # 5-2. 적립했던 포인트 회수
             if order.earned_points > 0:
                 # 포인트 차감 (보유 포인트가 부족한 경우 처리)
-                points_to_deduct = min(order.earned_points, request.user.points)
-                if points_to_deduct > 0:
-                    request.user.use_points(points_to_deduct)
+                points_deducted = min(order.earned_points, request.user.points)
+                if points_deducted > 0:
+                    request.user.use_points(points_deducted)
 
                     # 포인트 차감 이력 기록
                     PointHistory.create_history(
                         user=request.user,
-                        points=-points_to_deduct,
+                        points=-points_deducted,
                         type="cancel_deduct",
                         order=order,
                         description=f"주문 #{order.order_number} 취소로 인한 적립 포인트 회수",
@@ -387,15 +391,15 @@ class PaymentCancelView(APIView):
                             "order_id": order.id,
                             "order_number": order.order_number,
                             "original_earned": order.earned_points,
-                            "actual_deducted": points_to_deduct,
+                            "actual_deducted": points_deducted,
                         },
                     )
                     # 포인트 회수 로그
                     PaymentLog.objects.create(
                         payment=payment,
                         log_type="cancel",
-                        message=f"적립 포인트 {points_to_deduct}점 회수",
-                        data={"deducted_points": points_to_deduct},
+                        message=f"적립 포인트 {points_deducted}점 회수",
+                        data={"deducted_points": points_deducted},
                     )
 
             # 6. 취소 로그
@@ -411,7 +415,8 @@ class PaymentCancelView(APIView):
                     "message": "결제가 취소되었습니다.",
                     "payment": PaymentSerializer(payment).data,
                     "refund_amount": int(payment.canceled_amount),
-                    "points_deducted": points_to_deduct,
+                    "refunded_points": points_refunded,
+                    "deducted_points": points_deducted,
                 },
                 status=status.HTTP_200_OK,
             )
@@ -455,7 +460,7 @@ class PaymentCancelView(APIView):
                     "payment": PaymentSerializer(payment).data,
                     "refund_amount": int(payment.canceled_amount),
                     "refunded_points": (order.used_points if order.used_points > 0 else 0),
-                    "deducted_points": (points_to_deduct if order.earned_points > 0 else 0),
+                    "deducted_points": (points_deducted if order.earned_points > 0 else 0),
                 },
                 status=status.HTTP_200_OK,
             )

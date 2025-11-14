@@ -254,3 +254,43 @@ class PaymentWebhookSerializer(serializers.Serializer):
             self.is_supported = True
 
         return value
+
+
+class PaymentFailSerializer(serializers.Serializer):
+    """
+    결제 실패 처리용 시리얼라이저
+    토스페이먼츠 결제창에서 실패/취소 시 호출
+    """
+
+    code = serializers.CharField(
+        max_length=100,
+        help_text="실패 코드 (USER_CANCEL, TIMEOUT 등)",
+    )
+
+    message = serializers.CharField(
+        max_length=500,
+        help_text="실패 사유",
+    )
+
+    order_id = serializers.CharField(
+        max_length=100,
+        help_text="토스 주문번호 (toss_order_id)",
+    )
+
+    def validate_order_id(self, value: str) -> str:
+        """주문 및 결제 정보 검증"""
+        try:
+            payment = Payment.objects.get(toss_order_id=value)
+        except Payment.DoesNotExist:
+            raise serializers.ValidationError("결제 정보를 찾을 수 없습니다.")
+
+        # 이미 완료된 결제는 실패 처리 불가
+        if payment.status == "done":
+            raise serializers.ValidationError("이미 완료된 결제입니다.")
+
+        # 이미 취소된 결제는 실패 처리 불가
+        if payment.status == "canceled":
+            raise serializers.ValidationError("이미 취소된 결제입니다.")
+
+        self.payment = payment
+        return value

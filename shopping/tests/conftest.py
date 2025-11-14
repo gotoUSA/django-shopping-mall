@@ -648,9 +648,9 @@ def order_with_multiple_items(db, user, multiple_products):
 @pytest.fixture
 def payment(db, order):
     """
-    기본 결제 (pending 상태)
+    기본 결제 (ready 상태)
 
-    - 상태: pending (결제 대기)
+    - 상태: ready (결제 준비)
     - 주문과 연결됨
     """
     from shopping.models.payment import Payment
@@ -658,7 +658,7 @@ def payment(db, order):
     return Payment.objects.create(
         order=order,
         amount=order.total_amount,
-        status="pending",
+        status="ready",
         toss_order_id=order.order_number,
     )
 

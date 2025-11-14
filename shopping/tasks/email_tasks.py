@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 import logging
 from datetime import timedelta
+from typing import Any
 
+from celery import Task, shared_task
 from django.conf import settings
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils import timezone
-
-from celery import shared_task
 
 from shopping.models.email_verification import EmailLog, EmailVerificationToken
 from shopping.models.user import User
@@ -20,7 +22,7 @@ logger = logging.getLogger(__name__)
     default_retry_delay=60,  # 실패 시 60초 후 재시도
     autoretry_for=(Exception,),  # 모든 예외에 대해 자동 재시도
 )
-def send_verification_email_task(self, user_id, token_id, is_resend=False):
+def send_verification_email_task(self: Task, user_id: int, token_id: int, is_resend: bool = False) -> dict[str, Any]:
     """
     이메일 인증 메일 발송 태스크 (비동기)
 
@@ -140,7 +142,7 @@ def send_verification_email_task(self, user_id, token_id, is_resend=False):
 
 
 @shared_task(bind=True)
-def retry_failed_emails_task(self):
+def retry_failed_emails_task(self: Task) -> dict[str, Any]:
     """
     실패한 이메일 재발송 태스크 (주기적 실행)
 
@@ -214,14 +216,14 @@ def retry_failed_emails_task(self):
     autoretry_for=(Exception,),
 )
 def send_email_task(
-    self,
-    subject,
-    message,
-    recipient_list,
-    user_id=None,
-    email_type="general",
-    html_message=None,
-):
+    self: Task,
+    subject: str,
+    message: str,
+    recipient_list: list[str],
+    user_id: int | None = None,
+    email_type: str = "general",
+    html_message: str | None = None,
+) -> dict[str, Any]:
     """
     범용 이메일 발송 태스크 (비동기)
 

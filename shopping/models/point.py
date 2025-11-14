@@ -1,5 +1,13 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 from django.conf import settings
 from django.db import models
+
+if TYPE_CHECKING:
+    from shopping.models.order import Order
+    from shopping.models.user import User
 
 
 class PointHistory(models.Model):
@@ -80,10 +88,10 @@ class PointHistory(models.Model):
             models.Index(fields=["order"]),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user.username} - {self.get_type_display()} {self.points:+d}P"
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         """저장 시 잔액 자동 계산"""
         if not self.pk:  # 신규 생성시
             # 현재 사용자 포인트를 잔액으로 설정
@@ -91,7 +99,15 @@ class PointHistory(models.Model):
         super().save(*args, **kwargs)
 
     @classmethod
-    def create_history(cls, user, points, type, order=None, description=None, **kwargs):
+    def create_history(
+        cls,
+        user: User,
+        points: int,
+        type: str,
+        order: Order | None = None,
+        description: str | None = None,
+        **kwargs: Any,
+    ) -> PointHistory:
         """
         포인트 이력 생성 헬퍼 메서드
 

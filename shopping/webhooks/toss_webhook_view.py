@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import logging
 from decimal import Decimal
+from typing import Any
 
 from django.db import transaction
 from django.db.models import F
@@ -8,6 +11,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
+from rest_framework.request import Request
 from rest_framework.response import Response
 
 from ..models.cart import Cart
@@ -23,7 +27,7 @@ logger = logging.getLogger(__name__)
 @csrf_exempt  # 외부 서비스 호출이므로 CSRF 검증 제외
 @api_view(["POST"])
 @permission_classes([AllowAny])  # 토스페이먼츠 서버에서 호출하므로 인증 불필요
-def toss_webhook(request):
+def toss_webhook(request: Request) -> Response:
     """
     토스페이먼츠 웹훅 처리
 
@@ -104,7 +108,7 @@ def toss_webhook(request):
 
 
 @transaction.atomic
-def handle_payment_done(event_data):
+def handle_payment_done(event_data: dict[str, Any]) -> None:
     """
     결제 완료 이벤트 처리
 
@@ -172,7 +176,7 @@ def handle_payment_done(event_data):
 
 
 @transaction.atomic
-def handle_payment_canceled(event_data):
+def handle_payment_canceled(event_data: dict[str, Any]) -> None:
     """
     결제 취소 이벤트 처리
     """
@@ -231,7 +235,7 @@ def handle_payment_canceled(event_data):
     logger.info(f"Payment canceled webhook processed: {order_id}")
 
 
-def handle_payment_failed(event_data):
+def handle_payment_failed(event_data: dict[str, Any]) -> None:
     """
     결제 실패 이벤트 처리
     """

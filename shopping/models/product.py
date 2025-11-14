@@ -1,9 +1,17 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models import QuerySet
 from django.utils.text import slugify
 
 from mptt.models import MPTTModel, TreeForeignKey
+
+if TYPE_CHECKING:
+    from shopping.models.user import User
 
 
 class Category(MPTTModel):
@@ -43,7 +51,7 @@ class Category(MPTTModel):
         verbose_name_plural = "카테고리"
         ordering = ["name"]  # 기본 정렬
 
-    def __str__(self):
+    def __str__(self) -> str:
         # 계층 구조를 보여주는 문자열 표현
         # get_ancestors()는 MPTT가 제공하는 메서드
         ancestors = self.get_ancestors(include_self=False)
@@ -52,13 +60,13 @@ class Category(MPTTModel):
             return f"{ancestors_names} > {self.name}"
         return self.name
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         # slug 자동 생성 (한글 지원)
         if not self.slug:
             self.slug = slugify(self.name, allow_unicode=True)
         super().save(*args, **kwargs)
 
-    def get_full_path(self):
+    def get_full_path(self) -> str:
         """
         최상위부터 현재 카테고리까지의 전체 경로 반환
         예: "전자제품 > 컴퓨터 > 노트북
@@ -66,7 +74,7 @@ class Category(MPTTModel):
         ancestors = self.get_ancestors(include_self=True)
         return " > ".join([cat.name for cat in ancestors])
 
-    def get_all_products(self):
+    def get_all_products(self) -> QuerySet[Product]:
         """
         현재 카테고리와 모든 하위 카테고리의 상품을 반환
         """
@@ -74,12 +82,12 @@ class Category(MPTTModel):
         return Product.objects.filter(category__in=categories, is_active=True)
 
     @property
-    def product_count(self):
+    def product_count(self) -> int:
         """현재 카테고리의 활성 상품 수"""
         return self.products.filter(is_active=True).count()
 
     @property
-    def total_product_count(self):
+    def total_product_count(self) -> int:
         """하위 카테고리를 포함한 전체 상품 수"""
         return self.get_all_products().count()
 
@@ -174,36 +182,36 @@ class Product(models.Model):
             models.Index(fields=["price"]),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         if not self.slug:
             self.slug = slugify(self.name, allow_unicode=True)
         super().save(*args, **kwargs)
 
     @property
-    def is_on_sale(self):
+    def is_on_sale(self) -> bool:
         """할인 중인지 확인"""
         return self.compare_price and self.compare_price > self.price
 
     @property
-    def discount_percentage(self):
+    def discount_percentage(self) -> int:
         """할인율 계산"""
         if self.is_on_sale:
             return int((1 - self.price / self.compare_price) * 100)
         return 0
 
     @property
-    def is_in_stock(self):
+    def is_in_stock(self) -> bool:
         """재고 있는지 확인"""
         return self.stock > 0 and self.is_available
 
-    def can_purchase(self, quantity):
+    def can_purchase(self, quantity: int) -> bool:
         """구매 가능한지 확인"""
         return self.is_in_stock and self.stock >= quantity
 
-    def decrease_stock(self, quantity):
+    def decrease_stock(self, quantity: int) -> bool:
         """재고 차감"""
         if self.can_purchase(quantity):
             self.stock -= quantity
@@ -213,29 +221,29 @@ class Product(models.Model):
         return False
 
     # 찜하기 관련 메서드
-    def get_wishlist_count(self):
+    def get_wishlist_count(self) -> int:
         """이 상품을 찜한 사용자 수 반환"""
         return self.wished_by_users.count()
 
-    def is_wished_by(self, user):
+    def is_wished_by(self, user: User | None) -> bool:
         """특정 사용자가 이 상품을 찜했는지 확인"""
         if not user or not user.is_authenticated:
             return False
         return self.wished_by_users.filter(id=user.id).exists()
 
-    def get_wishlist_users(self):
+    def get_wishlist_users(self) -> QuerySet[User]:
         """이 상품을 찜한 사용자 목록 반환"""
         return self.wished_by_users.all()
 
     # ProductListSerializer나 ProductDetailSerializer에서 사용할 수 있는
     # 추가 property
     @property
-    def wishlist_count(self):
+    def wishlist_count(self) -> int:
         """찜 개수를 property로 제공"""
         return self.get_wishlist_count()
 
     # Admin이나 템플릿에서 표시용
-    def wishlist_count_display(self):
+    def wishlist_count_display(self) -> str:
         """찜 개수를 포맷팅해서 반환"""
         count = self.get_wishlist_count()
         if count == 0:
@@ -270,10 +278,10 @@ class ProductImage(models.Model):
         verbose_name_plural = "상품 이미지"
         ordering = ["order", "created_at"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.product.name} - 이미지 {self.order}"
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         # 대표 이미지는 1개만
         if self.is_primary:
             ProductImage.objects.filter(product=self.product, is_primary=True).exclude(pk=self.pk).update(is_primary=False)
@@ -297,5 +305,5 @@ class ProductReview(models.Model):
         # 한 상품에 한 사용자는 하나의 리뷰만 가능
         unique_together = ["product", "user"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.product.name} - {self.user.username}의 리뷰"

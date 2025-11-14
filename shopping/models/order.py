@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from decimal import Decimal
+from typing import Any
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
@@ -151,11 +154,11 @@ class Order(models.Model):
         verbose_name_plural = "주문 목록"
         ordering = ["-created_at"]  # 최신 주문이 먼저 나오도록
 
-    def __str__(self):
+    def __str__(self) -> str:
         # 주문번호는 pk에 날짜를 조합해서 표시
         return f'주문#{self.pk} - {self.user.username if self.user else "비회원"}'
 
-    def calcultate_total_amount(self):
+    def calcultate_total_amount(self) -> Decimal:
         """
         주문에 포함된 모든 상품의 총액을 계산
         - OrderItem들의 subtotal을 모두 더함
@@ -165,7 +168,7 @@ class Order(models.Model):
             total += item.get_subtotal()
         return total
 
-    def update_total_amount(self):
+    def update_total_amount(self) -> None:
         """총액을 계산해서 저장"""
         self.total_amount = self.calcultate_total_amount()
 
@@ -176,18 +179,18 @@ class Order(models.Model):
         self.final_amount = max(Decimal("0"), total_with_shipping - Decimal(str(self.used_points)))
         self.save(update_fields=["total_amount", "final_amount"])
 
-    def calcultate_final_amount(self):
+    def calcultate_final_amount(self) -> Decimal:
         """포인트 차감 후 최종 결제 금액 계산"""
         return max(Decimal("0"), self.total_amount - Decimal(str(self.used_points)))
 
-    def calculate_earned_points(self):
+    def calculate_earned_points(self) -> int:
         """적립 예정 포인트 계산 (실제 결제 금액의 1%)"""
         # 포인트로만 결제한 경우 적립 없음
         if self.final_amount <= 0:
             return 0
         return int(self.final_amount * Decimal("0.01"))
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         """
         주문 생성시 자동으로 주문번호 생성
         형식: YYYYMMDD + 6자리 ID
@@ -207,21 +210,21 @@ class Order(models.Model):
             super().save(*args, **kwargs)
 
     @property
-    def get_full_shipping_address(self):
+    def get_full_shipping_address(self) -> str:
         """전체 배송 주소 반환"""
         return f"{self.shipping_address} {self.shipping_address_detail}"
 
     @property
-    def is_paid(self):
+    def is_paid(self) -> bool:
         """결제 완료 여부"""
         return self.status in ["paid", "preparing", "shipped", "delivered"]
 
     @property
-    def can_cancel(self):
+    def can_cancel(self) -> bool:
         """취소 가능 여부"""
         return self.status in ["pending", "paid"]
 
-    def calcultate_shipping_fee(self, is_remote_area=False):
+    def calcultate_shipping_fee(self, is_remote_area: bool = False) -> tuple[Decimal, Decimal, bool]:
         """
         배송비 계산
 
@@ -252,7 +255,7 @@ class Order(models.Model):
         additional_fee = REMOTE_AREA_FEE if is_remote_area else Decimal("0")
         return DEFAULT_SHIPPING_FEE, additional_fee, False
 
-    def apply_shipping_fee(self, is_remote_area=False):
+    def apply_shipping_fee(self, is_remote_area: bool = False) -> None:
         """
         배송비를 적용하고 최종 금액 재계산
 
@@ -280,7 +283,7 @@ class Order(models.Model):
             ]
         )
 
-    def get_total_shipping_fee(self):
+    def get_total_shipping_fee(self) -> Decimal:
         """전체 배송비 반환 (기본 + 추가)"""
         return self.shipping_fee + self.additional_shipping_fee
 
@@ -327,14 +330,14 @@ class OrderItem(models.Model):
         verbose_name = "주문 상품"
         verbose_name_plural = "주문 상품 목록"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.product_name} x {self.quantity}개"
 
-    def get_subtotal(self):
+    def get_subtotal(self) -> Decimal:
         """해당 상품의 소계 계산 (단가 x 수량)"""
         return self.price * self.quantity
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         """
         저장 시 자동 처리:
         1. product_name이 없으면 현재 상품명으로 설정
@@ -352,9 +355,10 @@ class OrderItem(models.Model):
         if self.order:
             self.order.update_total_amount()
 
-    def delete(self, *args, **kwargs):
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
         """삭제 시 주문 총액 업데이트"""
         order = self.order
-        super().delete(*args, **kwargs)
+        result = super().delete(*args, **kwargs)
         if order:
             order.update_total_amount()
+        return result

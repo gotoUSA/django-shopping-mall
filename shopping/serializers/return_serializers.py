@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from django.db import transaction
 from django.utils import timezone
 
@@ -24,7 +28,7 @@ class ReturnItemSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "product_name", "product_price", "subtotal"]
 
-    def get_subtotal(self, obj):
+    def get_subtotal(self, obj: ReturnItem) -> str:
         """반품 금액 계산"""
         return obj.get_subtotal()
 
@@ -49,7 +53,7 @@ class ReturnCreateSerializer(serializers.ModelSerializer):
             "exchange_product",
         ]
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """데이터 유효성 검증"""
         request = self.context.get("request")
         order_id = self.context.get("order_id")
@@ -116,7 +120,7 @@ class ReturnCreateSerializer(serializers.ModelSerializer):
         attrs["order"] = order
         return attrs
 
-    def create(self, validated_data):
+    def create(self, validated_data: dict[str, Any]) -> Return:
         """교환/환불 신청 생성"""
         request = self.context.get("request")
         return_items_data = validated_data.pop("return_items", [])
@@ -191,7 +195,7 @@ class ReturnListSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-    def get_item_count(self, obj):
+    def get_item_count(self, obj: Return) -> int:
         """반품 상품 개수"""
         return obj.return_items.count()
 
@@ -252,7 +256,7 @@ class ReturnDetailSerializer(serializers.ModelSerializer):
             "can_update_tracking",
         ]
 
-    def get_order_info(self, obj):
+    def get_order_info(self, obj: Return) -> dict[str, Any]:
         """주문 정보"""
         return {
             "id": obj.order.id,
@@ -261,7 +265,7 @@ class ReturnDetailSerializer(serializers.ModelSerializer):
             "created_at": obj.order.created_at,
         }
 
-    def get_exchange_product_info(self, obj):
+    def get_exchange_product_info(self, obj: Return) -> dict[str, Any] | None:
         """교환 상품 정보"""
         if obj.type != "exchange" or not obj.exchange_product:
             return None
@@ -274,11 +278,11 @@ class ReturnDetailSerializer(serializers.ModelSerializer):
             "stock": product.stock,
         }
 
-    def get_can_cancel(self, obj):
+    def get_can_cancel(self, obj: Return) -> bool:
         """신청 취소 가능 여부"""
         return obj.status == "requested"
 
-    def get_can_update_tracking(self, obj):
+    def get_can_update_tracking(self, obj: Return) -> bool:
         """송장번호 입력 가능 여부"""
         return obj.status == "approved"
 
@@ -293,7 +297,7 @@ class ReturnUpdateSerializer(serializers.ModelSerializer):
             "return_tracking_number",
         ]
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """송장번호 입력 가능 상태인지 확인"""
         if self.instance.status != "approved":
             raise serializers.ValidationError("승인된 신청만 송장번호를 입력할 수 있습니다.")
@@ -303,7 +307,7 @@ class ReturnUpdateSerializer(serializers.ModelSerializer):
 
         return attrs
 
-    def update(self, instance, validated_data):
+    def update(self, instance: Return, validated_data: dict[str, Any]) -> Return:
         """송장번호 업데이트 및 상태 변경"""
         instance.return_shipping_company = validated_data["return_shipping_company"]
         instance.return_tracking_number = validated_data["return_tracking_number"]
@@ -332,6 +336,7 @@ class ReturnUpdateSerializer(serializers.ModelSerializer):
                     "tracking_number": instance.return_tracking_number,
                 },
             )
+        return instance
 
 
 class ReturnApproveSerializer(serializers.Serializer):
@@ -339,7 +344,7 @@ class ReturnApproveSerializer(serializers.Serializer):
 
     admin_memo = serializers.CharField(required=False, allow_blank=True, help_text="관리자 메모")
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """승인 가능 상태인지 확인"""
         return_obj = self.context.get("return_obj")
 
@@ -348,7 +353,7 @@ class ReturnApproveSerializer(serializers.Serializer):
 
         return attrs
 
-    def save(self):
+    def save(self) -> Return:
         """승인 처리"""
         return_obj = self.context.get("return_obj")
         admin_memo = self.validated_data.get("admin_memo", "")
@@ -365,7 +370,7 @@ class ReturnRejectSerializer(serializers.Serializer):
 
     rejected_reason = serializers.CharField(required=True, help_text="거부 사유")
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """거부 가능 상태인지 확인"""
         return_obj = self.context.get("return_obj")
 
@@ -374,7 +379,7 @@ class ReturnRejectSerializer(serializers.Serializer):
 
         return attrs
 
-    def save(self):
+    def save(self) -> Return:
         """거부 처리"""
         return_obj = self.context.get("return_obj")
         rejected_reason = self.validated_data["rejected_reason"]
@@ -386,7 +391,7 @@ class ReturnRejectSerializer(serializers.Serializer):
 class ReturnConfirmReceiveSerializer(serializers.Serializer):
     """반품 도착 확인 Serializer (판매자)"""
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """수령 확인 가능 상태인지 확인"""
         return_obj = self.context.get("return_obj")
 
@@ -395,7 +400,7 @@ class ReturnConfirmReceiveSerializer(serializers.Serializer):
 
         return attrs
 
-    def save(self):
+    def save(self) -> Return:
         """수령 확인 처리"""
         return_obj = self.context.get("return_obj")
         return_obj.confirm_receive()
@@ -413,7 +418,7 @@ class ReturnCompleteSerializer(serializers.Serializer):
         required=False, allow_blank=True, help_text="교환 상품 택배사 (교환인 경우 필수)"
     )
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """완료 처리 가능 상태인지 확인"""
         return_obj = self.context.get("return_obj")
 
@@ -427,7 +432,7 @@ class ReturnCompleteSerializer(serializers.Serializer):
 
         return attrs
 
-    def save(self):
+    def save(self) -> Return:
         """완료 처리 (환불 또는 교환)"""
         return_obj = self.context.get("return_obj")
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import timedelta
 
 from django.db.models import Count, Sum
@@ -5,6 +7,7 @@ from django.utils import timezone
 
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -19,7 +22,7 @@ class MyPointView(APIView):
     GET /api/points/my/
     """
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         """내 포인트 현황 조회"""
         user = request.user
         serializer = UserPointSerializer(user)
@@ -41,7 +44,7 @@ class PointHistoryListView(APIView):
 
     permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         """포인트 이력 목록 조회"""
         user = request.user
 
@@ -108,7 +111,7 @@ class PointCheckView(APIView):
 
     permission_classes = [permissions.IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         """
         포인트 사용 가능 여부 확인
 
@@ -143,7 +146,7 @@ class ExpiringPointsView(APIView):
 
     permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         """만료 예정 포인트 조회"""
         user = request.user
         days = int(request.GET.get("days", 30))  # 기본 30일
@@ -186,7 +189,7 @@ class ExpiringPointsView(APIView):
 
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
-def point_statistics(request):
+def point_statistics(request: Request) -> Response:
     """
     포인트 통계 정보
 

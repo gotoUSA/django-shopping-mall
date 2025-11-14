@@ -1,9 +1,15 @@
+from __future__ import annotations
+
 from decimal import Decimal
+from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
+
+if TYPE_CHECKING:
+    from shopping.models.user import User
 
 
 class Cart(models.Model):
@@ -56,11 +62,11 @@ class Cart(models.Model):
             )
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.user.username}의 장바구니 ({"활성" if self.is_active else "비활성"})'
 
     @property
-    def total_amount(self):
+    def total_amount(self) -> Decimal:
         """장바구니 총 금액 계산"""
         total = Decimal("0")
         for item in self.items.all():
@@ -68,21 +74,21 @@ class Cart(models.Model):
         return total
 
     @property
-    def total_quantity(self):
+    def total_quantity(self) -> int:
         """장바구니 총 수량"""
         return sum(item.quantity for item in self.items.all())
 
-    def clear(self):
+    def clear(self) -> None:
         """장바구니 비우기"""
         self.items.all().delete()
 
-    def deactivate(self):
+    def deactivate(self) -> None:
         """장바구니 비활성화 (주문 완료 시)"""
         self.is_active = False
         self.save(update_fields=["is_active"])
 
     @classmethod
-    def get_or_create_active_cart(cls, user):
+    def get_or_create_active_cart(cls, user: User) -> tuple[Cart, bool]:
         """사용자의 활성 장바구니 가져오기 또는 생성"""
         cart, created = cls.objects.get_or_create(user=user, is_active=True, defaults={"user": user})
         return cart, created
@@ -115,20 +121,20 @@ class CartItem(models.Model):
         # 같은 장바구니에 같은 상품은 하나만
         unique_together = ["cart", "product"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.product.name} x {self.quantity}"
 
     @property
-    def subtotal(self):
+    def subtotal(self) -> Decimal:
         """소계 계산 (현재 상품 가격 x 수량)"""
         return self.product.price * self.quantity
 
-    def increase_quantity(self, quantity=1):
+    def increase_quantity(self, quantity: int = 1) -> None:
         """수량 증가"""
         self.quantity += quantity
         self.save(update_fields=["quantity", "updated_at"])
 
-    def decrease_quantity(self, quantity=1):
+    def decrease_quantity(self, quantity: int = 1) -> None:
         """수량 감소"""
         if self.quantity > quantity:
             self.quantity -= quantity
@@ -137,7 +143,7 @@ class CartItem(models.Model):
             # 수량이 0이 되면 삭제
             self.delete()
 
-    def update_quantity(self, quantity):
+    def update_quantity(self, quantity: int) -> None:
         """수량 직접 설정"""
         if quantity > 0:
             # F() 객체 사용하지 않고 직접 값 설정 (이미 lock이 걸려있다고 가정)
@@ -146,18 +152,18 @@ class CartItem(models.Model):
         else:
             self.delete()
 
-    def is_available(self):
+    def is_available(self) -> bool:
         """구매 가능 여부 확인"""
         return self.product.is_active and self.product.stock >= self.quantity
 
-    def clean(self):
+    def clean(self) -> None:
         """유효성 검사"""
         from django.core.exceptions import ValidationError
 
         if self.quantity > self.product.stock:
             raise ValidationError({"quantity": f"재고가 부족합니다. 현재 재고: {self.product.stock}개"})
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         """저장 전 유효성 검사"""
         self.full_clean()
         super().save(*args, **kwargs)

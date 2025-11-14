@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 from decimal import Decimal
+from typing import Any
 
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, QuerySet
 
 from rest_framework import serializers
 
@@ -31,7 +34,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["product_name", "price"]
 
-    def get_subtotal(self, obj):
+    def get_subtotal(self, obj: OrderItem) -> str:
         return str(obj.get_subtotal())
 
 
@@ -59,7 +62,7 @@ class OrderListSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-    def get_total_shipping_fee(self, obj):
+    def get_total_shipping_fee(self, obj: Order) -> str:
         """전체 배송비 반환"""
         return str(obj.get_total_shipping_fee())
 
@@ -102,7 +105,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
-    def get_total_shipping_fee(self, obj):
+    def get_total_shipping_fee(self, obj: Order) -> str:
         """전체 배송비 반환"""
         return str(obj.get_total_shipping_fee())
 
@@ -138,7 +141,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id"]
 
-    def _validate_cart_items(self, cart):
+    def _validate_cart_items(self, cart: Cart) -> QuerySet:
         """
             장바구니 항목 검증 (별도 메서드)
 
@@ -186,7 +189,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
         return cart_items
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """장바구니 검증"""
         user = self.context["request"].user
         use_points = attrs.get("use_points", 0)
@@ -249,7 +252,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         return attrs
 
     @transaction.atomic
-    def create(self, validated_data):
+    def create(self, validated_data: dict[str, Any]) -> Order:
         """
         트랜잭션으로 주문 생성
 
@@ -329,7 +332,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
         return order
 
-    def to_representation(self, instance):
+    def to_representation(self, instance: Order) -> dict[str, Any]:
         """
         생성 응답시 OrderDetailSerializer 사용
         배송비 등 모든 정보를 응답에 포함

@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 from decimal import Decimal
+from typing import Any
 
 from django.db.models import F, Q
 from django.shortcuts import get_object_or_404
 
 from rest_framework import permissions, status
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
@@ -40,12 +44,12 @@ class WishlistViewSet(GenericViewSet):
 
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
+    def get_queryset(self) -> Any:
         """현재 사용자의 찜한 상품 쿼리셋 반환"""
         return self.request.user.wishlist_products.select_related("category").prefetch_related("images")
 
     @action(detail=False, methods=["get"])
-    def list(self, request):
+    def list(self, request: Request) -> Response:
         """
         찜 목록 조회
         GET /api/wishlist/
@@ -81,7 +85,7 @@ class WishlistViewSet(GenericViewSet):
         return Response({"count": queryset.count(), "results": serializer.data})
 
     @action(detail=False, methods=["post"])
-    def toggle(self, request):
+    def toggle(self, request: Request) -> Response:
         """
         찜하기 토글 (추가/제거)
         POST /api/wishlist/toggle/
@@ -132,7 +136,7 @@ class WishlistViewSet(GenericViewSet):
         )
 
     @action(detail=False, methods=["post"])
-    def add(self, request):
+    def add(self, request: Request) -> Response:
         """
         찜 목록에 상품 추가
         POST /api/wishlist/add/
@@ -177,7 +181,7 @@ class WishlistViewSet(GenericViewSet):
         )
 
     @action(detail=False, methods=["delete"])
-    def remove(self, request):
+    def remove(self, request: Request) -> Response:
         """
         찜 목록에서 상품 제거
         DELETE /api/wishlist/remove/?product_id=1
@@ -215,7 +219,7 @@ class WishlistViewSet(GenericViewSet):
         )
 
     @action(detail=False, methods=["post"])
-    def bulk_add(self, request):
+    def bulk_add(self, request: Request) -> Response:
         """
         여러 상품 일괄 찜하기
         POST /api/wishlist/bulk_add/
@@ -276,7 +280,7 @@ class WishlistViewSet(GenericViewSet):
         )
 
     @action(detail=False, methods=["delete"])
-    def clear(self, request):
+    def clear(self, request: Request) -> Response:
         """
         찜 목록 전체 삭제
         DELETE /api/wishlist/clear/?confirm=true
@@ -306,7 +310,7 @@ class WishlistViewSet(GenericViewSet):
         )
 
     @action(detail=False, methods=["get"])
-    def check(self, request):
+    def check(self, request: Request) -> Response:
         """
         특정 상품의 찜 상태 확인
         GET /api/wishlist/check/?product_id=1
@@ -343,7 +347,7 @@ class WishlistViewSet(GenericViewSet):
         )
 
     @action(detail=False, methods=["get"])
-    def stats(self, request):
+    def stats(self, request: Request) -> Response:
         """
         찜 목록 통계 조회
         GET /api/wishlist/stats/
@@ -407,7 +411,7 @@ class WishlistViewSet(GenericViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=["post"])
-    def move_to_cart(self, request):
+    def move_to_cart(self, request: Request) -> Response:
         """
         찜 목록에서 장바구니로 이동
         POST /api/wishlist/move_to_cart/

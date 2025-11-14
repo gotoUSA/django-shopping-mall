@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import logging
 from datetime import timedelta
+from typing import Any
 
+from celery import Task, shared_task
 from django.utils import timezone
-
-from celery import shared_task
 
 from shopping.models.email_verification import EmailLog, EmailVerificationToken
 from shopping.models.user import User
@@ -12,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True)
-def delete_unverified_users_task(self, days=7):
+def delete_unverified_users_task(self: Task, days: int = 7) -> dict[str, Any]:
     """
     미인증 계정 자동 삭제 태스크
 
@@ -86,7 +88,7 @@ def delete_unverified_users_task(self, days=7):
 
 
 @shared_task(bind=True)
-def cleanup_old_email_logs_task(self, days=90):
+def cleanup_old_email_logs_task(self: Task, days: int = 90) -> dict[str, Any]:
     """
     오래된 이메일 로그 정리 태스크
 
@@ -149,7 +151,7 @@ def cleanup_old_email_logs_task(self, days=90):
 
 
 @shared_task(bind=True)
-def cleanup_used_tokens_task(self, days=30):
+def cleanup_used_tokens_task(self: Task, days: int = 30) -> dict[str, Any]:
     """
     사용된 인증 토큰 정리 태스크
 
@@ -202,7 +204,7 @@ def cleanup_used_tokens_task(self, days=30):
 
 
 @shared_task(bind=True)
-def cleanup_expired_tokens_task(self):
+def cleanup_expired_tokens_task(self: Task) -> dict[str, Any]:
     """
     만료된 미사용 토큰 정리 태스크
 

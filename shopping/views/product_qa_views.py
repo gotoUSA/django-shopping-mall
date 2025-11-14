@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
@@ -5,7 +9,9 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer
 
 from ..models.product import Product
 from ..models.product_qa import ProductQuestion
@@ -38,7 +44,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     pagination_class = ProductQuestionPagination
 
-    def get_queryset(self):
+    def get_queryset(self) -> Any:
         """
         상품별 문의 목록 조회
 
@@ -69,7 +75,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         # 일반 사용자: 비밀글 아닌 것 OR 내가 작성한 것 OR 내가 판매자인 것
         return queryset.filter(Q(is_secret=False) | Q(user=user) | Q(product__seller=user))
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> type[BaseSerializer]:
         """액션에 따라 적절한 Serializer 반환"""
         if self.action == "list":
             return ProductQuestionListSerializer
@@ -81,7 +87,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
             return ProductQuestionUpdateSerializer
         return ProductQuestionDetailSerializer
 
-    def create(self, request, *args, **kwargs):
+    def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """문의 작성"""
         if not request.user.is_authenticated:
             return Response({"error": "로그인이 필요합니다."}, status=status.HTTP_401_UNAUTHORIZED)
@@ -100,7 +106,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def retrieve(self, request, *args, **kwargs):
+    def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """문의 상세 조회"""
         question = self.get_object()
 
@@ -110,7 +116,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(question)
         return Response(serializer.data)
 
-    def update(self, request, *args, **kwargs):
+    def update(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """문의 수정 (작성자만)"""
         question = self.get_object()
 
@@ -125,7 +131,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
 
         return super().update(request, *args, **kwargs)
 
-    def destroy(self, request, *args, **kwargs):
+    def destroy(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """문의 삭제 (작성자만)"""
         question = self.get_object()
 
@@ -141,7 +147,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
-    def answer(self, request, pk=None, product_pk=None):
+    def answer(self, request: Request, pk: int | None = None, product_pk: int | None = None) -> Response:
         """
         답변 작성
         POST /api/products/{product_id}/questions/{id}/answer/
@@ -179,7 +185,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=["patch"], permission_classes=[permissions.IsAuthenticated])
-    def update_answer(self, request, pk=None, product_pk=None):
+    def update_answer(self, request: Request, pk: int | None = None, product_pk: int | None = None) -> Response:
         """
         답변 수정
         PATCH /api/products/{product_id}/questions/{id}/update_answer/
@@ -214,7 +220,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         methods=["delete"],
         permission_classes=[permissions.IsAuthenticated],
     )
-    def delete_answer(self, request, pk=None, product_pk=None):
+    def delete_answer(self, request: Request, pk: int | None = None, product_pk: int | None = None) -> Response:
         """
         답변 삭제
         DELETE /api/products/{product_id}/questions/{id}/delete_answer/
@@ -254,7 +260,7 @@ class MyQuestionViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = ProductQuestionPagination
 
-    def get_queryset(self):
+    def get_queryset(self) -> Any:
         """현재 사용자가 작성한 문의만 조회"""
         return (
             ProductQuestion.objects.filter(user=self.request.user)

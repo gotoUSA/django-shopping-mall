@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from django.contrib.auth import get_user_model
 
 from rest_framework import serializers
@@ -50,14 +54,14 @@ class ProductQuestionListSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-    def get_can_view(self, obj):
+    def get_can_view(self, obj: ProductQuestion) -> bool:
         """현재 사용자가 볼 수 있는지"""
         request = self.context.get("request")
         if not request:
             return False
         return obj.can_view(request.user)
 
-    def get_display_title(self, obj):
+    def get_display_title(self, obj: ProductQuestion) -> str:
         """비밀글인 경우 제목 마스킹"""
         request = self.context.get("request")
         if not request:
@@ -68,7 +72,7 @@ class ProductQuestionListSerializer(serializers.ModelSerializer):
         # 만약 비밀글이고 볼 수 없다면 애초에 queryset에 포함되지 않음
         return obj.title
 
-    def get_display_content(self, obj):
+    def get_display_content(self, obj: ProductQuestion) -> str:
         """비밀글인 경우 내용 마스킹"""
         request = self.context.get("request")
         if not request:
@@ -113,14 +117,14 @@ class ProductQuestionDetailSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["user", "is_answered", "created_at", "updated_at"]
 
-    def get_can_edit(self, obj):
+    def get_can_edit(self, obj: ProductQuestion) -> bool:
         """작성자만 수정 가능"""
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
             return False
         return obj.user == request.user
 
-    def get_can_answer(self, obj):
+    def get_can_answer(self, obj: ProductQuestion) -> bool:
         """판매자만 답변 가능"""
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
@@ -140,13 +144,13 @@ class ProductQuestionCreateSerializer(serializers.ModelSerializer):
             "is_secret",
         ]
 
-    def validate_title(self, value):
+    def validate_title(self, value: str) -> str:
         """제목 유효성 검증"""
         if len(value.strip()) < 2:
             raise serializers.ValidationError("제목은 최소 2자 이상이어야 합니다.")
         return value.strip()
 
-    def validate_content(self, value):
+    def validate_content(self, value: str) -> str:
         """내용 유효성 검증"""
         if len(value.strip()) < 5:
             raise serializers.ValidationError("내용은 최소 5자 이상이어야 합니다.")
@@ -160,13 +164,13 @@ class ProductQuestionUpdateSerializer(serializers.ModelSerializer):
         model = ProductQuestion
         fields = ["title", "content", "is_secret"]
 
-    def validate_title(self, value):
+    def validate_title(self, value: str) -> str:
         """제목 유효성 검증"""
         if len(value.strip()) < 2:
             raise serializers.ValidationError("제목은 최소 2자 이상이어야 합니다.")
         return value.strip()
 
-    def validate_content(self, value):
+    def validate_content(self, value: str) -> str:
         """내용 유효성 검증"""
         if len(value.strip()) < 5:
             raise serializers.ValidationError("내용은 최소 5자 이상이어야 합니다.")
@@ -180,7 +184,7 @@ class ProductAnswerCreateSerializer(serializers.ModelSerializer):
         model = ProductAnswer
         fields = ["content"]
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """답변 작성 권한 확인"""
         request = self.context.get("request")
         question = self.context.get("question")
@@ -196,7 +200,7 @@ class ProductAnswerCreateSerializer(serializers.ModelSerializer):
 
         return attrs
 
-    def create(self, validated_data):
+    def create(self, validated_data: dict[str, Any]) -> ProductAnswer:
         """답변 생성"""
         question = self.context["question"]
         user = self.context["request"].user

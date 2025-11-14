@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from decimal import Decimal
+from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
@@ -7,6 +10,9 @@ from django.utils import timezone
 
 from .order import Order, OrderItem
 from .product import Product
+
+if TYPE_CHECKING:
+    from shopping.models.user import User
 
 
 class Return(models.Model):
@@ -218,10 +224,10 @@ class Return(models.Model):
             models.Index(fields=["status"]),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.get_type_display()} - {self.return_number}"
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         """
         저장 시 자동 처리:
         1. return_number가 없으면 자동 생성
@@ -237,7 +243,7 @@ class Return(models.Model):
 
         super().save(*args, **kwargs)
 
-    def generate_return_number(self):
+    def generate_return_number(self) -> str:
         """
         교환/환불 번호 자동 생성
         형식: RET + YYYYMMDD + 일련번호(3자리)
@@ -262,7 +268,7 @@ class Return(models.Model):
 
         return f"{prefix}{new_number:03d}"
 
-    def calculate_refund_amount(self):
+    def calculate_refund_amount(self) -> Decimal:
         """
         환불 금액 계산
 
@@ -274,7 +280,7 @@ class Return(models.Model):
             total += item.product_price * item.quantity
         return total
 
-    def can_request(self):
+    def can_request(self) -> tuple[bool, str]:
         """
         교환/환불 신청 가능 여부 확인
 
@@ -304,7 +310,7 @@ class Return(models.Model):
 
         return True, "신청 가능"
 
-    def approve(self, admin_user=None):
+    def approve(self, admin_user: User | None = None) -> None:
         """
         판매자 승인 처리
 
@@ -329,7 +335,7 @@ class Return(models.Model):
             metadata={"return_id": self.id, "return_number": self.return_number},
         )
 
-    def reject(self, reason):
+    def reject(self, reason: str) -> None:
         """
         판매자 거부 처리
 
@@ -354,7 +360,7 @@ class Return(models.Model):
             metadata={"return_id": self.id, "return_number": self.return_number, "reason": reason},
         )
 
-    def confirm_receive(self):
+    def confirm_receive(self) -> None:
         """
         반품 도착 확인 (판매자)
 
@@ -377,7 +383,7 @@ class Return(models.Model):
             metadata={"return_id": self.id, "return_number": self.return_number},
         )
 
-    def complete_refund(self):
+    def complete_refund(self) -> None:
         """
         환불 완료 처리
 
@@ -456,7 +462,7 @@ class Return(models.Model):
             },
         )
 
-    def complete_exchange(self):
+    def complete_exchange(self) -> None:
         """
         교환 완료 처리
 
@@ -559,10 +565,10 @@ class ReturnItem(models.Model):
         # 같은 주문 상품을 중복으로 반품할 수 없음
         unique_together = [["return_request", "order_item"]]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.product_name} x {self.quantity}개"
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         """
         저장 시 자동 처리:
         1. product_name이 없으면 order_item에서 가져오기
@@ -576,11 +582,11 @@ class ReturnItem(models.Model):
 
         super().save(*args, **kwargs)
 
-    def get_subtotal(self):
+    def get_subtotal(self) -> Decimal:
         """해당 상품의 반품 금액 계산"""
         return self.product_price * self.quantity
 
-    def clean(self):
+    def clean(self) -> None:
         """
         데이터 유효성 검증
 

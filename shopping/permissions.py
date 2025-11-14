@@ -1,7 +1,14 @@
 # 판매자 권한 관련 커스텀 권한 클래스를 정의합니다.
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from rest_framework import permissions
+
+if TYPE_CHECKING:
+    from rest_framework.request import Request
+    from rest_framework.views import APIView
 
 
 class IsSeller(permissions.BasePermission):
@@ -17,7 +24,7 @@ class IsSeller(permissions.BasePermission):
 
     message = "판매자만 접근 가능합니다."
 
-    def has_permission(self, request, view):
+    def has_permission(self, request: Request, view: APIView) -> bool:
         """
         요청 레벨 권한 체크
 
@@ -49,7 +56,7 @@ class IsSellerAndOwner(permissions.BasePermission):
 
     message = "본인이 등록한 상품만 수정/삭제할 수 있습니다."
 
-    def has_permission(self, request, view):
+    def has_permission(self, request: Request, view: APIView) -> bool:
         """
         요청 레벨 권한 체크 - 판매자 여부만 확인
 
@@ -67,7 +74,7 @@ class IsSellerAndOwner(permissions.BasePermission):
         # 쓰기 요청은 판매자만
         return request.user and request.user.is_authenticated and request.user.is_seller
 
-    def has_object_permission(self, request, view, obj):
+    def has_object_permission(self, request: Request, view: APIView, obj: Any) -> bool:
         """
         객체 레벨 권한 체크 - 본인 상품인지 확인
 
@@ -102,7 +109,7 @@ class IsSellerAndProductOwner(permissions.BasePermission):
 
     message = "해당 상품의 판매자만 접근 가능합니다."
 
-    def has_permission(self, request, view):
+    def has_permission(self, request: Request, view: APIView) -> bool:
         """
         요청 레벨 권한 체크 - 판매자 여부만 확인
 
@@ -115,7 +122,7 @@ class IsSellerAndProductOwner(permissions.BasePermission):
         """
         return request.user and request.user.is_authenticated and request.user.is_seller
 
-    def has_permission_for_product(self, request, product):
+    def has_permission_for_product(self, request: Request, product: Any) -> bool:
         """
         특정 상품에 대한 권한 체크
 
@@ -143,7 +150,7 @@ class IsSellerOrReadOnly(permissions.BasePermission):
 
     message = "판매자만 상품을 등록/수정/삭제할 수 있습니다."
 
-    def has_permission(self, request, view):
+    def has_permission(self, request: Request, view: APIView) -> bool:
         """
         요청 레벨 권한 체크
 

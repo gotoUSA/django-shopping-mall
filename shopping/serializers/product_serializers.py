@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import decimal
+from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.db.models import Avg
@@ -75,7 +78,7 @@ class ProductListSerializer(serializers.ModelSerializer):
         # 읽기 전용 필드 지정 (API로 수정 불가)
         read_only_fields = ["created_at", "slug"]
 
-    def get_thumbnail_image(self, obj):
+    def get_thumbnail_image(self, obj: Product) -> str | None:
         """
         상품의 대표 이미지 URL을 반환합니다.
 
@@ -99,7 +102,7 @@ class ProductListSerializer(serializers.ModelSerializer):
         # 이미지가 없으면 None 반환 (프론드엔드에서 기본 이미지 처리)
         return None
 
-    def get_average_rating(self, obj):
+    def get_average_rating(self, obj: Product) -> float:
         """
         상품의 평균 평점을 계산합니다.
 
@@ -111,14 +114,14 @@ class ProductListSerializer(serializers.ModelSerializer):
         # 리뷰가 없으면 0.0 반환, 있으면 소수점 1자리로 반올림
         return round(avg_rating, 1) if avg_rating else 0.0
 
-    def get_review_count(self, obj):
+    def get_review_count(self, obj: Product) -> int:
         """
         상품의 리뷰 개수를 반환합니다.
         """
         # count() 메서드로 리뷰 개수 계산
         return obj.reviews.count()
 
-    def get_discounted_price(self, obj):
+    def get_discounted_price(self, obj: Product) -> str:
         """
         할인가를 반환합니다.
 
@@ -127,7 +130,7 @@ class ProductListSerializer(serializers.ModelSerializer):
         # 현재는 원가 그대로 반환
         return str(obj.price)
 
-    def get_stock_status(self, obj):
+    def get_stock_status(self, obj: Product) -> str:
         """
         재고 상태를 한글로 표시합니다.
 
@@ -141,11 +144,11 @@ class ProductListSerializer(serializers.ModelSerializer):
         else:
             return "충분"
 
-    def get_wishlist_count(self, obj):
+    def get_wishlist_count(self, obj: Product) -> int:
         """찜한 사용자 수"""
         return obj.get_wishlist_count()
 
-    def get_is_wished(self, obj):
+    def get_is_wished(self, obj: Product) -> bool:
         """현재 사용자가 찜했는지 여부"""
         request = self.context.get("request")
         if request and request.user.is_authenticated:
@@ -162,7 +165,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
         model = ProductImage
         fields = ["id", "image", "image_url", "alt_text", "order", "is_primary"]
 
-    def get_image_url(self, obj):
+    def get_image_url(self, obj: ProductImage) -> str | None:
         request = self.context.get("request")
         if obj.image and request:
             return request.build_absolute_uri(obj.image.url)
@@ -185,7 +188,7 @@ class ProductReviewSerializer(serializers.ModelSerializer):
             "created_at_formatted",
         ]
 
-    def get_user_display_name(self, obj):
+    def get_user_display_name(self, obj: ProductReview) -> str:
         username = obj.user.username
         if len(username) <= 2:
             return username[0] + "*"
@@ -251,18 +254,18 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["slug", "created_at", "updated_at"]
 
-    def get_seller_product_count(self, obj):
+    def get_seller_product_count(self, obj: Product) -> int:
         """판매자의 상품 수를 반환"""
         if obj.seller:
             return obj.seller.products.filter(is_active=True).count()
         return 0
 
-    def get_recent_reviews(self, obj):
+    def get_recent_reviews(self, obj: Product) -> list[dict[str, Any]]:
         """최근 리뷰 10개 반환"""
         recent_reivews = obj.reviews.all().order_by("-created_at")[:10]
         return ProductReviewSerializer(recent_reivews, many=True, context=self.context).data
 
-    def get_average_rating(self, obj):
+    def get_average_rating(self, obj: Product) -> float:
         """평균 평점 계산"""
         reviews = obj.reviews.all()
         if reviews.exists():
@@ -270,7 +273,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             return round(avg, 1)
         return 0.0
 
-    def get_stock_status(self, obj):
+    def get_stock_status(self, obj: Product) -> str:
         """재고 상태 한글 표시"""
         if obj.stock == 0:
             return "품절"
@@ -278,7 +281,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             return "재고 부족"
         return "재고 충분"
 
-    def get_is_in_stock(self, obj):
+    def get_is_in_stock(self, obj: Product) -> bool:
         """재고 여부"""
         return obj.stock > 0
 
@@ -372,7 +375,7 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         # 필수 필드 명시 (모델과 동일하게)
         required_fields = ["name", "category", "description", "price", "sku"]
 
-    def validate_sku(self, value):
+    def validate_sku(self, value: str) -> str:
         """
         SKU 중복 검증
 
@@ -390,7 +393,7 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
 
         return value
 
-    def validate_slug(self, value):
+    def validate_slug(self, value: str) -> str:
         """
         Slug 중복 검증 (입력된 경우만)
         """
@@ -406,7 +409,7 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
 
         return value
 
-    def validate_compare_price(self, value):
+    def validate_compare_price(self, value: decimal.Decimal | None) -> decimal.Decimal | None:
         """
         할인 전 가격 검증
 
@@ -427,7 +430,7 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
 
         return value
 
-    def validate_stock(self, value):
+    def validate_stock(self, value: int) -> int:
         """
         재고 수량 검증
         """
@@ -436,7 +439,7 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
 
         return value
 
-    def validate_tags(self, value):
+    def validate_tags(self, value: str) -> str:
         """
         태그 형식 검증 및 정규화
 
@@ -464,7 +467,7 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
 
         return value
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """
         전체 데이터 검증
 
@@ -481,7 +484,7 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
 
         return attrs
 
-    def create(self, validated_data):
+    def create(self, validated_data: dict[str, Any]) -> Product:
         """
         상품 생성
 
@@ -490,7 +493,7 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         """
         return Product.objects.create(**validated_data)
 
-    def update(self, instance, validated_data):
+    def update(self, instance: Product, validated_data: dict[str, Any]) -> Product:
         """
         상품 수정
 
@@ -504,7 +507,7 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-    def to_representation(self, instance):
+    def to_representation(self, instance: Product) -> dict[str, Any]:
         """
         응답 시 추가 정보 포함
 

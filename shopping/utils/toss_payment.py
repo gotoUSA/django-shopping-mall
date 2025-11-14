@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import base64
 import hashlib
 import hmac
 import json
-from typing import Dict, Optional
+from typing import Any
 
 from django.conf import settings
 
@@ -16,26 +18,26 @@ class TossPaymentClient:
     공식 문서: https://docs.tosspayments.com/reference
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         초기화
         settings.py에서 키 정보를 가져옵니다.
         """
-        self.secret_key = settings.TOSS_SECRET_KEY
-        self.client_key = settings.TOSS_CLIENT_KEY
-        self.base_url = settings.TOSS_BASE_URL
+        self.secret_key: str = settings.TOSS_SECRET_KEY
+        self.client_key: str = settings.TOSS_CLIENT_KEY
+        self.base_url: str = settings.TOSS_BASE_URL
 
         # Basic Auth 헤더 생성
         # 시크릿 키 뒤에 콜론(:)을 붙이고 Base64로 인코딩
         credentials = f"{self.secret_key}:"
         encoded_credentials = base64.b64encode(credentials.encode()).decode()
 
-        self.headers = {
+        self.headers: dict[str, str] = {
             "Authorization": f"Basic {encoded_credentials}",
             "Content-Type": "application/json",
         }
 
-    def confirm_payment(self, payment_key: str, order_id: str, amount: int) -> Dict:
+    def confirm_payment(self, payment_key: str, order_id: str, amount: int) -> dict[str, Any]:
         """
         결제 승인 요청
 
@@ -91,9 +93,9 @@ class TossPaymentClient:
         self,
         payment_key: str,
         cancel_reason: str,
-        cancel_amount: Optional[int] = None,
-        refund_account: Optional[Dict] = None,
-    ) -> Dict:
+        cancel_amount: int | None = None,
+        refund_account: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         결제 취소 요청
 
@@ -143,7 +145,7 @@ class TossPaymentClient:
                 status_code=500,
             )
 
-    def get_payment(self, payment_key: str) -> Dict:
+    def get_payment(self, payment_key: str) -> dict[str, Any]:
         """
         결제 정보 조회
 
@@ -175,7 +177,7 @@ class TossPaymentClient:
                 status_code=500,
             )
 
-    def verify_webhook(self, webhook_data: Dict, signature: str) -> bool:
+    def verify_webhook(self, webhook_data: dict[str, Any], signature: str) -> bool:
         """
         웹훅 서명 검증
 
@@ -200,7 +202,7 @@ class TossPaymentClient:
         # 서명 비교 (타이밍 공격 방지를 위해 hmac.compare_digest 사용)
         return hmac.compare_digest(signature, expected_signature)
 
-    def create_billing_key(self, customer_key: str, auth_key: str) -> Dict:
+    def create_billing_key(self, customer_key: str, auth_key: str) -> dict[str, Any]:
         """
         빌링키 지급 (정기 결제용)
 
@@ -251,13 +253,13 @@ class TossPaymentError(Exception):
     토스페이먼츠 API 에러
     """
 
-    def __init__(self, code: str, message: str, status_code: int = 400):
-        self.code = code
-        self.message = message
-        self.status_code = status_code
+    def __init__(self, code: str, message: str, status_code: int = 400) -> None:
+        self.code: str = code
+        self.message: str = message
+        self.status_code: int = status_code
         super().__init__(self.message)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, str | int]:
         """에러를 딕셔너리로 변환"""
         return {
             "code": self.code,
@@ -267,7 +269,7 @@ class TossPaymentError(Exception):
 
 
 # 토스페이먼츠 에러 코드 매핑 (주요 에러만)
-TOSS_ERROR_MESSAGES = {
+TOSS_ERROR_MESSAGES: dict[str, str] = {
     "ALREADY_PROCESSED_PAYMENT": "이미 처리된 결제입니다.",
     "PROVIDER_ERROR": "결제 승인에 실패했습니다.",
     "EXCEED_MAX_CARD_INSTALLMENT_PLAN": "설정한 최대 할부 개월 수를 초과했습니다.",

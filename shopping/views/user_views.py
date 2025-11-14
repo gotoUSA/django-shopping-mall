@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from django.contrib.auth import update_session_auth_hash
 from django.db import transaction
 from django.utils import timezone
@@ -5,6 +7,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
@@ -21,12 +24,12 @@ class ProfileView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         """프로필 조회"""
         serializer = UserSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def put(self, request):
+    def put(self, request: Request) -> Response:
         """프로필 전체 수정"""
         serializer = UserSerializer(request.user, data=request.data, partial=False)
 
@@ -39,7 +42,7 @@ class ProfileView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def patch(self, request):
+    def patch(self, request: Request) -> Response:
         """프로필 부분 수정"""
         serializer = UserSerializer(request.user, data=request.data, partial=True)
 
@@ -61,7 +64,7 @@ class PasswordChangeView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = PasswordChangeSerializer(data=request.data, context={"request": request})
 
         if serializer.is_valid():
@@ -77,7 +80,7 @@ class PasswordChangeView(APIView):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def withdraw(request):
+def withdraw(request: Request) -> Response:
     """
     회원 탈퇴 API
     - POST: 비밀번호 확인 후 탈퇴 처리

@@ -1,7 +1,13 @@
+from __future__ import annotations
+
+from typing import Any
+
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer
 
 from shopping.models import Return
 from shopping.serializers.return_serializers import (
@@ -37,7 +43,7 @@ class ReturnViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Return.objects.all()
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> type[BaseSerializer]:
         """액션별 Serializer 선택"""
         if self.action == "create":
             return ReturnCreateSerializer
@@ -57,7 +63,7 @@ class ReturnViewSet(viewsets.ModelViewSet):
             return ReturnCompleteSerializer
         return ReturnListSerializer
 
-    def get_queryset(self):
+    def get_queryset(self) -> Any:
         """
         현재 사용자의 교환/환불만 조회
 
@@ -93,7 +99,7 @@ class ReturnViewSet(viewsets.ModelViewSet):
 
         return queryset
 
-    def _check_seller_permission(self, return_obj):
+    def _check_seller_permission(self, return_obj: Return) -> tuple[bool, str]:
         """
         판매자 권한 확인 헬퍼 메서드
 
@@ -120,7 +126,7 @@ class ReturnViewSet(viewsets.ModelViewSet):
 
         return True, ""
 
-    def create(self, request, *args, **kwargs):
+    def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """
         교환/환불 신청
 
@@ -142,7 +148,7 @@ class ReturnViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
-    def destroy(self, request, *args, **kwargs):
+    def destroy(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """
         신청 취소
 
@@ -165,7 +171,7 @@ class ReturnViewSet(viewsets.ModelViewSet):
         return Response({"message": "교환/환불 신청이 취소되었습니다."}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], url_path="approve")
-    def approve(self, request, pk=None):
+    def approve(self, request: Request, pk: int | None = None) -> Response:
         """
         승인 (판매자만)
 
@@ -188,7 +194,7 @@ class ReturnViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=["post"], url_path="reject")
-    def reject(self, request, pk=None):
+    def reject(self, request: Request, pk: int | None = None) -> Response:
         """
         거부 (판매자만)
 
@@ -212,7 +218,7 @@ class ReturnViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=["post"], url_path="confirm-receive")
-    def confirm_receive(self, request, pk=None):
+    def confirm_receive(self, request: Request, pk: int | None = None) -> Response:
         """
         반품 도착 확인 (판매자만)
 
@@ -235,7 +241,7 @@ class ReturnViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=["post"], url_path="complete")
-    def complete(self, request, pk=None):
+    def complete(self, request: Request, pk: int | None = None) -> Response:
         """
         완료 처리 (판매자만)
 

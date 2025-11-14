@@ -1,5 +1,12 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from django.conf import settings
 from django.db import models
+
+if TYPE_CHECKING:
+    from shopping.models.user import User
 
 
 class Notification(models.Model):
@@ -61,10 +68,10 @@ class Notification(models.Model):
             models.Index(fields=["user", "is_read"]),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"[{self.get_notification_type_display()}] {self.title}"
 
-    def mark_as_read(self):
+    def mark_as_read(self) -> None:
         """알림을 읽음 처리"""
         from django.utils import timezone
 

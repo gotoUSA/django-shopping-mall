@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -28,7 +32,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
         help_text="응답 메시지",
     )
 
-    def validate_email(self, value):
+    def validate_email(self, value: str) -> str:
         """이메일 검증"""
         # 이메일 형식은 EmailField에서 자동 검증됨
         # 여기서는 추가 검증만 수행
@@ -37,7 +41,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
         # (사용자 정보 노출 방지)
         return value.lower()  # 소문자로 통일
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """전체 검증"""
         email = attrs.get("email")
 
@@ -97,7 +101,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         help_text="응답 메시지",
     )
 
-    def validate_token(self, value):
+    def validate_token(self, value: str) -> str:
         """토큰 검증"""
         try:
             token_obj = PasswordResetToken.objects.get(token=value, is_used=False)
@@ -112,7 +116,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         self.token_obj = token_obj
         return value
 
-    def validate_new_password(self, value):
+    def validate_new_password(self, value: str) -> str:
         """새 비밀번호 검증 (Django 비밀번호 정책 적용)"""
         try:
             validate_password(value)
@@ -121,7 +125,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 
         return value
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """전체 검증"""
         new_password = attrs.get("new_password")
         new_password2 = attrs.get("new_password2")
@@ -132,7 +136,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 
         return attrs
 
-    def save(self):
+    def save(self) -> User:
         """비밀번호 변경 처리"""
         user = self.token_obj.user
         new_password = self.validated_data["new_password"]

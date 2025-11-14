@@ -1,10 +1,16 @@
+from __future__ import annotations
+
+from typing import Any
+
 from django.db.models import Avg, Count, Q
 from django.utils.text import slugify
 
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer, Serializer
 
 # 모델 import
 from shopping.models.product import Category, Product, ProductReview
@@ -84,7 +90,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     ]  # 가격, 등록일, 재고, 이름순 정렬
     ordering = ["-created_at"]  # 기본 정렬: 최신순
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> type[BaseSerializer]:
         """
         액션별 Serializer 선택
 
@@ -102,7 +108,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         # 기본값은 목록용 Serializer
         return ProductListSerializer
 
-    def get_queryset(self):
+    def get_queryset(self) -> Any:
         """
         상품 쿼리셋 조회 및 필터링
 
@@ -172,7 +178,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 
         return queryset
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer: Serializer) -> None:
         """
         상품 생성 시 추가 처리
         POST /api/products/
@@ -200,7 +206,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         # 현재 사용자를 판매자로 설정
         serializer.save(seller=self.request.user)
 
-    def perform_update(self, serializer):
+    def perform_update(self, serializer: Serializer) -> None:
         """
         상품 수정 시 추가 처리
         PUT/PATCH /api/products/{id}/
@@ -228,7 +234,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer.save()
 
     @action(detail=True, methods=["get"])
-    def reviews(self, request, pk=None):
+    def reviews(self, request: Request, pk: int | None = None) -> Response:
         """
         상품 리뷰 목록 조회
         GET /api/products/{id}/reviews/
@@ -257,7 +263,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
-    def add_review(self, request, pk=None):
+    def add_review(self, request: Request, pk: int | None = None) -> Response:
         """
         상품 리뷰 작성
         POST /api/products/{id}/add_review/
@@ -291,7 +297,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=["get"])
-    def popular(self, request):
+    def popular(self, request: Request) -> Response:
         """
         인기 상품 목록 조회
         GET /api/products/popular/
@@ -311,7 +317,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"])
-    def best_rating(self, request):
+    def best_rating(self, request: Request) -> Response:
         """
         평점 높은 상품 목록 조회
         GET /api/products/best_rating/
@@ -332,7 +338,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"])
-    def low_stock(self, request):
+    def low_stock(self, request: Request) -> Response:
         """
         재고 부족 상품 목록 조회 (판매자 전용)
         GET /api/products/low_stock/
@@ -378,7 +384,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.all()
     permission_classes = [permissions.AllowAny]  # 누구나 조회 가능
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> type[BaseSerializer]:
         """
         액션별 Serializer 선택
 
@@ -389,7 +395,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
             return CategoryTreeSerializer
         return CategorySerializer
 
-    def get_queryset(self):
+    def get_queryset(self) -> Any:
         """
         카테고리 쿼리셋 조회
 
@@ -404,7 +410,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
     @action(detail=False, methods=["get"])
-    def tree(self, request):
+    def tree(self, request: Request) -> Response:
         """
         카테고리 계층 구조 조회
         GET /api/categories/tree/
@@ -414,7 +420,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         권한: 누구나 조회 가능
         """
 
-        def build_tree(parent=None):
+        def build_tree(parent: Category | None = None) -> list[dict[str, Any]]:
             """재귀적으로 카테고리 트리 구성"""
             categories = []
             for category in Category.objects.filter(parent=parent, is_active=True):
@@ -432,7 +438,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(tree)
 
     @action(detail=True, methods=["get"])
-    def products(self, request, pk=None):
+    def products(self, request: Request, pk: int | None = None) -> Response:
         """
         카테고리별 상품 목록 조회
         GET /api/categories/{id}/products/

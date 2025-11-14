@@ -1,8 +1,13 @@
+from __future__ import annotations
+
+from typing import Any
+
 from django.utils import timezone
 
 from rest_framework import serializers
 
 from shopping.models.email_verification import EmailLog, EmailVerificationToken
+from shopping.models.user import User
 
 
 class EmailVerificationTokenSerializer(serializers.ModelSerializer):
@@ -15,7 +20,7 @@ class EmailVerificationTokenSerializer(serializers.ModelSerializer):
 
     is_expired = serializers.SerializerMethodField()
 
-    def get_is_expired(self, obj):
+    def get_is_expired(self, obj: EmailVerificationToken) -> bool:
         return obj.is_expired()
 
 
@@ -25,7 +30,7 @@ class SendVerificationEmailSerializer(serializers.Serializer):
     message = serializers.CharField(read_only=True)
     verification_code = serializers.CharField(read_only=True, required=False)
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         request = self.context.get("request")
         user = request.user
 
@@ -48,7 +53,7 @@ class VerifyEmailByTokenSerializer(serializers.Serializer):
     token = serializers.UUIDField(required=True, write_only=True)
     message = serializers.CharField(read_only=True)
 
-    def validate_token(self, value):
+    def validate_token(self, value: str) -> str:
         try:
             token = EmailVerificationToken.objects.get(token=value, is_used=False)
         except EmailVerificationToken.DoesNotExist:
@@ -60,7 +65,7 @@ class VerifyEmailByTokenSerializer(serializers.Serializer):
         self.token_obj = token
         return value
 
-    def save(self):
+    def save(self) -> User:
         """토큰 인증 처리"""
         user = self.token_obj.user
 
@@ -83,7 +88,7 @@ class VerifyEmailByCodeSerializer(serializers.Serializer):
     code = serializers.CharField(required=True, write_only=True, min_length=6, max_length=6)
     message = serializers.CharField(read_only=True)
 
-    def validate_code(self, value):
+    def validate_code(self, value: str) -> str:
         request = self.context.get("request")
         user = request.user
 
@@ -101,7 +106,7 @@ class VerifyEmailByCodeSerializer(serializers.Serializer):
         self.token_obj = token
         return value
 
-    def save(self):
+    def save(self) -> User:
         """코드 인증 처리"""
         user = self.token_obj.user
 
@@ -124,7 +129,7 @@ class ResendVerificationEmailSerializer(serializers.Serializer):
     message = serializers.CharField(read_only=True)
     verification_code = serializers.CharField(read_only=True, required=False)
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         request = self.context.get("request")
         user = request.user
 

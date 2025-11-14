@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -6,9 +10,13 @@ from allauth.socialaccount.signals import pre_social_login
 
 from shopping.models.email_verification import EmailVerificationToken
 
+if TYPE_CHECKING:
+    from allauth.socialaccount.models import SocialLogin
+    from django.http import HttpRequest
+
 
 @receiver(pre_social_login)
-def handle_social_login(sender, request, sociallogin, **kwargs):
+def handle_social_login(sender: Any, request: HttpRequest, sociallogin: SocialLogin, **kwargs: Any) -> None:
     """
     소셜 로그인 시그널 핸들러
 
@@ -44,7 +52,7 @@ def handle_social_login(sender, request, sociallogin, **kwargs):
 
 
 @receiver(post_save, sender=SocialAccount)
-def handle_new_social_account(sender, instance, created, **kwargs):
+def handle_new_social_account(sender: type[SocialAccount], instance: SocialAccount, created: bool, **kwargs: Any) -> None:
     """
     소셜 계정 생성 시그널 핸들러 (신규 가입자)
 

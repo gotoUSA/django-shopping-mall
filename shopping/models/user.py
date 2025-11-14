@@ -1,6 +1,13 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
 from django.db import models
+
+if TYPE_CHECKING:
+    from shopping.models.product import Product
 
 phone_regex = RegexValidator(
     regex=r"^\d{2,3}-\d{3,4}-\d{4}$",
@@ -89,16 +96,16 @@ class User(AbstractUser):
         verbose_name = "사용자"
         verbose_name_plural = "사용자 목록"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.username} ({self.get_full_name() or "이름없음"})'
 
-    def get_full_address(self):
+    def get_full_address(self) -> str:
         """전체 주소를 반환하는 메서드"""
         if self.address:
             return f"{self.address} {self.address_detail}".strip()
         return ""
 
-    def add_points(self, amount):
+    def add_points(self, amount: int) -> bool:
         """포인트를 추가하는 메서드"""
         if amount > 0:
             self.points += amount
@@ -106,7 +113,7 @@ class User(AbstractUser):
             return True
         return False
 
-    def use_points(self, amount):
+    def use_points(self, amount: int) -> bool:
         """포인트를 사용하는 메서드"""
         if 0 < amount <= self.points:
             self.points -= amount
@@ -114,7 +121,7 @@ class User(AbstractUser):
             return True
         return False
 
-    def get_earn_rate(self):
+    def get_earn_rate(self) -> int:
         """
         회원 등급별 포인트 적립률 반환
 
@@ -136,30 +143,30 @@ class User(AbstractUser):
         return earn_rates.get(self.membership_level, 1)  # 기본값 1%
 
     @property
-    def is_vip(self):
+    def is_vip(self) -> bool:
         """VIP 회원인지 확인하는 속성"""
         return self.membership_level == "vip"
 
     # 찜하기 관련 메서드 추가
-    def add_to_wishlist(self, product):
+    def add_to_wishlist(self, product: Product) -> bool:
         """상품을 찜 목록에 추가"""
         self.wishlist_products.add(product)
         return True
 
-    def is_in_wishlist(self, product):
+    def is_in_wishlist(self, product: Product) -> bool:
         """상품이 찜 목록에 있는지 확인"""
         return self.wishlist_products.filter(id=product.id).exists()
 
-    def get_wishlist_count(self):
+    def get_wishlist_count(self) -> int:
         """찜한 상품 개수 반환"""
         return self.wishlist_products.count()
 
-    def clear_wishlist(self):
+    def clear_wishlist(self) -> bool:
         """찜 목록 전체 삭제"""
         self.wishlist_products.clear()
         return True
 
-    def remove_from_wishlist(self, product):
+    def remove_from_wishlist(self, product: Product) -> bool:
         """상품을 찜 목록에서 제거"""
         self.wishlist_products.remove(product)
         return True

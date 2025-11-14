@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import uuid
 
 from django.utils import timezone
@@ -5,6 +7,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -21,7 +24,7 @@ class SendVerificationEmailView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = SendVerificationEmailSerializer(data=request.data, context={"request": request})
 
         if not serializer.is_valid():
@@ -59,7 +62,7 @@ class VerifyEmailView(APIView):
 
     permission_classes = [AllowAny]
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         """UUID 토큰으로 인증 (GET 요청)"""
         token = request.GET.get("token")
 
@@ -114,7 +117,7 @@ class VerifyEmailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         """6자리 코드로 인증 (POST 요청)"""
         if not request.user.is_authenticated:
             return Response({"error": "로그인이 필요합니다."}, status=status.HTTP_401_UNAUTHORIZED)
@@ -165,7 +168,7 @@ class ResendVerificationEmailView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = ResendVerificationEmailSerializer(data=request.data, context={"request": request})
 
         if not serializer.is_valid():
@@ -201,7 +204,7 @@ class ResendVerificationEmailView(APIView):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def check_verification_status(request):
+def check_verification_status(request: Request) -> Response:
     """이메일 인증 상태 확인 API"""
     user = request.user
 

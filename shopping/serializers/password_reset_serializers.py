@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -10,6 +10,11 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from shopping.models.password_reset import PasswordResetToken
+
+if TYPE_CHECKING:
+    from shopping.models.user import User as UserType
+else:
+    UserType = None
 
 User = get_user_model()
 
@@ -136,7 +141,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 
         return attrs
 
-    def save(self) -> User:
+    def save(self) -> UserType:
         """비밀번호 변경 처리"""
         user = self.token_obj.user
         new_password = self.validated_data["new_password"]

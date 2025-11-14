@@ -284,7 +284,7 @@ class TestPaymentFailBoundary:
     def test_long_fail_message(self, api_client, payment):
         """긴 실패 메시지 처리"""
         # Arrange
-        long_message = "실패 사유 " * 80  # 480자 (max_length=500 이내)
+        long_message = ("실패 사유 " * 80).strip()  # 480자, 마지막 공백 제거
 
         request_data = {
             "code": "USER_CANCEL",

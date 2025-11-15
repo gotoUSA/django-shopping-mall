@@ -145,7 +145,16 @@ class PaymentConfirmView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        payment = serializer.payment
+        # 동시성 제어: Payment를 락으로 보호
+        payment = Payment.objects.select_for_update().get(pk=serializer.payment.pk)
+
+        # 중복 처리 방지: 이미 완료된 결제인지 확인
+        if payment.is_paid:
+            return Response(
+                {"error": "이미 완료된 결제입니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         order = payment.order
 
         # 토스페이먼츠 API 클라이언트
@@ -176,7 +185,45 @@ class PaymentConfirmView(APIView):
             # 5. 장바구니 비활성화
             Cart.objects.filter(user=request.user, is_active=True).update(is_active=False)
 
-            # 6. 포인트 적립 (구매 금액의 1%)
+            # 6. 포인트 차감 (Order 생성 시 차감되지 않은 경우 처리)
+            # 일반적으로 OrderSerializer에서 차감되지만 (order_serializers.py:313),
+            # 테스트 등에서 Order를 직접 생성한 경우 차감되지 않을 수 있음
+            if order.used_points > 0:
+                # 이미 차감되었는지 확인 (PointHistory에 사용 이력이 있는지)
+                already_deducted = PointHistory.objects.filter(
+                    user=request.user,
+                    order=order,
+                    type="use",
+                ).exists()
+
+                if not already_deducted:
+                    # 동시성 제어: User를 락으로 보호
+                    from ..models.user import User
+                    user = User.objects.select_for_update().get(pk=request.user.pk)
+
+                    # 포인트 차감
+                    user.use_points(order.used_points)
+
+                    # 포인트 사용 이력 기록
+                    PointHistory.create_history(
+                        user=user,
+                        points=-order.used_points,
+                        type="use",
+                        order=order,
+                        description=f"주문 #{order.order_number} 결제 시 포인트 사용",
+                        metadata={
+                            "order_id": order.id,
+                            "order_number": order.order_number,
+                            "total_amount": str(order.total_amount),
+                            "used_points": order.used_points,
+                            "final_amount": str(order.final_amount),
+                        },
+                    )
+
+                    # request.user도 업데이트 (이후 적립 시 사용)
+                    request.user.refresh_from_db()
+
+            # 7. 포인트 적립
             # 포인트로만 결제한 경우는 적립하지 않음
             if order.final_amount > 0:
                 # 등급별 적립률 적용
@@ -316,8 +363,33 @@ class PaymentCancelView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        payment = serializer.payment
-        order = payment.order
+        # 동시성 제어: Payment를 먼저 락으로 보호
+        payment = Payment.objects.select_for_update().get(pk=serializer.payment.pk)
+
+        # 중복 취소 방지: 이미 취소된 결제인지 확인
+        if payment.is_canceled:
+            return Response(
+                {"error": "이미 취소된 결제입니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 취소 가능한 상태인지 확인
+        if not payment.can_cancel:
+            return Response(
+                {"error": f"취소할 수 없는 결제 상태입니다: {payment.get_status_display()}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Order를 락으로 보호
+        order = Order.objects.select_for_update().get(pk=payment.order.pk)
+
+        # 이미 취소된 주문인지 확인 (중복 취소 방지)
+        if order.status == "canceled":
+            return Response(
+                {"error": "이미 취소된 주문입니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         cancel_reason = serializer.validated_data["cancel_reason"]
 
         # 토스페이먼츠 API 클라이언트

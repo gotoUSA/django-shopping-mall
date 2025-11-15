@@ -41,24 +41,6 @@ def django_db_setup(django_db_setup, django_db_blocker):
         pass
 
 
-@pytest.fixture(autouse=True)
-def reset_db_connections(db):
-    """
-    각 테스트 후 데이터베이스 연결 정리
-
-    고부하 동시성 테스트에서 "too many clients" 오류를 방지하기 위해
-    각 테스트 완료 후 불필요한 데이터베이스 연결을 명시적으로 정리합니다.
-
-    autouse=True: 모든 테스트에 자동 적용
-    """
-    yield
-    # 테스트 완료 후 연결 정리
-    from django.db import connections
-
-    for conn in connections.all():
-        conn.close_if_unusable_or_obsolete()
-
-
 # ==========================================
 # 2. API 클라이언트 Fixture
 # ==========================================
@@ -564,6 +546,7 @@ def order(db, user, product):
         user=user,
         status="pending",
         total_amount=product.price,
+        final_amount=product.price,  # 포인트 적립을 위해 final_amount 설정
         shipping_name="홍길동",
         shipping_phone="010-9999-8888",
         shipping_postal_code="12345",
@@ -598,6 +581,7 @@ def paid_order(db, user, product):
         user=user,
         status="paid",
         total_amount=product.price,
+        final_amount=product.price,  # 포인트 적립을 위해 final_amount 설정
         payment_method="card",
         shipping_name="홍길동",
         shipping_phone="010-9999-8888",
@@ -645,6 +629,7 @@ def order_with_multiple_items(db, user, multiple_products):
         user=user,
         status="pending",
         total_amount=total,
+        final_amount=total,  # 포인트 적립을 위해 final_amount 설정
         shipping_name="홍길동",
         shipping_phone="010-9999-8888",
         shipping_postal_code="12345",

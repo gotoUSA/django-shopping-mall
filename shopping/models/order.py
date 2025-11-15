@@ -158,38 +158,6 @@ class Order(models.Model):
         # 주문번호는 pk에 날짜를 조합해서 표시
         return f'주문#{self.pk} - {self.user.username if self.user else "비회원"}'
 
-    def calcultate_total_amount(self) -> Decimal:
-        """
-        주문에 포함된 모든 상품의 총액을 계산
-        - OrderItem들의 subtotal을 모두 더함
-        """
-        total = Decimal("0")
-        for item in self.order_items.all():
-            total += item.get_subtotal()
-        return total
-
-    def update_total_amount(self) -> None:
-        """총액을 계산해서 저장"""
-        self.total_amount = self.calcultate_total_amount()
-
-        # 배송비 포함한 최종 금액 계산
-        total_with_shipping = self.total_amount + self.shipping_fee + self.additional_shipping_fee
-
-        # 포인트 차감 후 최종 금액
-        self.final_amount = max(Decimal("0"), total_with_shipping - Decimal(str(self.used_points)))
-        self.save(update_fields=["total_amount", "final_amount"])
-
-    def calcultate_final_amount(self) -> Decimal:
-        """포인트 차감 후 최종 결제 금액 계산"""
-        return max(Decimal("0"), self.total_amount - Decimal(str(self.used_points)))
-
-    def calculate_earned_points(self) -> int:
-        """적립 예정 포인트 계산 (실제 결제 금액의 1%)"""
-        # 포인트로만 결제한 경우 적립 없음
-        if self.final_amount <= 0:
-            return 0
-        return int(self.final_amount * Decimal("0.01"))
-
     def save(self, *args: Any, **kwargs: Any) -> None:
         """
         주문 생성시 자동으로 주문번호 생성
@@ -223,65 +191,6 @@ class Order(models.Model):
     def can_cancel(self) -> bool:
         """취소 가능 여부"""
         return self.status in ["pending", "paid"]
-
-    def calcultate_shipping_fee(self, is_remote_area: bool = False) -> tuple[Decimal, Decimal, bool]:
-        """
-        배송비 계산
-
-        Args:
-            is_remote_area: 제주/도서산간 지역 여부
-
-        Returns:
-            tuple: (기본 배송비, 추가 배송비, 무료배송 여부)
-        """
-        # 설정값 (나중에 settings.py나 별도 모델로 관리 가능)
-        FREE_SHIPPING_THROSHOLD = Decimal("30000")  # 무료배송 기준 금액
-        DEFAULT_SHIPPING_FEE = Decimal("3000")  # 기본 배송비
-        REMOTE_AREA_FEE = Decimal("3000")  # 도서산간 추가 배송비
-
-        # 상품 금액 계산 (포인트 사용 전 금액)
-        product_total = self.total_amount
-
-        # 무료배송 여부 확인
-        if product_total >= FREE_SHIPPING_THROSHOLD:
-            # 무료배송이어도 도서산간 추가비는 받을 수 있음
-            return (
-                Decimal("0"),
-                REMOTE_AREA_FEE if is_remote_area else Decimal("0"),
-                True,
-            )
-
-        # 기본 배송비 + 추가 배송비
-        additional_fee = REMOTE_AREA_FEE if is_remote_area else Decimal("0")
-        return DEFAULT_SHIPPING_FEE, additional_fee, False
-
-    def apply_shipping_fee(self, is_remote_area: bool = False) -> None:
-        """
-        배송비를 적용하고 최종 금액 재계산
-
-        Args:
-            is_remote_area: 제주/도서산간 지역 여부
-        """
-        # 배송비 계산
-        base_fee, additional_fee, is_free = self.calcultate_shipping_fee(is_remote_area)
-
-        # 필드 업데이트
-        self.shipping_fee = base_fee
-        self.additional_shipping_fee = additional_fee
-        self.is_free_shipping = is_free
-
-        # 최종 금액 재계산 (상품금액 + 배송비 - 포인트)
-        total_with_shipping = self.total_amount + base_fee + additional_fee
-        self.final_amount = max(Decimal("0"), total_with_shipping - Decimal(str(self.used_points)))
-
-        self.save(
-            update_fields=[
-                "shipping_fee",
-                "additional_shipping_fee",
-                "is_free_shipping",
-                "final_amount",
-            ]
-        )
 
     def get_total_shipping_fee(self) -> Decimal:
         """전체 배송비 반환 (기본 + 추가)"""
@@ -350,15 +259,3 @@ class OrderItem(models.Model):
             self.price = self.product.price
 
         super().save(*args, **kwargs)
-
-        # 주문 총액 업데이트
-        if self.order:
-            self.order.update_total_amount()
-
-    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
-        """삭제 시 주문 총액 업데이트"""
-        order = self.order
-        result = super().delete(*args, **kwargs)
-        if order:
-            order.update_total_amount()
-        return result

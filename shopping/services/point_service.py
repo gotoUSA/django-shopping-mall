@@ -7,16 +7,18 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 
 from shopping.models.point import PointHistory
 
 if TYPE_CHECKING:
     from django.contrib.auth.models import AbstractBaseUser
+    from shopping.models.order import Order
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -24,6 +26,112 @@ logger = logging.getLogger(__name__)
 
 class PointService:
     """포인트 관련 서비스 클래스"""
+
+    @staticmethod
+    @transaction.atomic
+    def add_points(
+        user: AbstractBaseUser,
+        amount: int,
+        type: str = "earn",
+        order: Optional[Order] = None,
+        description: str = "",
+        metadata: Optional[dict] = None,
+    ) -> bool:
+        """
+        포인트 추가 (동시성 제어 포함)
+
+        Args:
+            user: 사용자
+            amount: 추가할 포인트
+            type: 포인트 타입 (earn, cancel_refund 등)
+            order: 관련 주문 (선택)
+            description: 설명
+            metadata: 추가 메타데이터 (선택)
+
+        Returns:
+            bool: 성공 여부
+        """
+        if amount <= 0:
+            logger.warning(f"Invalid point amount: {amount}")
+            return False
+
+        # 동시성 제어: F() 객체로 안전하게 증가
+        User.objects.filter(pk=user.pk).update(points=F("points") + amount)
+
+        # 포인트 이력 기록
+        PointHistory.create_history(
+            user=user,
+            points=amount,
+            type=type,
+            order=order,
+            description=description or f"포인트 {amount}점 추가",
+            metadata=metadata or {},
+        )
+
+        logger.info(
+            f"포인트 추가: user_id={user.id}, amount={amount}, "
+            f"type={type}, description={description}"
+        )
+
+        return True
+
+    @staticmethod
+    @transaction.atomic
+    def use_points(
+        user: AbstractBaseUser,
+        amount: int,
+        type: str = "use",
+        order: Optional[Order] = None,
+        description: str = "",
+        metadata: Optional[dict] = None,
+    ) -> bool:
+        """
+        포인트 차감 (동시성 제어 포함)
+
+        Args:
+            user: 사용자
+            amount: 차감할 포인트
+            type: 포인트 타입 (use, cancel_deduct 등)
+            order: 관련 주문 (선택)
+            description: 설명
+            metadata: 추가 메타데이터 (선택)
+
+        Returns:
+            bool: 성공 여부
+        """
+        if amount <= 0:
+            logger.warning(f"Invalid point amount: {amount}")
+            return False
+
+        # 동시성 제어: select_for_update로 락 획득
+        locked_user = User.objects.select_for_update().get(pk=user.pk)
+
+        if locked_user.points < amount:
+            logger.warning(
+                f"포인트 부족: user_id={user.id}, "
+                f"required={amount}, available={locked_user.points}"
+            )
+            return False
+
+        # F() 객체로 안전하게 차감
+        User.objects.filter(pk=user.pk).update(points=F("points") - amount)
+
+        # 포인트 이력 기록 (음수로 기록)
+        PointHistory.create_history(
+            user=user,
+            points=-amount,
+            type=type,
+            order=order,
+            description=description or f"포인트 {amount}점 사용",
+            metadata=metadata or {},
+        )
+
+        logger.info(
+            f"포인트 차감: user_id={user.id}, amount={amount}, "
+            f"type={type}, description={description}"
+        )
+
+        return True
 
     def get_expired_points(self) -> list[PointHistory]:
         """

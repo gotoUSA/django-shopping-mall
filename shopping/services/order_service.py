@@ -9,8 +9,8 @@ from django.db.models import F
 
 from ..models.cart import Cart
 from ..models.order import Order, OrderItem
-from ..models.point_history import PointHistory
 from ..models.product import Product
+from .point_service import PointService
 from .shipping_service import ShippingService
 
 logger = logging.getLogger(__name__)
@@ -150,13 +150,10 @@ class OrderService:
             total_amount: 주문 총액
             final_amount: 최종 결제 금액
         """
-        # 포인트 차감
-        user.use_points(use_points)
-
-        # 포인트 사용 이력 기록
-        PointHistory.create_history(
+        # 포인트 차감 (PointService 사용)
+        PointService.use_points(
             user=user,
-            points=-use_points,  # 음수로 기록
+            amount=use_points,
             type="use",
             order=order,
             description=f"주문 #{order.order_number} 결제시 사용",

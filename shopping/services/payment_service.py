@@ -10,9 +10,9 @@ from django.db.models.functions import Greatest
 from ..models.cart import Cart
 from ..models.order import Order
 from ..models.payment import Payment, PaymentLog
-from ..models.point_history import PointHistory
 from ..models.product import Product
 from ..utils.toss_payment import TossPaymentClient, TossPaymentError
+from .point_service import PointService
 
 
 class PaymentCancelError(Exception):
@@ -29,6 +29,50 @@ class PaymentConfirmError(Exception):
 
 class PaymentService:
     """결제 관련 비즈니스 로직을 처리하는 서비스"""
+
+    @staticmethod
+    @transaction.atomic
+    def create_payment(order: Order, payment_method: str = "card") -> Payment:
+        """
+        결제 정보 생성 (동시성 제어 포함)
+
+        Args:
+            order: 주문
+            payment_method: 결제 수단
+
+        Returns:
+            Payment: 생성된 결제 정보
+        """
+        # 동시성 제어: Order를 락으로 보호
+        Order.objects.select_for_update().get(pk=order.pk)
+
+        # 기존 Payment가 있으면 삭제 (재시도의 경우)
+        Payment.objects.filter(order=order).delete()
+
+        # 새 Payment 생성 (포인트 차감 후 금액으로)
+        payment = Payment.objects.create(
+            order=order,
+            toss_order_id=order.order_number,  # 명시적으로 설정
+            amount=order.final_amount,
+            method=payment_method,  # 결제 수단 저장
+            status="ready",
+        )
+
+        # 로그 기록
+        PaymentLog.objects.create(
+            payment=payment,
+            log_type="request",
+            message="결제 요청 생성",
+            data={
+                "order_id": order.id,
+                "total_amount": str(order.total_amount),
+                "used_points": order.used_points,
+                "amount": str(order.final_amount),  # 실제 결제 금액
+                "payment_method": payment_method,
+            },
+        )
+
+        return payment
 
     @staticmethod
     @transaction.atomic
@@ -90,17 +134,10 @@ class PaymentService:
             points_to_add = int(order.final_amount * Decimal(earn_rate) / Decimal("100"))
 
             if points_to_add > 0:
-                # 포인트 적립
-                user.add_points(points_to_add)
-
-                # 주문에 적립 포인트 기록
-                order.earned_points = points_to_add
-                order.save(update_fields=["earned_points"])
-
-                # 포인트 적립 이력 기록
-                PointHistory.create_history(
+                # 포인트 적립 (PointService 사용)
+                PointService.add_points(
                     user=user,
-                    points=points_to_add,
+                    amount=points_to_add,
                     type="earn",
                     order=order,
                     description=f"주문 #{order.order_number} 구매 적립",
@@ -112,6 +149,10 @@ class PaymentService:
                         "membership_level": user.membership_level,
                     },
                 )
+
+                # 주문에 적립 포인트 기록
+                order.earned_points = points_to_add
+                order.save(update_fields=["earned_points"])
 
                 # 포인트 적립 로그
                 PaymentLog.objects.create(
@@ -220,12 +261,10 @@ class PaymentService:
             # 10-1. 사용한 포인트 환불
             if order.used_points > 0:
                 points_refunded = order.used_points
-                user.add_points(points_refunded)
-
-                # 포인트 환불 이력 기록
-                PointHistory.create_history(
+                # 포인트 환불 (PointService 사용)
+                PointService.add_points(
                     user=user,
-                    points=order.used_points,
+                    amount=points_refunded,
                     type="cancel_refund",
                     order=order,
                     description=f"주문 #{order.order_number} 취소로 인한 포인트 환불",
@@ -247,12 +286,10 @@ class PaymentService:
             # 10-2. 적립된 포인트 차감
             if order.earned_points > 0:
                 points_deducted = order.earned_points
-                user.use_points(points_deducted)
-
-                # 포인트 차감 이력 기록
-                PointHistory.create_history(
+                # 포인트 차감 (PointService 사용)
+                PointService.use_points(
                     user=user,
-                    points=-order.earned_points,
+                    amount=points_deducted,
                     type="cancel_deduct",
                     order=order,
                     description=f"주문 #{order.order_number} 취소로 인한 적립 포인트 차감",

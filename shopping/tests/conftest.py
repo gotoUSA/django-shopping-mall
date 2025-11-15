@@ -546,6 +546,7 @@ def order(db, user, product):
         user=user,
         status="pending",
         total_amount=product.price,
+        final_amount=product.price,  # 포인트 적립을 위해 final_amount 설정
         shipping_name="홍길동",
         shipping_phone="010-9999-8888",
         shipping_postal_code="12345",
@@ -580,6 +581,7 @@ def paid_order(db, user, product):
         user=user,
         status="paid",
         total_amount=product.price,
+        final_amount=product.price,  # 포인트 적립을 위해 final_amount 설정
         payment_method="card",
         shipping_name="홍길동",
         shipping_phone="010-9999-8888",
@@ -627,6 +629,7 @@ def order_with_multiple_items(db, user, multiple_products):
         user=user,
         status="pending",
         total_amount=total,
+        final_amount=total,  # 포인트 적립을 위해 final_amount 설정
         shipping_name="홍길동",
         shipping_phone="010-9999-8888",
         shipping_postal_code="12345",

@@ -142,7 +142,7 @@ def handle_payment_done(event_data: dict[str, Any]) -> None:
 
     # 재고 차감 및 sold_count 증가 (결제 완료 시점)
     if order.status != "paid":
-        for order_item in order.order_item.select_for_update():
+        for order_item in order.order_items.select_for_update():
             if order_item.product:
                 # 재고 차감 및 sold_count 증가 (F 객체로 안전하게)
                 Product.objects.filter(pk=order_item.product.pk).update(

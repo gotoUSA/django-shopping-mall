@@ -109,34 +109,41 @@ class PaymentRequestSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         """결제 정보 생성"""
+        from django.db import transaction
+
         order = self.order
         payment_method = validated_data.get("payment_method", "card")
 
-        # 기존 Payment가 있으면 삭제 (재시도의 경우)
-        Payment.objects.filter(order=order).delete()
+        # 동시성 제어: Order를 락으로 보호하며 기존 Payment 삭제 및 생성
+        with transaction.atomic():
+            # Order를 락으로 보호
+            Order.objects.select_for_update().get(pk=order.pk)
 
-        # 새 Payment 생성 (포인트 차감 후 금액으로)
-        payment = Payment.objects.create(
-            order=order,
-            toss_order_id=order.order_number,  # 명시적으로 설정
-            amount=order.final_amount,
-            method=payment_method,  # 결제 수단 저장
-            status="ready",
-        )
+            # 기존 Payment가 있으면 삭제 (재시도의 경우)
+            Payment.objects.filter(order=order).delete()
 
-        # 로그 기록
-        PaymentLog.objects.create(
-            payment=payment,
-            log_type="request",
-            message="결제 요청 생성",
-            data={
-                "order_id": order.id,
-                "total_amount": str(order.total_amount),
-                "used_points": order.used_points,
-                "amount": str(order.final_amount),  # 실제 결제 금액
-                "payment_method": payment_method,
-            },
-        )
+            # 새 Payment 생성 (포인트 차감 후 금액으로)
+            payment = Payment.objects.create(
+                order=order,
+                toss_order_id=order.order_number,  # 명시적으로 설정
+                amount=order.final_amount,
+                method=payment_method,  # 결제 수단 저장
+                status="ready",
+            )
+
+            # 로그 기록
+            PaymentLog.objects.create(
+                payment=payment,
+                log_type="request",
+                message="결제 요청 생성",
+                data={
+                    "order_id": order.id,
+                    "total_amount": str(order.total_amount),
+                    "used_points": order.used_points,
+                    "amount": str(order.final_amount),  # 실제 결제 금액
+                    "payment_method": payment_method,
+                },
+            )
 
         return payment
 
@@ -190,30 +197,13 @@ class PaymentConfirmSerializer(serializers.Serializer):
 class PaymentCancelSerializer(serializers.Serializer):
     """
     결제 취소용 시리얼라이저
+
+    입력 검증만 수행하며, 비즈니스 로직 검증은 서비스 레이어에서 처리합니다.
     """
 
     payment_id = serializers.IntegerField(help_text="결제 ID")
 
     cancel_reason = serializers.CharField(max_length=200, help_text="취소 사유")
-
-    def validate_payment_id(self, value):
-        """결제 정보 검증"""
-        user = self.context["request"].user
-
-        try:
-            payment = Payment.objects.get(id=value, order__user=user)
-        except Payment.DoesNotExist:
-            raise serializers.ValidationError("결제 정보를 찾을 수 없습니다.")
-
-        # 취소 가능한지 확인
-        if not payment.can_cancel:
-            if payment.is_canceled:
-                raise serializers.ValidationError("이미 취소된 결제입니다.")
-            else:
-                raise serializers.ValidationError("취소할 수 없는 결제입니다.")
-
-        self.payment = payment
-        return value
 
 
 class PaymentLogSerializer(serializers.ModelSerializer):

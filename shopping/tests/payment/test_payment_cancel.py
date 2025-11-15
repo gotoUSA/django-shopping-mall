@@ -727,7 +727,7 @@ class TestPaymentCancelException:
 
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "취소할 수 없는 결제입니다" in str(response.data)
+        assert "취소할 수 없는 결제 상태입니다" in str(response.data)
 
     def test_other_user_payment_cancel_attempt(
         self,

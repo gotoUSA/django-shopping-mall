@@ -176,7 +176,33 @@ class PaymentConfirmView(APIView):
             # 5. 장바구니 비활성화
             Cart.objects.filter(user=request.user, is_active=True).update(is_active=False)
 
-            # 6. 포인트 적립 (구매 금액의 1%)
+            # 6. 포인트 차감 (사용한 포인트가 있는 경우)
+            if order.used_points > 0:
+                request.user.use_points(order.used_points)
+
+                # 포인트 사용 이력 기록
+                PointHistory.create_history(
+                    user=request.user,
+                    points=-order.used_points,
+                    type="use",
+                    order=order,
+                    description=f"주문 #{order.order_number} 결제 시 사용",
+                    metadata={
+                        "order_id": order.id,
+                        "order_number": order.order_number,
+                        "payment_amount": str(order.final_amount),
+                    },
+                )
+
+                # 포인트 사용 로그
+                PaymentLog.objects.create(
+                    payment=payment,
+                    log_type="approve",
+                    message=f"포인트 {order.used_points}점 사용",
+                    data={"used_points": order.used_points},
+                )
+
+            # 7. 포인트 적립 (구매 금액의 1%)
             # 포인트로만 결제한 경우는 적립하지 않음
             if order.final_amount > 0:
                 # 등급별 적립률 적용
@@ -216,16 +242,8 @@ class PaymentConfirmView(APIView):
                     )
             else:
                 points_to_add = 0
-                # 포인트 전액 결제 로그
-                if order.used_points > 0:
-                    PaymentLog.objects.create(
-                        payment=payment,
-                        log_type="approve",
-                        message=f"포인트 {order.used_points}점으로 전액 결제",
-                        data={"used_points": order.used_points},
-                    )
 
-            # 7. 결제 승인 로그
+            # 8. 결제 승인 로그
             PaymentLog.objects.create(
                 payment=payment,
                 log_type="approve",
@@ -317,7 +335,6 @@ class PaymentCancelView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         payment = serializer.payment
-        order = payment.order
         cancel_reason = serializer.validated_data["cancel_reason"]
 
         # 토스페이먼츠 API 클라이언트
@@ -327,6 +344,23 @@ class PaymentCancelView(APIView):
         points_refunded = 0
         points_deducted = 0
 
+        # Order를 락으로 보호하고 상태 확인 (동시성 제어)
+        order = Order.objects.select_for_update().get(pk=payment.order.pk)
+
+        # 이미 취소된 주문인지 확인 (중복 취소 방지)
+        if order.status == "canceled":
+            return Response(
+                {"error": "이미 취소된 주문입니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 취소 가능한 상태인지 확인
+        if order.status not in ["pending", "paid"]:
+            return Response(
+                {"error": f"취소할 수 없는 주문 상태입니다: {order.get_status_display()}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
             # 1. 토스페이먼츠에 취소 요청
             cancel_data = toss_client.cancel_payment(payment_key=payment.payment_key, cancel_reason=cancel_reason)
@@ -334,74 +368,79 @@ class PaymentCancelView(APIView):
             # 2. Payment 정보 업데이트
             payment.mark_as_canceled(cancel_data)
 
-            # 3. 재고 복구
-            for order_item in order.order_items.all():
-                if order_item.product:  # 상품이 삭제되지 않았다면
-                    Product.objects.filter(pk=order_item.product.pk).update(
-                        stock=F("stock") + order_item.quantity,
-                        sold_count=F("sold_count") - order_item.quantity,
-                    )
+            # 현재 주문 상태 저장 (포인트 처리 로직에서 사용)
+            original_order_status = order.status
+
+            # 3. 재고 복구 (paid 상태였던 경우만)
+            if original_order_status == "paid":
+                for order_item in order.order_items.all():
+                    if order_item.product:  # 상품이 삭제되지 않았다면
+                        Product.objects.filter(pk=order_item.product.pk).update(
+                            stock=F("stock") + order_item.quantity,
+                            sold_count=F("sold_count") - order_item.quantity,
+                        )
 
             # 4. 주문 상태 변경
             order.status = "canceled"
             order.save(update_fields=["status", "updated_at"])
 
-            # 5. 포인트 처리
-            # 5-1. 사용한 포인트 환불
-            if order.used_points > 0:
-                points_refunded = order.used_points  # 변수에 저장
-                request.user.add_points(points_refunded)
+            # 5. 포인트 처리 (paid 상태였던 경우만)
+            if original_order_status == "paid":
+                # 5-1. 사용한 포인트 환불
+                if order.used_points > 0:
+                    points_refunded = order.used_points  # 변수에 저장
+                    request.user.add_points(points_refunded)
 
-                # 포인트 환불 이력 기록
-                PointHistory.create_history(
-                    user=request.user,
-                    points=order.used_points,
-                    type="cancel_refund",
-                    order=order,
-                    description=f"주문 #{order.order_number} 취소로 인한 포인트 환불",
-                    metadata={
-                        "order_id": order.id,
-                        "order_number": order.order_number,
-                        "cancel_reason": cancel_reason,
-                    },
-                )
-
-                # 환불 로그
-                PaymentLog.objects.create(
-                    payment=payment,
-                    log_type="cancel",
-                    message=f"사용 포인트 {order.used_points}점 환불",
-                    data={"refunded_points": order.used_points},
-                )
-
-            # 5-2. 적립했던 포인트 회수
-            if order.earned_points > 0:
-                # 포인트 차감 (보유 포인트가 부족한 경우 처리)
-                points_deducted = min(order.earned_points, request.user.points)
-                if points_deducted > 0:
-                    request.user.use_points(points_deducted)
-
-                    # 포인트 차감 이력 기록
+                    # 포인트 환불 이력 기록
                     PointHistory.create_history(
                         user=request.user,
-                        points=-points_deducted,
-                        type="cancel_deduct",
+                        points=order.used_points,
+                        type="cancel_refund",
                         order=order,
-                        description=f"주문 #{order.order_number} 취소로 인한 적립 포인트 회수",
+                        description=f"주문 #{order.order_number} 취소로 인한 포인트 환불",
                         metadata={
                             "order_id": order.id,
                             "order_number": order.order_number,
-                            "original_earned": order.earned_points,
-                            "actual_deducted": points_deducted,
+                            "cancel_reason": cancel_reason,
                         },
                     )
-                    # 포인트 회수 로그
+
+                    # 환불 로그
                     PaymentLog.objects.create(
                         payment=payment,
                         log_type="cancel",
-                        message=f"적립 포인트 {points_deducted}점 회수",
-                        data={"deducted_points": points_deducted},
+                        message=f"사용 포인트 {order.used_points}점 환불",
+                        data={"refunded_points": order.used_points},
                     )
+
+                # 5-2. 적립했던 포인트 회수
+                if order.earned_points > 0:
+                    # 포인트 차감 (보유 포인트가 부족한 경우 처리)
+                    points_deducted = min(order.earned_points, request.user.points)
+                    if points_deducted > 0:
+                        request.user.use_points(points_deducted)
+
+                        # 포인트 차감 이력 기록
+                        PointHistory.create_history(
+                            user=request.user,
+                            points=-points_deducted,
+                            type="cancel_deduct",
+                            order=order,
+                            description=f"주문 #{order.order_number} 취소로 인한 적립 포인트 회수",
+                            metadata={
+                                "order_id": order.id,
+                                "order_number": order.order_number,
+                                "original_earned": order.earned_points,
+                                "actual_deducted": points_deducted,
+                            },
+                        )
+                        # 포인트 회수 로그
+                        PaymentLog.objects.create(
+                            payment=payment,
+                            log_type="cancel",
+                            message=f"적립 포인트 {points_deducted}점 회수",
+                            data={"deducted_points": points_deducted},
+                        )
 
             # 6. 취소 로그
             PaymentLog.objects.create(

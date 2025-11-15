@@ -109,34 +109,40 @@ class PaymentRequestSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         """결제 정보 생성"""
+        from django.db import transaction
+
         order = self.order
         payment_method = validated_data.get("payment_method", "card")
 
-        # 기존 Payment가 있으면 삭제 (재시도의 경우)
-        Payment.objects.filter(order=order).delete()
+        with transaction.atomic():
+            # Order를 락으로 보호하여 동시성 제어
+            order = Order.objects.select_for_update().get(pk=order.pk)
 
-        # 새 Payment 생성 (포인트 차감 후 금액으로)
-        payment = Payment.objects.create(
-            order=order,
-            toss_order_id=order.order_number,  # 명시적으로 설정
-            amount=order.final_amount,
-            method=payment_method,  # 결제 수단 저장
-            status="ready",
-        )
+            # 기존 Payment가 있으면 삭제 (재시도의 경우)
+            Payment.objects.filter(order=order).delete()
 
-        # 로그 기록
-        PaymentLog.objects.create(
-            payment=payment,
-            log_type="request",
-            message="결제 요청 생성",
-            data={
-                "order_id": order.id,
-                "total_amount": str(order.total_amount),
-                "used_points": order.used_points,
-                "amount": str(order.final_amount),  # 실제 결제 금액
-                "payment_method": payment_method,
-            },
-        )
+            # 새 Payment 생성 (포인트 차감 후 금액으로)
+            payment = Payment.objects.create(
+                order=order,
+                toss_order_id=order.order_number,  # 명시적으로 설정
+                amount=order.final_amount,
+                method=payment_method,  # 결제 수단 저장
+                status="ready",
+            )
+
+            # 로그 기록
+            PaymentLog.objects.create(
+                payment=payment,
+                log_type="request",
+                message="결제 요청 생성",
+                data={
+                    "order_id": order.id,
+                    "total_amount": str(order.total_amount),
+                    "used_points": order.used_points,
+                    "amount": str(order.final_amount),  # 실제 결제 금액
+                    "payment_method": payment_method,
+                },
+            )
 
         return payment
 

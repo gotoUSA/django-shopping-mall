@@ -363,21 +363,13 @@ class PaymentCancelView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # 동시성 제어: Payment와 Order를 락으로 보호
+        # 동시성 제어: Payment를 락으로 보호
         payment = Payment.objects.select_for_update().get(pk=serializer.payment.pk)
-        order = Order.objects.select_for_update().get(pk=payment.order.pk)
 
         # 중복 취소 방지: 이미 취소된 결제인지 확인
         if payment.is_canceled:
             return Response(
                 {"error": "이미 취소된 결제입니다."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # 이미 취소된 주문인지 확인 (중복 취소 방지)
-        if order.status == "canceled":
-            return Response(
-                {"error": "이미 취소된 주문입니다."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -387,6 +379,9 @@ class PaymentCancelView(APIView):
                 {"error": f"취소할 수 없는 결제 상태입니다: {payment.get_status_display()}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # Order를 락으로 보호 (order_id 사용)
+        order = Order.objects.select_for_update().get(pk=payment.order_id)
 
         cancel_reason = serializer.validated_data["cancel_reason"]
 

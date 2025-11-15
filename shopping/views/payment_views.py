@@ -5,6 +5,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import F
+from django.db.models.functions import Greatest
 from django.shortcuts import get_object_or_404, redirect, render
 
 from rest_framework import permissions, status
@@ -316,9 +317,35 @@ class PaymentCancelView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        payment = serializer.payment
-        order = payment.order
+        payment_id = serializer.validated_data["payment_id"]
         cancel_reason = serializer.validated_data["cancel_reason"]
+
+        # 동시성 제어: select_for_update()로 Payment 잠금
+        try:
+            payment = Payment.objects.select_for_update().get(
+                id=payment_id,
+                order__user=request.user,
+            )
+        except Payment.DoesNotExist:
+            return Response(
+                {"error": "결제 정보를 찾을 수 없습니다."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Transaction 내부에서 다시 한 번 취소 가능 여부 확인 (중복 취소 방지)
+        if not payment.can_cancel:
+            if payment.is_canceled:
+                return Response(
+                    {"error": "이미 취소된 결제입니다."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            else:
+                return Response(
+                    {"error": "취소할 수 없는 결제입니다."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        order = payment.order
 
         # 토스페이먼츠 API 클라이언트
         toss_client = TossPaymentClient()
@@ -334,12 +361,13 @@ class PaymentCancelView(APIView):
             # 2. Payment 정보 업데이트
             payment.mark_as_canceled(cancel_data)
 
-            # 3. 재고 복구
+            # 3. 재고 복구 (select_for_update로 동시성 제어)
             for order_item in order.order_items.all():
                 if order_item.product:  # 상품이 삭제되지 않았다면
+                    # sold_count가 음수가 되지 않도록 Greatest 사용
                     Product.objects.filter(pk=order_item.product.pk).update(
                         stock=F("stock") + order_item.quantity,
-                        sold_count=F("sold_count") - order_item.quantity,
+                        sold_count=Greatest(F("sold_count") - order_item.quantity, 0),
                     )
 
             # 4. 주문 상태 변경

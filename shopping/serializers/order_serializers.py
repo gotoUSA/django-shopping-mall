@@ -12,6 +12,8 @@ from ..models.cart import Cart
 from ..models.order import Order, OrderItem
 from ..models.point import PointHistory
 from ..models.product import Product
+from ..services.order_service import OrderService, OrderServiceError
+from ..services.shipping_service import ShippingService
 from .product_serializers import ProductListSerializer
 
 
@@ -190,13 +192,14 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         return cart_items
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
-        """장바구니 검증"""
+        """장바구니 및 포인트 검증"""
         user = self.context["request"].user
         use_points = attrs.get("use_points", 0)
 
         # 이메일 인증 확인
         if not user.is_email_verified:
             raise serializers.ValidationError("이메일 인증이 필요합니다. 먼저 이메일을 인증해주세요.")
+
         # 장바구니 확인
         cart = Cart.objects.filter(user=user, is_active=True).first()
         if not cart or not cart.items.exists():
@@ -205,28 +208,17 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         # 장바구니 항목 검증 (비활성 상품, 품절, 재고 부족)
         self._validate_cart_items(cart)
 
-        # 배송비 미리 계산
+        # 배송비 계산 (ShippingService 사용)
         total_amount = cart.total_amount
-
-        # 도서 산간 지역 체크 (우편번호 기반)
         shipping_postal_code = attrs.get("shipping_postal_code", "")
-        remote_area_postal_codes = ["63", "59", "52"]  # 제주, 울릉도 등
-        is_remote = any(shipping_postal_code.startswith(code) for code in remote_area_postal_codes)
-
-        # 배송비 계산
-        FREE_SHIPPING_THRESHOLD = Decimal("30000")
-        DEFAULT_SHIPPING_FEE = Decimal("3000")
-        REMOTE_AREA_FEE = Decimal("3000")
-
-        if total_amount >= FREE_SHIPPING_THRESHOLD:
-            shipping_fee = Decimal("0")
-            additional_shipping_fee = REMOTE_AREA_FEE if is_remote else Decimal("0")
-        else:
-            shipping_fee = DEFAULT_SHIPPING_FEE
-            additional_shipping_fee = REMOTE_AREA_FEE if is_remote else Decimal("0")
+        shipping_result = ShippingService.calculate_fee(
+            total_amount=total_amount, postal_code=shipping_postal_code
+        )
 
         # 배송비를 포함한 총 결제 예정 금액
-        total_payment_amount = total_amount + shipping_fee + additional_shipping_fee
+        total_payment_amount = (
+            total_amount + shipping_result["shipping_fee"] + shipping_result["additional_fee"]
+        )
 
         # 포인트 검증
         if use_points > 0:
@@ -251,86 +243,32 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         attrs["use_points"] = use_points
         return attrs
 
-    @transaction.atomic
     def create(self, validated_data: dict[str, Any]) -> Order:
         """
-        트랜잭션으로 주문 생성
+        주문 생성 (OrderService 위임)
 
-        변경사항:
-        - 포인트 사용 처리 추가
-        - 포인트 이력 기록
+        비즈니스 로직은 OrderService에서 처리
         """
-
         user = self.context["request"].user
         cart = self.cart
         use_points = validated_data.pop("use_points", 0)
 
-        # 1. Order 생성
-        total_amount = cart.total_amount
-        final_amount = max(Decimal("0"), total_amount - Decimal(str(use_points)))
-
-        order = Order.objects.create(
-            user=user,
-            status="pending",  # 결제 대기 상태
-            total_amount=total_amount,
-            used_points=use_points,  # 양수로 저장 (0 이상)
-            final_amount=final_amount,
-            **validated_data,
-        )
-
-        # 도서 산간 지역 체크 (우편번호 기반)
-        remote_area_postal_codes = ["63", "59", "52"]  # 제주, 울릉도 등
-        is_remote = any(order.shipping_postal_code.startswith(code) for code in remote_area_postal_codes)
-
-        # 배송비 적용 (이미 생성된 order 객체에 적용)
-        order.apply_shipping_fee(is_remote_area=is_remote)
-
-        # 2. CartItem -> OrderItem 변환
-        for cart_item in cart.items.all():
-            # 재고 최종 확인(select_for_update로 동시성 제어)
-            product = Product.objects.select_for_update().get(pk=cart_item.product.pk)
-
-            if product.stock < cart_item.quantity:
-                raise serializers.ValidationError(
-                    f"{product.name}의 재고가 부족합니다. " f"(요청: {cart_item.quantity}개, 재고: {product.stock}개)"
-                )
-
-            # F() 객체를 사용한 안전한 재고 차감
-            Product.objects.filter(pk=product.pk).update(stock=F("stock") - cart_item.quantity)
-
-            # OrderItem 생성
-            OrderItem.objects.create(
-                order=order,
-                product=cart_item.product,
-                product_name=cart_item.product.name,
-                quantity=cart_item.quantity,
-                price=cart_item.product.price,
-            )
-
-        # 3. 포인트 사용 처리
-        if use_points > 0:
-            # 포인트 차감
-            user.use_points(use_points)
-
-            # 포인트 사용 이력 기록
-            PointHistory.create_history(
+        try:
+            # OrderService를 통한 주문 생성
+            order = OrderService.create_order_from_cart(
                 user=user,
-                points=-use_points,  # 음수로 기록
-                type="use",
-                order=order,
-                description=f"주문 #{order.order_number} 결제시 사용",
-                metadata={
-                    "order_id": order.id,
-                    "order_number": order.order_number,
-                    "total_amount": str(total_amount),
-                    "final_amount": str(final_amount),
-                },
+                cart=cart,
+                shipping_name=validated_data["shipping_name"],
+                shipping_phone=validated_data["shipping_phone"],
+                shipping_postal_code=validated_data["shipping_postal_code"],
+                shipping_address=validated_data["shipping_address"],
+                shipping_detail_address=validated_data.get("shipping_detail_address", ""),
+                request_message=validated_data.get("request_message", ""),
+                use_points=use_points,
             )
-
-        # 4. 주문 완료 후 장바구니 비우기
-        cart.items.all().delete()
-
-        return order
+            return order
+        except OrderServiceError as e:
+            raise serializers.ValidationError(str(e))
 
     def to_representation(self, instance: Order) -> dict[str, Any]:
         """

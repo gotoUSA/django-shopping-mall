@@ -363,8 +363,9 @@ class PaymentCancelView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # 동시성 제어: Payment를 먼저 락으로 보호
+        # 동시성 제어: Payment와 Order를 락으로 보호
         payment = Payment.objects.select_for_update().get(pk=serializer.payment.pk)
+        order = Order.objects.select_for_update().get(pk=payment.order.pk)
 
         # 중복 취소 방지: 이미 취소된 결제인지 확인
         if payment.is_canceled:
@@ -373,20 +374,17 @@ class PaymentCancelView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # 취소 가능한 상태인지 확인
-        if not payment.can_cancel:
-            return Response(
-                {"error": f"취소할 수 없는 결제 상태입니다: {payment.get_status_display()}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Order를 락으로 보호
-        order = Order.objects.select_for_update().get(pk=payment.order.pk)
-
         # 이미 취소된 주문인지 확인 (중복 취소 방지)
         if order.status == "canceled":
             return Response(
                 {"error": "이미 취소된 주문입니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 취소 가능한 상태인지 확인
+        if payment.status != "done":
+            return Response(
+                {"error": f"취소할 수 없는 결제 상태입니다: {payment.get_status_display()}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -528,14 +526,8 @@ class PaymentCancelView(APIView):
             )
 
             return Response(
-                {
-                    "message": "결제가 취소되었습니다.",
-                    "payment": PaymentSerializer(payment).data,
-                    "refund_amount": int(payment.canceled_amount),
-                    "refunded_points": (order.used_points if order.used_points > 0 else 0),
-                    "deducted_points": (points_deducted if order.earned_points > 0 else 0),
-                },
-                status=status.HTTP_200_OK,
+                {"error": "결제 취소 중 오류가 발생했습니다.", "message": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 

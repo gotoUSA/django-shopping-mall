@@ -471,6 +471,13 @@ class TestPaymentSecurityException:
         # Arrange - 대표적인 XSS 페이로드
         xss_payload = "<script>alert('XSS')</script>"
 
+        # 결제 취소 시 sold_count 감소를 위해 미리 증가
+        from django.db.models import F
+        Product.objects.filter(pk=product.pk).update(
+            sold_count=F("sold_count") + 1
+        )
+        product.refresh_from_db()
+
         order = Order.objects.create(
             user=user,
             status="paid",

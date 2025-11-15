@@ -172,21 +172,41 @@ class PaymentService:
             }
 
         except TossPaymentError as e:
-            # 토스 API 에러
-            PaymentLog.objects.create(
-                payment=payment,
-                log_type="error",
-                message=f"결제 취소 실패: {e.message}",
-                data={"error_code": e.code, "error_message": e.message},
-            )
-            raise PaymentCancelError(f"결제 취소 실패: {e.message}")
+            # 토스 API 에러 (트랜잭션이 깨지기 때문에 로그는 나중에)
+            error_message = f"결제 취소 실패: {e.message}"
+            error_data = {"error_code": e.code, "error_message": e.message}
+
+            # 트랜잭션 밖에서 로그 기록
+            try:
+                from django.db import transaction
+                with transaction.atomic():
+                    PaymentLog.objects.create(
+                        payment=payment,
+                        log_type="error",
+                        message=error_message,
+                        data=error_data,
+                    )
+            except Exception:
+                pass  # 로그 실패는 무시
+
+            raise PaymentCancelError(error_message)
 
         except Exception as e:
-            # 기타 에러
-            PaymentLog.objects.create(
-                payment=payment,
-                log_type="error",
-                message=f"결제 취소 중 오류 발생: {str(e)}",
-                data={"error": str(e)},
-            )
+            # 기타 에러 (트랜잭션이 깨지기 때문에 로그는 나중에)
+            error_message = f"결제 취소 중 오류 발생: {str(e)}"
+            error_data = {"error": str(e)}
+
+            # 트랜잭션 밖에서 로그 기록
+            try:
+                from django.db import transaction
+                with transaction.atomic():
+                    PaymentLog.objects.create(
+                        payment=payment,
+                        log_type="error",
+                        message=error_message,
+                        data=error_data,
+                    )
+            except Exception:
+                pass  # 로그 실패는 무시
+
             raise

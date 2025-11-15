@@ -176,33 +176,8 @@ class PaymentConfirmView(APIView):
             # 5. 장바구니 비활성화
             Cart.objects.filter(user=request.user, is_active=True).update(is_active=False)
 
-            # 6. 포인트 차감 (사용한 포인트가 있는 경우)
-            if order.used_points > 0:
-                request.user.use_points(order.used_points)
-
-                # 포인트 사용 이력 기록
-                PointHistory.create_history(
-                    user=request.user,
-                    points=-order.used_points,
-                    type="use",
-                    order=order,
-                    description=f"주문 #{order.order_number} 결제 시 사용",
-                    metadata={
-                        "order_id": order.id,
-                        "order_number": order.order_number,
-                        "payment_amount": str(order.final_amount),
-                    },
-                )
-
-                # 포인트 사용 로그
-                PaymentLog.objects.create(
-                    payment=payment,
-                    log_type="approve",
-                    message=f"포인트 {order.used_points}점 사용",
-                    data={"used_points": order.used_points},
-                )
-
-            # 7. 포인트 적립 (구매 금액의 1%)
+            # 6. 포인트 적립 (구매 금액의 1%)
+            # 참고: 포인트 차감은 Order 생성 시 이미 처리됨 (order_serializers.py:313)
             # 포인트로만 결제한 경우는 적립하지 않음
             if order.final_amount > 0:
                 # 등급별 적립률 적용
@@ -337,13 +312,6 @@ class PaymentCancelView(APIView):
         payment = serializer.payment
         cancel_reason = serializer.validated_data["cancel_reason"]
 
-        # 토스페이먼츠 API 클라이언트
-        toss_client = TossPaymentClient()
-
-        # 포인트 변수 초기화 (함수 시작 시)
-        points_refunded = 0
-        points_deducted = 0
-
         # Order를 락으로 보호하고 상태 확인 (동시성 제어)
         order = Order.objects.select_for_update().get(pk=payment.order.pk)
 
@@ -361,15 +329,22 @@ class PaymentCancelView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # 현재 주문 상태 저장 (포인트 처리 로직에서 사용)
+        original_order_status = order.status
+
+        # 토스페이먼츠 API 클라이언트
+        toss_client = TossPaymentClient()
+
+        # 포인트 변수 초기화 (함수 시작 시)
+        points_refunded = 0
+        points_deducted = 0
+
         try:
             # 1. 토스페이먼츠에 취소 요청
             cancel_data = toss_client.cancel_payment(payment_key=payment.payment_key, cancel_reason=cancel_reason)
 
             # 2. Payment 정보 업데이트
             payment.mark_as_canceled(cancel_data)
-
-            # 현재 주문 상태 저장 (포인트 처리 로직에서 사용)
-            original_order_status = order.status
 
             # 3. 재고 복구 (paid 상태였던 경우만)
             if original_order_status == "paid":

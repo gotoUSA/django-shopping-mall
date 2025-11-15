@@ -49,31 +49,26 @@ def create_test_user(username, email, phone_number, points=5000, is_verified=Tru
     )
 
 
-def create_test_order_with_payment(
-    user, product, amount=None, quantity=1, skip_stock_deduction=False
-):
+def create_test_order_with_payment(user, product, amount=None, quantity=1):
     """
     테스트 주문 및 결제 생성 헬퍼
 
     실제 주문 생성 플로우 시뮬레이션:
-    1. 재고 차감 (주문 생성 시) - skip_stock_deduction=True로 스킵 가능
+    1. 재고 검증만 수행 (주문 생성 시)
     2. Order 생성
     3. Payment 생성 (ready 상태)
+    4. 재고 차감은 결제 승인 시 수행 (PaymentConfirmView에서 처리)
 
     Args:
         user: 주문 사용자
         product: 상품
         amount: 결제 금액 (기본값: product.price)
         quantity: 주문 수량 (기본값: 1)
-        skip_stock_deduction: 재고 차감 스킵 여부 (기본값: False)
-                             재고 경계 테스트나 재고 소진 테스트에서 True로 설정
     """
     if amount is None:
         amount = product.price
 
-    # 1. 재고 차감 (주문 생성 시뮬레이션)
-    if not skip_stock_deduction:
-        Product.objects.filter(pk=product.pk).update(stock=F("stock") - quantity)
+    # 재고 차감은 결제 승인 시로 이동 (PaymentConfirmView에서 처리)
 
     order = Order.objects.create(
         user=user,
@@ -406,10 +401,8 @@ class TestPaymentConcurrencyBoundary:
             )
             users.append(user)
 
-            # 재고 차감 스킵 - 결제 승인 시 재고 부족 확인을 위함
-            _, payment = create_test_order_with_payment(
-                user, product, skip_stock_deduction=True
-            )
+            # 주문 생성 (재고는 결제 승인 시 차감)
+            _, payment = create_test_order_with_payment(user, product)
             payments.append(payment)
 
         # Toss API Mock - 각 호출마다 고유한 payment_key 생성
@@ -910,13 +903,10 @@ class TestPaymentConcurrencyException:
             )
             users.append(user)
 
-            # 재고 차감 (주문 생성 시뮬레이션)
-            Product.objects.filter(pk=product.pk).update(stock=F("stock") - 1)
-
             # 포인트 차감 (주문 생성 시뮬레이션)
             user.use_points(1000)
 
-            # 포인트 사용 주문 생성
+            # 포인트 사용 주문 생성 (재고는 결제 승인 시 차감)
             order = Order.objects.create(
                 user=user,
                 status="pending",
@@ -1111,10 +1101,8 @@ class TestPaymentConcurrencyException:
             )
             users.append(user)
 
-            # 재고 차감 스킵 - 결제 승인 시 재고 소진 테스트를 위함
-            _, payment = create_test_order_with_payment(
-                user, product, skip_stock_deduction=True
-            )
+            # 주문 생성 (재고는 결제 승인 시 차감)
+            _, payment = create_test_order_with_payment(user, product)
             payments.append(payment)
 
         # Toss API Mock - 각 호출마다 고유한 payment_key 생성

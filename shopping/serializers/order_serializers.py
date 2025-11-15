@@ -287,7 +287,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
         # 2. CartItem -> OrderItem 변환
         for cart_item in cart.items.all():
-            # 재고 최종 확인(select_for_update로 동시성 제어)
+            # 재고 최종 확인 (select_for_update로 동시성 제어)
             product = Product.objects.select_for_update().get(pk=cart_item.product.pk)
 
             if product.stock < cart_item.quantity:
@@ -295,8 +295,8 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                     f"{product.name}의 재고가 부족합니다. " f"(요청: {cart_item.quantity}개, 재고: {product.stock}개)"
                 )
 
-            # F() 객체를 사용한 안전한 재고 차감
-            Product.objects.filter(pk=product.pk).update(stock=F("stock") - cart_item.quantity)
+            # 재고 차감은 결제 승인 시점으로 이동 (PaymentConfirmView에서 처리)
+            # 주문 생성 시에는 재고 검증만 수행
 
             # OrderItem 생성
             OrderItem.objects.create(

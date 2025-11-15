@@ -162,11 +162,46 @@ class PaymentConfirmView(APIView):
             # 2. Payment 정보 업데이트
             payment.mark_as_paid(payment_data)
 
-            # 3. 재고 차감 (select_for_update로 동시성 제어)
-            for order_item in order.order_items.select_for_update():
+            # 3. 재고 검증 및 차감, sold_count 증가 (select_for_update로 동시성 제어)
+            for order_item in order.order_items.all():
                 if order_item.product:
-                    # sold_count만 증가 (F 객체로 안전하게)
-                    Product.objects.filter(pk=order_item.product.pk).update(sold_count=F("sold_count") + order_item.quantity)
+                    # Product에 락 걸기 (동시성 제어 - 동시에 여러 결제가 같은 상품을 구매하는 것 방지)
+                    product = Product.objects.select_for_update().get(pk=order_item.product.pk)
+
+                    # 재고 검증
+                    if product.stock < order_item.quantity:
+                        # 재고 부족 - 결제 실패 처리
+                        payment.mark_as_failed(f"재고 부족: {product.name}")
+                        PaymentLog.objects.create(
+                            payment=payment,
+                            log_type="error",
+                            message=f"재고 부족으로 결제 실패: {product.name}",
+                            data={
+                                "product_id": product.id,
+                                "product_name": product.name,
+                                "required_quantity": order_item.quantity,
+                                "current_stock": product.stock,
+                            },
+                        )
+                        logger.error(
+                            f"결제 승인 실패 - 재고 부족: Payment ID={payment.id}, "
+                            f"Product={product.name}, Stock={product.stock}, Required={order_item.quantity}"
+                        )
+                        return Response(
+                            {
+                                "error": "재고가 부족합니다.",
+                                "product": product.name,
+                                "required": order_item.quantity,
+                                "available": product.stock,
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    # 재고 차감 + sold_count 증가 (원자적 연산)
+                    Product.objects.filter(pk=product.pk).update(
+                        stock=F("stock") - order_item.quantity,
+                        sold_count=F("sold_count") + order_item.quantity,
+                    )
 
             # 4. 주문 상태 변경
             order.status = "paid"

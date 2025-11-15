@@ -108,9 +108,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                             stock=F("stock") + item.quantity,
                             sold_count=F("sold_count") - item.quantity,
                         )
-                    elif order.status == "pending":
-                        # pending 상태: 재고만 복구 (sold_count는 아직 증가 안했음)
-                        Product.objects.filter(pk=item.product.pk).update(stock=F("stock") + item.quantity)
+                    # pending 상태: 재고 차감을 하지 않았으므로 복구도 불필요
 
             # 주문 상태 변경
             order.status = "canceled"

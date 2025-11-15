@@ -80,11 +80,13 @@ class PaymentService:
             # 7. Payment 정보 업데이트
             payment.mark_as_canceled(cancel_data)
 
-            # 8. 재고 복구
+            # 8. 재고 복구 (Product 락으로 동시성 제어)
             for order_item in order.order_items.all():
                 if order_item.product:  # 상품이 삭제되지 않았다면
+                    # Product를 락으로 보호
+                    product = Product.objects.select_for_update().get(pk=order_item.product.pk)
                     # sold_count가 음수가 되지 않도록 Greatest 사용
-                    Product.objects.filter(pk=order_item.product.pk).update(
+                    Product.objects.filter(pk=product.pk).update(
                         stock=F("stock") + order_item.quantity,
                         sold_count=Greatest(F("sold_count") - order_item.quantity, 0),
                     )

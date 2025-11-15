@@ -162,11 +162,13 @@ class PaymentConfirmView(APIView):
             # 2. Payment 정보 업데이트
             payment.mark_as_paid(payment_data)
 
-            # 3. 재고 차감 (select_for_update로 동시성 제어)
-            for order_item in order.order_items.select_for_update():
+            # 3. 재고 차감 (Product 락으로 동시성 제어)
+            for order_item in order.order_items.all():
                 if order_item.product:
+                    # Product를 락으로 보호
+                    product = Product.objects.select_for_update().get(pk=order_item.product.pk)
                     # sold_count만 증가 (F 객체로 안전하게)
-                    Product.objects.filter(pk=order_item.product.pk).update(sold_count=F("sold_count") + order_item.quantity)
+                    Product.objects.filter(pk=product.pk).update(sold_count=F("sold_count") + order_item.quantity)
 
             # 4. 주문 상태 변경
             order.status = "paid"

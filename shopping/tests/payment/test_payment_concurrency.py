@@ -49,10 +49,20 @@ def create_test_user(username, email, phone_number, points=5000, is_verified=Tru
     )
 
 
-def create_test_order_with_payment(user, product, amount=None):
-    """테스트 주문 및 결제 생성 헬퍼"""
+def create_test_order_with_payment(user, product, amount=None, quantity=1):
+    """
+    테스트 주문 및 결제 생성 헬퍼
+
+    실제 주문 생성 플로우 시뮬레이션:
+    1. 재고 차감 (주문 생성 시)
+    2. Order 생성
+    3. Payment 생성 (ready 상태)
+    """
     if amount is None:
         amount = product.price
+
+    # 1. 재고 차감 (주문 생성 시뮬레이션)
+    Product.objects.filter(pk=product.pk).update(stock=F("stock") - quantity)
 
     order = Order.objects.create(
         user=user,
@@ -69,7 +79,7 @@ def create_test_order_with_payment(user, product, amount=None):
         order=order,
         product=product,
         product_name=product.name,
-        quantity=1,
+        quantity=quantity,
         price=amount,
     )
 
@@ -885,6 +895,12 @@ class TestPaymentConcurrencyException:
                 points=2000,
             )
             users.append(user)
+
+            # 재고 차감 (주문 생성 시뮬레이션)
+            Product.objects.filter(pk=product.pk).update(stock=F("stock") - 1)
+
+            # 포인트 차감 (주문 생성 시뮬레이션)
+            user.use_points(1000)
 
             # 포인트 사용 주문 생성
             order = Order.objects.create(

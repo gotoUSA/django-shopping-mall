@@ -163,8 +163,9 @@ class PaymentConfirmSerializer(serializers.Serializer):
         amount = attrs["amount"]
 
         # Payment 찾기 (사용자 검증 포함)
+        # select_for_update()로 동시성 제어 - 동일 결제를 동시에 승인하는 것을 방지
         try:
-            payment = Payment.objects.get(
+            payment = Payment.objects.select_for_update().get(
                 toss_order_id=order_id,
                 order__user=self.context["request"].user,  # 보안: 본인 주문만 접근 가능
             )

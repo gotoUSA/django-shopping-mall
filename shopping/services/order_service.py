@@ -1,5 +1,6 @@
 """주문 서비스 레이어"""
 
+import logging
 from decimal import Decimal
 from typing import Any
 
@@ -11,6 +12,8 @@ from ..models.order import Order, OrderItem
 from ..models.point_history import PointHistory
 from ..models.product import Product
 from .shipping_service import ShippingService
+
+logger = logging.getLogger(__name__)
 
 
 class OrderServiceError(Exception):
@@ -163,4 +166,66 @@ class OrderService:
                 "total_amount": str(total_amount),
                 "final_amount": str(final_amount),
             },
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def cancel_order(order: Order) -> None:
+        """
+        주문 취소 처리
+
+        주문 상태를 취소로 변경하고, 재고를 복구합니다.
+        - pending 상태: 재고만 복구
+        - paid 상태: 재고 복구 + sold_count 차감
+
+        Args:
+            order: 취소할 주문
+
+        Raises:
+            OrderServiceError: 취소할 수 없는 주문인 경우
+        """
+        # 동시성 제어: 주문 잠금 (select_for_update)
+        order = Order.objects.select_for_update().get(pk=order.pk)
+
+        # 트랜잭션 내에서 취소 가능 여부 체크
+        if not order.can_cancel:
+            logger.warning(
+                f"취소 불가능한 주문 취소 시도: order_id={order.id}, "
+                f"status={order.status}, user_id={order.user.id}"
+            )
+            raise OrderServiceError("취소할 수 없는 주문입니다.")
+
+        logger.info(
+            f"주문 취소 시작: order_id={order.id}, order_number={order.order_number}, "
+            f"status={order.status}, user_id={order.user.id}"
+        )
+
+        # 주문 상태에 따라 재고/sold_count 복구
+        for item in order.order_items.select_for_update():
+            if item.product:
+                if order.status == "paid":
+                    # paid 상태: 재고 복구 + sold_count 차감
+                    Product.objects.filter(pk=item.product.pk).update(
+                        stock=F("stock") + item.quantity,
+                        sold_count=F("sold_count") - item.quantity,
+                    )
+                    logger.info(
+                        f"재고 및 판매량 복구: product_id={item.product.pk}, "
+                        f"product_name={item.product_name}, quantity={item.quantity}"
+                    )
+                elif order.status == "pending":
+                    # pending 상태: 재고만 복구 (sold_count는 아직 증가 안했음)
+                    Product.objects.filter(pk=item.product.pk).update(stock=F("stock") + item.quantity)
+                    logger.info(
+                        f"재고 복구: product_id={item.product.pk}, "
+                        f"product_name={item.product_name}, quantity={item.quantity}"
+                    )
+
+        # 주문 상태 변경
+        order.status = "canceled"
+        order.save(update_fields=["status", "updated_at"])
+
+        logger.info(
+            f"주문 취소 완료: order_id={order.id}, order_number={order.order_number}, "
+            f"user_id={order.user.id}"
         )

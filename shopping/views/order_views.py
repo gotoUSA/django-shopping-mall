@@ -3,9 +3,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from django.db import transaction
-from django.db.models import F
-
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
@@ -15,8 +12,8 @@ from rest_framework.response import Response
 from rest_framework.serializers import BaseSerializer
 
 from ..models.order import Order
-from ..models.product import Product
 from ..serializers.order_serializers import OrderCreateSerializer, OrderDetailSerializer, OrderListSerializer
+from ..services.order_service import OrderService, OrderServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -85,38 +82,29 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def cancel(self, request: Request, pk: int | None = None) -> Response:
-        """주문 취소"""
+        """
+        주문 취소
+
+        OrderService를 통해 주문 취소 로직을 처리합니다.
+        """
         order = self.get_object()
 
-        with transaction.atomic():
-            # 동시성 제어: 주문 잠금 (select_for_update)
-            order = Order.objects.select_for_update().get(pk=order.pk)
-
-            # 트랜잭션 내에서 다시 취소 가능 여부 체크
-            if not order.can_cancel:
-                return Response(
-                    {"error": "취소할 수 없는 주문입니다."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # 주문 상태에 따라 재고/sold_count 복구
-            for item in order.order_items.select_for_update():
-                if item.product:
-                    if order.status == "paid":
-                        # paid 상태: 재고 복구 + sold_count 차감
-                        Product.objects.filter(pk=item.product.pk).update(
-                            stock=F("stock") + item.quantity,
-                            sold_count=F("sold_count") - item.quantity,
-                        )
-                    elif order.status == "pending":
-                        # pending 상태: 재고만 복구 (sold_count는 아직 증가 안했음)
-                        Product.objects.filter(pk=item.product.pk).update(stock=F("stock") + item.quantity)
-
-            # 주문 상태 변경
-            order.status = "canceled"
-            order.save(update_fields=["status", "updated_at"])
-
-        return Response({"message": "주문이 취소되었습니다."})
+        try:
+            OrderService.cancel_order(order)
+            logger.info(
+                f"주문 취소 성공: order_id={order.id}, order_number={order.order_number}, "
+                f"user_id={request.user.id}"
+            )
+            return Response({"message": "주문이 취소되었습니다."})
+        except OrderServiceError as e:
+            logger.warning(
+                f"주문 취소 실패: order_id={order.id}, user_id={request.user.id}, "
+                f"error={str(e)}"
+            )
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """주문 목록 조회 - 페이지네이션 구조 확인"""

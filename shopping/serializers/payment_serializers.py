@@ -162,15 +162,22 @@ class PaymentConfirmSerializer(serializers.Serializer):
         order_id = attrs["order_id"]
         amount = attrs["amount"]
 
-        # Payment 찾기
+        # Payment 찾기 (사용자 검증 포함)
         try:
-            payment = Payment.objects.get(toss_order_id=order_id)
+            payment = Payment.objects.get(
+                toss_order_id=order_id,
+                order__user=self.context["request"].user,  # 보안: 본인 주문만 접근 가능
+            )
         except Payment.DoesNotExist:
             raise serializers.ValidationError("결제 정보를 찾을 수 없습니다.")
 
         # 이미 완료된 결제인지 확인
         if payment.is_paid:
             raise serializers.ValidationError("이미 완료된 결제입니다.")
+
+        # 유효하지 않은 상태 확인 (보안: Toss API 호출 전 사전 검증)
+        if payment.status in ["expired", "canceled", "aborted"]:
+            raise serializers.ValidationError(f"유효하지 않은 결제 상태입니다: {payment.get_status_display()}")
 
         # 금액 검증 (포인트 차감 후 금액과 비교)
         if payment.amount != amount:

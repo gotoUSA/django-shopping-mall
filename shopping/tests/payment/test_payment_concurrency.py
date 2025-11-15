@@ -471,6 +471,9 @@ class TestPaymentConcurrencyHappyPath:
             )
             users.append(user)
 
+            # 포인트 차감 (실제 주문 시스템처럼)
+            user.use_points(1000)
+
             order = Order.objects.create(
                 user=user,
                 status="pending",
@@ -730,6 +733,9 @@ class TestPaymentConcurrencyBoundary:
                 points=10000,
             )
             users.append(user)
+
+            # 포인트 전액 차감 (실제 주문 시스템처럼)
+            user.use_points(int(product.price))
 
             order = Order.objects.create(
                 user=user,

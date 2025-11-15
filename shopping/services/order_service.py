@@ -58,12 +58,23 @@ class OrderService:
         Raises:
             OrderServiceError: 재고 부족 등의 오류
         """
+        logger.info(
+            f"주문 생성 시작: user_id={user.id}, cart_id={cart.id}, "
+            f"use_points={use_points}, postal_code={shipping_postal_code}"
+        )
+
         # 1. 주문 총액 계산
         total_amount = cart.total_amount
 
         # 2. 배송비 계산
         shipping_result = ShippingService.calculate_fee(
             total_amount=total_amount, postal_code=shipping_postal_code
+        )
+        logger.info(
+            f"배송비 계산 완료: total_amount={total_amount}, "
+            f"shipping_fee={shipping_result['shipping_fee']}, "
+            f"additional_fee={shipping_result['additional_fee']}, "
+            f"is_free_shipping={shipping_result['is_free_shipping']}"
         )
 
         # 3. 최종 결제 금액 계산 (배송비 포함, 포인트 차감)
@@ -89,6 +100,10 @@ class OrderService:
             shipping_address_detail=shipping_address_detail,
             order_memo=order_memo,
         )
+        logger.info(
+            f"주문 생성 완료: order_id={order.id}, order_number={order.order_number}, "
+            f"total_amount={total_amount}, final_amount={final_amount}"
+        )
 
         # 5. 주문 아이템 생성 + 재고 차감
         OrderService._create_order_items_and_decrease_stock(order, cart)
@@ -99,6 +114,12 @@ class OrderService:
 
         # 7. 장바구니 비우기
         cart.items.all().delete()
+        logger.info(f"장바구니 비우기 완료: cart_id={cart.id}, user_id={user.id}")
+
+        logger.info(
+            f"주문 생성 프로세스 완료: order_id={order.id}, order_number={order.order_number}, "
+            f"user_id={user.id}"
+        )
 
         return order
 
@@ -114,11 +135,20 @@ class OrderService:
         Raises:
             OrderServiceError: 재고 부족
         """
+        logger.info(
+            f"주문 아이템 생성 및 재고 차감 시작: order_id={order.id}, "
+            f"cart_items_count={cart.items.count()}"
+        )
+
         for cart_item in cart.items.all():
             # 재고 최종 확인 (select_for_update로 동시성 제어)
             product = Product.objects.select_for_update().get(pk=cart_item.product.pk)
 
             if product.stock < cart_item.quantity:
+                logger.error(
+                    f"재고 부족: product_id={product.pk}, product_name={product.name}, "
+                    f"requested={cart_item.quantity}, available={product.stock}"
+                )
                 raise OrderServiceError(
                     f"{product.name}의 재고가 부족합니다. "
                     f"(요청: {cart_item.quantity}개, 재고: {product.stock}개)"
@@ -126,6 +156,10 @@ class OrderService:
 
             # F() 객체를 사용한 안전한 재고 차감
             Product.objects.filter(pk=product.pk).update(stock=F("stock") - cart_item.quantity)
+            logger.info(
+                f"재고 차감: product_id={product.pk}, product_name={product.name}, "
+                f"quantity={cart_item.quantity}, previous_stock={product.stock}"
+            )
 
             # OrderItem 생성
             OrderItem.objects.create(
@@ -135,6 +169,12 @@ class OrderService:
                 quantity=cart_item.quantity,
                 price=cart_item.product.price,
             )
+            logger.info(
+                f"주문 아이템 생성: order_id={order.id}, product_id={product.pk}, "
+                f"product_name={product.name}, quantity={cart_item.quantity}, price={cart_item.product.price}"
+            )
+
+        logger.info(f"주문 아이템 생성 및 재고 차감 완료: order_id={order.id}")
 
     @staticmethod
     def _process_point_usage(
@@ -150,6 +190,11 @@ class OrderService:
             total_amount: 주문 총액
             final_amount: 최종 결제 금액
         """
+        logger.info(
+            f"포인트 사용 처리 시작: user_id={user.id}, order_id={order.id}, "
+            f"use_points={use_points}"
+        )
+
         # 포인트 차감 (PointService 사용)
         PointService.use_points(
             user=user,
@@ -163,6 +208,11 @@ class OrderService:
                 "total_amount": str(total_amount),
                 "final_amount": str(final_amount),
             },
+        )
+
+        logger.info(
+            f"포인트 사용 완료: user_id={user.id}, order_id={order.id}, "
+            f"use_points={use_points}"
         )
 
     @staticmethod

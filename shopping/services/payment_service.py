@@ -1,5 +1,6 @@
 """결제 서비스 레이어"""
 
+import logging
 from decimal import Decimal
 from typing import Any
 
@@ -13,6 +14,8 @@ from ..models.payment import Payment, PaymentLog
 from ..models.product import Product
 from ..utils.toss_payment import TossPaymentClient, TossPaymentError
 from .point_service import PointService
+
+logger = logging.getLogger(__name__)
 
 
 class PaymentCancelError(Exception):
@@ -43,11 +46,21 @@ class PaymentService:
         Returns:
             Payment: 생성된 결제 정보
         """
+        logger.info(
+            f"결제 정보 생성 시작: order_id={order.id}, order_number={order.order_number}, "
+            f"payment_method={payment_method}, amount={order.final_amount}"
+        )
+
         # 동시성 제어: Order를 락으로 보호
         Order.objects.select_for_update().get(pk=order.pk)
 
         # 기존 Payment가 있으면 삭제 (재시도의 경우)
-        Payment.objects.filter(order=order).delete()
+        existing_count = Payment.objects.filter(order=order).count()
+        if existing_count > 0:
+            logger.warning(
+                f"기존 결제 정보 삭제: order_id={order.id}, count={existing_count}"
+            )
+            Payment.objects.filter(order=order).delete()
 
         # 새 Payment 생성 (포인트 차감 후 금액으로)
         payment = Payment.objects.create(
@@ -70,6 +83,11 @@ class PaymentService:
                 "amount": str(order.final_amount),  # 실제 결제 금액
                 "payment_method": payment_method,
             },
+        )
+
+        logger.info(
+            f"결제 정보 생성 완료: payment_id={payment.id}, order_id={order.id}, "
+            f"amount={payment.amount}"
         )
 
         return payment
@@ -96,34 +114,49 @@ class PaymentService:
         """
         order = payment.order
 
+        logger.info(
+            f"결제 승인 시작: payment_id={payment.id}, order_id={order.id}, "
+            f"order_number={order_id}, amount={amount}, user_id={user.id}"
+        )
+
         # 토스페이먼츠 API 클라이언트
         toss_client = TossPaymentClient()
 
         # 1. 토스페이먼츠에 결제 승인 요청
+        logger.info(f"토스페이먼츠 결제 승인 요청: order_number={order_id}, amount={amount}")
         payment_data = toss_client.confirm_payment(
             payment_key=payment_key,
             order_id=order_id,
             amount=amount,
         )
+        logger.info(f"토스페이먼츠 결제 승인 성공: payment_id={payment.id}, order_number={order_id}")
 
         # 2. Payment 정보 업데이트
         payment.mark_as_paid(payment_data)
+        logger.info(f"결제 정보 업데이트 완료: payment_id={payment.id}, status={payment.status}")
 
         # 3. 재고 차감 (sold_count 증가, Product 락으로 동시성 제어)
+        logger.info(f"판매량 증가 시작: order_id={order.id}")
         for order_item in order.order_items.all():
             if order_item.product:
                 # Product를 락으로 보호
                 product = Product.objects.select_for_update().get(pk=order_item.product.pk)
                 # sold_count만 증가 (F 객체로 안전하게)
                 Product.objects.filter(pk=product.pk).update(sold_count=F("sold_count") + order_item.quantity)
+                logger.info(
+                    f"판매량 증가: product_id={product.pk}, product_name={product.name}, "
+                    f"quantity={order_item.quantity}"
+                )
 
         # 4. 주문 상태 변경
         order.status = "paid"
         order.payment_method = payment.method
         order.save(update_fields=["status", "payment_method", "updated_at"])
+        logger.info(f"주문 상태 변경: order_id={order.id}, status=paid")
 
         # 5. 장바구니 비활성화
         Cart.objects.filter(user=user, is_active=True).update(is_active=False)
+        logger.info(f"장바구니 비활성화 완료: user_id={user.id}")
 
         # 6. 포인트 적립 (구매 금액의 1%)
         points_to_add = 0
@@ -134,6 +167,11 @@ class PaymentService:
             points_to_add = int(order.final_amount * Decimal(earn_rate) / Decimal("100"))
 
             if points_to_add > 0:
+                logger.info(
+                    f"포인트 적립 시작: user_id={user.id}, order_id={order.id}, "
+                    f"points={points_to_add}, earn_rate={earn_rate}%"
+                )
+
                 # 포인트 적립 (PointService 사용)
                 PointService.add_points(
                     user=user,
@@ -161,9 +199,17 @@ class PaymentService:
                     message=f"포인트 {points_to_add}점 적립",
                     data={"points": points_to_add},
                 )
+
+                logger.info(
+                    f"포인트 적립 완료: user_id={user.id}, order_id={order.id}, points={points_to_add}"
+                )
         else:
             # 포인트 전액 결제 로그
             if order.used_points > 0:
+                logger.info(
+                    f"포인트 전액 결제: user_id={user.id}, order_id={order.id}, "
+                    f"used_points={order.used_points}"
+                )
                 PaymentLog.objects.create(
                     payment=payment,
                     log_type="approve",
@@ -177,6 +223,11 @@ class PaymentService:
             log_type="approve",
             message="결제 승인 완료",
             data=payment_data,
+        )
+
+        logger.info(
+            f"결제 승인 완료: payment_id={payment.id}, order_id={order.id}, "
+            f"amount={amount}, points_earned={points_to_add}"
         )
 
         return {
@@ -205,26 +256,39 @@ class PaymentService:
             Payment.DoesNotExist: 결제 정보를 찾을 수 없음
             PaymentCancelError: 취소 불가능한 상태
         """
+        logger.info(
+            f"결제 취소 시작: payment_id={payment_id}, user_id={user.id}, "
+            f"cancel_reason={cancel_reason}"
+        )
+
         # 1. 동시성 제어: Payment를 락으로 보호하며 조회
         try:
             payment = Payment.objects.select_for_update().get(
                 id=payment_id, order__user=user
             )
         except Payment.DoesNotExist:
+            logger.error(f"결제 정보를 찾을 수 없음: payment_id={payment_id}, user_id={user.id}")
             raise PaymentCancelError("결제 정보를 찾을 수 없습니다.")
 
         # 2. 중복 취소 방지: 이미 취소된 결제인지 확인
         if payment.is_canceled:
+            logger.warning(
+                f"이미 취소된 결제 취소 시도: payment_id={payment_id}, user_id={user.id}"
+            )
             raise PaymentCancelError("이미 취소된 결제입니다.")
 
         # 3. 취소 가능한 상태인지 확인
         if payment.status != "done":
+            logger.warning(
+                f"취소 불가능한 결제 상태: payment_id={payment_id}, status={payment.status}"
+            )
             raise PaymentCancelError(
                 f"취소할 수 없는 결제 상태입니다: {payment.get_status_display()}"
             )
 
         # 4. Order를 락으로 보호
         order = Order.objects.select_for_update().get(pk=payment.order_id)
+        logger.info(f"결제 취소 검증 완료: payment_id={payment_id}, order_id={order.id}")
 
         # 5. 토스페이먼츠 API 클라이언트
         toss_client = TossPaymentClient()
@@ -235,14 +299,18 @@ class PaymentService:
 
         try:
             # 6. 토스페이먼츠에 취소 요청
+            logger.info(f"토스페이먼츠 결제 취소 요청: payment_id={payment_id}, order_id={order.id}")
             cancel_data = toss_client.cancel_payment(
                 payment_key=payment.payment_key, cancel_reason=cancel_reason
             )
+            logger.info(f"토스페이먼츠 결제 취소 성공: payment_id={payment_id}")
 
             # 7. Payment 정보 업데이트
             payment.mark_as_canceled(cancel_data)
+            logger.info(f"결제 정보 업데이트 완료: payment_id={payment_id}, status={payment.status}")
 
             # 8. 재고 복구 (Product 락으로 동시성 제어)
+            logger.info(f"재고 복구 시작: order_id={order.id}")
             for order_item in order.order_items.all():
                 if order_item.product:  # 상품이 삭제되지 않았다면
                     # Product를 락으로 보호
@@ -252,15 +320,25 @@ class PaymentService:
                         stock=F("stock") + order_item.quantity,
                         sold_count=Greatest(F("sold_count") - order_item.quantity, 0),
                     )
+                    logger.info(
+                        f"재고 및 판매량 복구: product_id={product.pk}, product_name={product.name}, "
+                        f"quantity={order_item.quantity}"
+                    )
 
             # 9. 주문 상태 변경
             order.status = "canceled"
             order.save(update_fields=["status", "updated_at"])
+            logger.info(f"주문 상태 변경: order_id={order.id}, status=canceled")
 
             # 10. 포인트 처리
             # 10-1. 사용한 포인트 환불
             if order.used_points > 0:
                 points_refunded = order.used_points
+                logger.info(
+                    f"포인트 환불 시작: user_id={user.id}, order_id={order.id}, "
+                    f"points={points_refunded}"
+                )
+
                 # 포인트 환불 (PointService 사용)
                 PointService.add_points(
                     user=user,
@@ -283,9 +361,16 @@ class PaymentService:
                     data={"points": order.used_points},
                 )
 
+                logger.info(f"포인트 환불 완료: user_id={user.id}, points={points_refunded}")
+
             # 10-2. 적립된 포인트 차감
             if order.earned_points > 0:
                 points_deducted = order.earned_points
+                logger.info(
+                    f"적립 포인트 차감 시작: user_id={user.id}, order_id={order.id}, "
+                    f"points={points_deducted}"
+                )
+
                 # 포인트 차감 (PointService 사용)
                 PointService.use_points(
                     user=user,
@@ -308,6 +393,8 @@ class PaymentService:
                     data={"points": -order.earned_points},
                 )
 
+                logger.info(f"적립 포인트 차감 완료: user_id={user.id}, points={points_deducted}")
+
             # 취소 성공 로그
             PaymentLog.objects.create(
                 payment=payment,
@@ -319,6 +406,12 @@ class PaymentService:
                     "points_refunded": points_refunded,
                     "points_deducted": points_deducted,
                 },
+            )
+
+            logger.info(
+                f"결제 취소 완료: payment_id={payment_id}, order_id={order.id}, "
+                f"canceled_amount={payment.canceled_amount}, "
+                f"points_refunded={points_refunded}, points_deducted={points_deducted}"
             )
 
             # payment 저장 (mark_as_canceled에서 save 호출)
@@ -337,6 +430,11 @@ class PaymentService:
             # 토스 API 에러 (트랜잭션이 깨지기 때문에 로그는 나중에)
             error_message = f"결제 취소 실패: {e.message}"
             error_data = {"error_code": e.code, "error_message": e.message}
+
+            logger.error(
+                f"토스페이먼츠 결제 취소 실패: payment_id={payment_id}, "
+                f"error_code={e.code}, error_message={e.message}"
+            )
 
             # 트랜잭션 밖에서 로그 기록
             try:
@@ -357,6 +455,8 @@ class PaymentService:
             # 기타 에러 (트랜잭션이 깨지기 때문에 로그는 나중에)
             error_message = f"결제 취소 중 오류 발생: {str(e)}"
             error_data = {"error": str(e)}
+
+            logger.error(f"결제 취소 중 예상치 못한 오류: payment_id={payment_id}, error={str(e)}")
 
             # 트랜잭션 밖에서 로그 기록
             try:

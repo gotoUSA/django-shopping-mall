@@ -4,11 +4,13 @@ from typing import TYPE_CHECKING, Any
 
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.signals import pre_social_login
 
 from shopping.models.email_verification import EmailVerificationToken
+from shopping.models.order import Order
 
 if TYPE_CHECKING:
     from allauth.socialaccount.models import SocialLogin
@@ -90,3 +92,32 @@ def handle_new_social_account(sender: type[SocialAccount], instance: SocialAccou
 
     if updated_count > 0:
         print(f"🔐 소셜 가입: {user.email} 기존 인증 토큰 {updated_count}개 무효화 완료")
+
+
+@receiver(post_save, sender=Order)
+def generate_order_number(sender: type[Order], instance: Order, created: bool, **kwargs: Any) -> None:
+    """
+    주문 생성 시 주문번호 자동 생성
+
+    주문이 생성되면 (created=True) order_number가 없는 경우에만
+    YYYYMMDD + 6자리 ID 형식으로 주문번호를 생성합니다.
+
+    예: 202401150000042
+
+    Args:
+        sender: Order 모델
+        instance: 생성된 Order 인스턴스
+        created: 신규 생성 여부
+        **kwargs: 추가 매개변수
+    """
+    # 신규 생성이고 주문번호가 없는 경우에만 처리
+    if created and not instance.order_number:
+        # 날짜 + ID 형식으로 주문번호 생성
+        date_str = timezone.now().strftime("%Y%m%d")
+        order_number = f"{date_str}{instance.id:06d}"
+
+        # update()를 사용하여 단일 쿼리로 업데이트 (signal 재귀 방지)
+        Order.objects.filter(pk=instance.pk).update(order_number=order_number)
+
+        # 인스턴스도 업데이트
+        instance.order_number = order_number

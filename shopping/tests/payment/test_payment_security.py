@@ -510,6 +510,7 @@ class TestPaymentSecurityException:
         toss_cancel_response = {
             "status": "CANCELED",
             "canceledAt": "2025-01-15T11:00:00+09:00",
+            "cancelReason": xss_payload,
         }
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",

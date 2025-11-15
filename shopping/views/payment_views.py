@@ -300,7 +300,6 @@ class PaymentCancelView(APIView):
 
     permission_classes = [permissions.IsAuthenticated]
 
-    @transaction.atomic
     def post(self, request):
         """
         결제 취소 처리
@@ -311,159 +310,58 @@ class PaymentCancelView(APIView):
             "cancel_reason": "고객 변심"
         }
         """
-        serializer = PaymentCancelSerializer(data=request.data, context={"request": request})
+        # 입력 검증만 수행 (비즈니스 로직 검증은 서비스에서)
+        serializer = PaymentCancelSerializer(data=request.data)
 
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        payment = serializer.payment
-        order = payment.order
+        payment_id = serializer.validated_data["payment_id"]
         cancel_reason = serializer.validated_data["cancel_reason"]
 
-        # 토스페이먼츠 API 클라이언트
-        toss_client = TossPaymentClient()
-
-        # 포인트 변수 초기화 (함수 시작 시)
-        points_refunded = 0
-        points_deducted = 0
-
         try:
-            # 1. 토스페이먼츠에 취소 요청
-            cancel_data = toss_client.cancel_payment(payment_key=payment.payment_key, cancel_reason=cancel_reason)
+            # 서비스 레이어 호출 (동시성 제어 및 비즈니스 로직 처리)
+            from ..services.payment_service import PaymentService
 
-            # 2. Payment 정보 업데이트
-            payment.mark_as_canceled(cancel_data)
-
-            # 3. 재고 복구
-            for order_item in order.order_items.all():
-                if order_item.product:  # 상품이 삭제되지 않았다면
-                    Product.objects.filter(pk=order_item.product.pk).update(
-                        stock=F("stock") + order_item.quantity,
-                        sold_count=F("sold_count") - order_item.quantity,
-                    )
-
-            # 4. 주문 상태 변경
-            order.status = "canceled"
-            order.save(update_fields=["status", "updated_at"])
-
-            # 5. 포인트 처리
-            # 5-1. 사용한 포인트 환불
-            if order.used_points > 0:
-                points_refunded = order.used_points  # 변수에 저장
-                request.user.add_points(points_refunded)
-
-                # 포인트 환불 이력 기록
-                PointHistory.create_history(
-                    user=request.user,
-                    points=order.used_points,
-                    type="cancel_refund",
-                    order=order,
-                    description=f"주문 #{order.order_number} 취소로 인한 포인트 환불",
-                    metadata={
-                        "order_id": order.id,
-                        "order_number": order.order_number,
-                        "cancel_reason": cancel_reason,
-                    },
-                )
-
-                # 환불 로그
-                PaymentLog.objects.create(
-                    payment=payment,
-                    log_type="cancel",
-                    message=f"사용 포인트 {order.used_points}점 환불",
-                    data={"refunded_points": order.used_points},
-                )
-
-            # 5-2. 적립했던 포인트 회수
-            if order.earned_points > 0:
-                # 포인트 차감 (보유 포인트가 부족한 경우 처리)
-                points_deducted = min(order.earned_points, request.user.points)
-                if points_deducted > 0:
-                    request.user.use_points(points_deducted)
-
-                    # 포인트 차감 이력 기록
-                    PointHistory.create_history(
-                        user=request.user,
-                        points=-points_deducted,
-                        type="cancel_deduct",
-                        order=order,
-                        description=f"주문 #{order.order_number} 취소로 인한 적립 포인트 회수",
-                        metadata={
-                            "order_id": order.id,
-                            "order_number": order.order_number,
-                            "original_earned": order.earned_points,
-                            "actual_deducted": points_deducted,
-                        },
-                    )
-                    # 포인트 회수 로그
-                    PaymentLog.objects.create(
-                        payment=payment,
-                        log_type="cancel",
-                        message=f"적립 포인트 {points_deducted}점 회수",
-                        data={"deducted_points": points_deducted},
-                    )
-
-            # 6. 취소 로그
-            PaymentLog.objects.create(
-                payment=payment,
-                log_type="cancel",
-                message=f"결제 취소 완료: {cancel_reason}",
-                data=cancel_data,
+            result = PaymentService.cancel_payment(
+                payment_id=payment_id, user=request.user, cancel_reason=cancel_reason
             )
+
+            # 응답용 Payment 객체 조회
+            payment = Payment.objects.get(pk=payment_id)
 
             return Response(
                 {
                     "message": "결제가 취소되었습니다.",
                     "payment": PaymentSerializer(payment).data,
-                    "refund_amount": int(payment.canceled_amount),
-                    "refunded_points": points_refunded,
-                    "deducted_points": points_deducted,
+                    "refund_amount": int(result["canceled_amount"]),
+                    "refunded_points": result["points_refunded"],
+                    "deducted_points": result["points_deducted"],
                 },
                 status=status.HTTP_200_OK,
             )
 
-        except TossPaymentError as e:
-            # 토스페이먼츠 API 에러
-            logger.error(f"Toss cancel error: {e.to_dict()}")
-
-            # 에러 로그
-            PaymentLog.objects.create(
-                payment=payment,
-                log_type="error",
-                message=f"결제 취소 실패: {e.message}",
-                data=e.to_dict(),
-            )
-
+        except Payment.DoesNotExist:
             return Response(
-                {
-                    "error": get_error_message(e.code),
-                    "code": e.code,
-                    "message": e.message,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+                {"error": "결제 정보를 찾을 수 없습니다."},
+                status=status.HTTP_404_NOT_FOUND,
             )
 
         except Exception as e:
-            # 기타 에러
-            logger.error(f"Payment cancel error: {str(e)}")
+            # PaymentCancelError 및 기타 에러
+            from ..services.payment_service import PaymentCancelError
 
-            # 에러 로그
-            PaymentLog.objects.create(
-                payment=payment,
-                log_type="error",
-                message=f"취소 중 오류: {str(e)}",
-                data={"error": str(e)},
-            )
+            if isinstance(e, PaymentCancelError):
+                logger.error(f"Payment cancel error: {str(e)}")
+                return Response(
+                    {"error": str(e)}, status=status.HTTP_400_BAD_REQUEST
+                )
 
+            # 기타 예외
+            logger.error(f"Unexpected error in payment cancel: {str(e)}")
             return Response(
-                {
-                    "message": "결제가 취소되었습니다.",
-                    "payment": PaymentSerializer(payment).data,
-                    "refund_amount": int(payment.canceled_amount),
-                    "refunded_points": (order.used_points if order.used_points > 0 else 0),
-                    "deducted_points": (points_deducted if order.earned_points > 0 else 0),
-                },
-                status=status.HTTP_200_OK,
+                {"error": "결제 취소 중 오류가 발생했습니다.", "message": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 

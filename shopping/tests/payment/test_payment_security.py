@@ -199,7 +199,6 @@ class TestPaymentSecurityException:
         other_user,
         other_user_order,
         product,
-        mocker,
     ):
         """다른 사용자의 주문 결제 승인 시도 거부"""
         # Arrange - other_user의 결제
@@ -212,18 +211,6 @@ class TestPaymentSecurityException:
 
         # user로 인증 (주문 소유자가 아님)
         api_client.force_authenticate(user=user)
-
-        # Toss API 에러 모킹 (보안 이슈: 현재는 Toss API까지 호출됨)
-        from shopping.utils.toss_payment import TossPaymentError
-
-        mocker.patch(
-            "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
-            side_effect=TossPaymentError(
-                code="UNAUTHORIZED_KEY",
-                message="인증되지 않은 시크릿 키 혹은 클라이언트 키 입니다.",
-                status_code=401,
-            ),
-        )
 
         request_data = {
             "order_id": other_user_order.order_number,
@@ -238,10 +225,13 @@ class TestPaymentSecurityException:
             format="json",
         )
 
-        # Assert - Toss API 에러로 실패 (현재 구현)
-        # TODO: PaymentConfirmSerializer에 order__user 검증 추가 필요
+        # Assert - 사용자 검증으로 Serializer 단계에서 차단
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "error" in response.data
+        assert "결제 정보를 찾을 수 없습니다" in str(response.data)
+
+        # Assert - Payment 상태 변경 없음
+        payment.refresh_from_db()
+        assert payment.status == "ready"
 
     def test_other_user_payment_cancel_rejected(
         self,
@@ -296,24 +286,11 @@ class TestPaymentSecurityException:
         authenticated_client,
         order,
         payment,
-        mocker,
     ):
         """만료된 결제로 승인 시도 거부"""
         # Arrange - Payment를 만료 상태로 변경
         payment.status = "expired"
         payment.save()
-
-        # Toss API 에러 모킹 (보안 이슈: expired 상태도 Toss API까지 호출됨)
-        from shopping.utils.toss_payment import TossPaymentError
-
-        mocker.patch(
-            "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
-            side_effect=TossPaymentError(
-                code="INVALID_REQUEST",
-                message="이미 처리된 결제입니다.",
-                status_code=400,
-            ),
-        )
 
         request_data = {
             "order_id": order.order_number,
@@ -328,21 +305,20 @@ class TestPaymentSecurityException:
             format="json",
         )
 
-        # Assert - Toss API 에러로 실패 (현재 구현)
-        # TODO: PaymentConfirmSerializer에 expired/canceled 상태 검증 추가 필요
+        # Assert - 상태 검증으로 Serializer 단계에서 차단
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "error" in response.data
+        assert "유효하지 않은 결제 상태입니다" in str(response.data)
+        assert "결제 만료" in str(response.data)  # get_status_display()
 
-        # Assert - aborted 상태로 변경됨 (에러 처리)
+        # Assert - Payment 상태 변경 없음 (Toss API 호출 전 차단)
         payment.refresh_from_db()
-        assert payment.status == "aborted"
+        assert payment.status == "expired"
 
     def test_canceled_payment_reconfirm_rejected(
         self,
         authenticated_client,
         user,
         product,
-        mocker,
     ):
         """취소된 결제로 재승인 시도 거부"""
         # Arrange - 취소된 결제 생성
@@ -371,18 +347,6 @@ class TestPaymentSecurityException:
             toss_order_id=order.order_number,
         )
 
-        # Toss API 에러 모킹 (보안 이슈: canceled 상태도 Toss API까지 호출됨)
-        from shopping.utils.toss_payment import TossPaymentError
-
-        mocker.patch(
-            "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
-            side_effect=TossPaymentError(
-                code="INVALID_REQUEST",
-                message="이미 취소된 결제입니다.",
-                status_code=400,
-            ),
-        )
-
         request_data = {
             "order_id": order.order_number,
             "payment_key": "test_payment_key",
@@ -396,14 +360,14 @@ class TestPaymentSecurityException:
             format="json",
         )
 
-        # Assert - Toss API 에러로 실패 (현재 구현)
-        # TODO: PaymentConfirmSerializer에 canceled 상태 검증 추가 필요
+        # Assert - 상태 검증으로 Serializer 단계에서 차단
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "error" in response.data
+        assert "유효하지 않은 결제 상태입니다" in str(response.data)
+        assert "결제 취소" in str(response.data)  # get_status_display()
 
-        # Assert - aborted 상태로 변경됨 (에러 처리)
+        # Assert - Payment 상태 변경 없음 (Toss API 호출 전 차단)
         payment.refresh_from_db()
-        assert payment.status == "aborted"
+        assert payment.status == "canceled"
 
     def test_unauthenticated_access_rejected(
         self,

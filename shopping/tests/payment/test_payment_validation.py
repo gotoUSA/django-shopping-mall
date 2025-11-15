@@ -1,7 +1,6 @@
 """결제 금액 검증 테스트"""
 
 from decimal import Decimal
-from typing import Any
 
 import pytest
 from rest_framework import status
@@ -17,9 +16,9 @@ class TestPaymentValidationNormalCase:
 
     def test_valid_integer_amount(
         self,
-        authenticated_client: Any,
-        order: Order,
-    ) -> None:
+        authenticated_client,
+        order,
+    ):
         """일반적인 정수 금액 (10,000원)"""
         # Arrange
         request_data = {"order_id": order.id}
@@ -39,10 +38,10 @@ class TestPaymentValidationNormalCase:
 
     def test_valid_large_amount(
         self,
-        authenticated_client: Any,
-        user: Any,
-        category: Any,
-    ) -> None:
+        authenticated_client,
+        user,
+        category,
+    ):
         """큰 금액 결제 (100,000,000원)"""
         # Arrange - 1억원 상품 주문 생성
         large_product = Product.objects.create(
@@ -90,13 +89,13 @@ class TestPaymentValidationNormalCase:
 
     def test_zero_amount_with_full_points(
         self,
-        authenticated_client: Any,
-        user: Any,
-        product: Product,
-        add_to_cart_helper: Any,
-        shipping_data: dict[str, str],
-        mocker: Any,
-    ) -> None:
+        authenticated_client,
+        user,
+        product,
+        add_to_cart_helper,
+        shipping_data,
+        mocker,
+    ):
         """포인트 전액 결제 (final_amount = 0원)"""
         # Arrange - 충분한 포인트 지급
         user.points = 50000
@@ -159,12 +158,12 @@ class TestPaymentValidationNormalCase:
 
     def test_partial_points_usage(
         self,
-        authenticated_client: Any,
-        user: Any,
-        product: Product,
-        add_to_cart_helper: Any,
-        shipping_data: dict[str, str],
-    ) -> None:
+        authenticated_client,
+        user,
+        product,
+        add_to_cart_helper,
+        shipping_data,
+    ):
         """포인트 일부 사용 (total_amount - used_points = final_amount)"""
         # Arrange
         user.points = 5000
@@ -205,9 +204,9 @@ class TestPaymentValidationNormalCase:
 
     def test_decimal_precision_preserved(
         self,
-        authenticated_client: Any,
-        order: Order,
-    ) -> None:
+        authenticated_client,
+        order,
+    ):
         """Decimal 정밀도 유지"""
         # Arrange
         request_data = {"order_id": order.id}
@@ -238,10 +237,10 @@ class TestPaymentValidationBoundary:
 
     def test_minimum_valid_amount(
         self,
-        authenticated_client: Any,
-        user: Any,
-        category: Any,
-    ) -> None:
+        authenticated_client,
+        user,
+        category,
+    ):
         """최소 유효 금액 (1원)"""
         # Arrange - 1원 상품
         min_product = Product.objects.create(
@@ -288,10 +287,10 @@ class TestPaymentValidationBoundary:
 
     def test_maximum_amount_limit(
         self,
-        authenticated_client: Any,
-        user: Any,
-        category: Any,
-    ) -> None:
+        authenticated_client,
+        user,
+        category,
+    ):
         """최대 금액 한계 (9,999,999,999원)"""
         # Arrange - max_digits=10 한계 금액
         max_amount = Decimal("9999999999")
@@ -341,10 +340,10 @@ class TestPaymentValidationBoundary:
 
     def test_amount_near_maximum(
         self,
-        authenticated_client: Any,
-        user: Any,
-        category: Any,
-    ) -> None:
+        authenticated_client,
+        user,
+        category,
+    ):
         """최대값 근처 금액 (9,999,999,998원)"""
         # Arrange
         near_max = Decimal("9999999998")
@@ -393,12 +392,12 @@ class TestPaymentValidationBoundary:
 
     def test_points_making_zero_final_amount(
         self,
-        authenticated_client: Any,
-        user: Any,
-        product: Product,
-        add_to_cart_helper: Any,
-        shipping_data: dict[str, str],
-    ) -> None:
+        authenticated_client,
+        user,
+        product,
+        add_to_cart_helper,
+        shipping_data,
+    ):
         """포인트로 정확히 0원 만들기 (total_amount = used_points)"""
         # Arrange
         user.points = 13000
@@ -444,10 +443,10 @@ class TestPaymentValidationException:
 
     def test_negative_amount_rejected(
         self,
-        authenticated_client: Any,
-        user: Any,
-        category: Any,
-    ) -> None:
+        authenticated_client,
+        user,
+        category,
+    ):
         """음수 금액 거부"""
         # Arrange - 음수 금액 상품 (DB 레벨에서는 생성 가능)
         negative_product = Product.objects.create(
@@ -493,10 +492,10 @@ class TestPaymentValidationException:
 
     def test_zero_total_amount_rejected(
         self,
-        authenticated_client: Any,
-        user: Any,
-        category: Any,
-    ) -> None:
+        authenticated_client,
+        user,
+        category,
+    ):
         """total_amount 0원 거부"""
         # Arrange - 0원 상품
         zero_product = Product.objects.create(
@@ -542,10 +541,10 @@ class TestPaymentValidationException:
 
     def test_negative_total_amount_rejected(
         self,
-        authenticated_client: Any,
-        user: Any,
-        category: Any,
-    ) -> None:
+        authenticated_client,
+        user,
+        category,
+    ):
         """total_amount 음수 거부"""
         # Arrange
         product = Product.objects.create(
@@ -591,10 +590,10 @@ class TestPaymentValidationException:
 
     def test_string_amount_rejected(
         self,
-        authenticated_client: Any,
-        order: Order,
-        payment: Payment,
-    ) -> None:
+        authenticated_client,
+        order,
+        payment,
+    ):
         """문자열 금액 거부"""
         # Arrange - confirm에서 문자열 금액 전송
         request_data = {
@@ -617,10 +616,10 @@ class TestPaymentValidationException:
 
     def test_null_amount_rejected(
         self,
-        authenticated_client: Any,
-        order: Order,
-        payment: Payment,
-    ) -> None:
+        authenticated_client,
+        order,
+        payment,
+    ):
         """null 금액 거부"""
         # Arrange
         request_data = {
@@ -642,10 +641,10 @@ class TestPaymentValidationException:
 
     def test_empty_amount_rejected(
         self,
-        authenticated_client: Any,
-        order: Order,
-        payment: Payment,
-    ) -> None:
+        authenticated_client,
+        order,
+        payment,
+    ):
         """amount 필드 누락 거부"""
         # Arrange - amount 필드 없음
         request_data = {
@@ -667,11 +666,11 @@ class TestPaymentValidationException:
 
     def test_float_type_handling(
         self,
-        authenticated_client: Any,
-        order: Order,
-        payment: Payment,
-        mocker: Any,
-    ) -> None:
+        authenticated_client,
+        order,
+        payment,
+        mocker,
+    ):
         """float 타입 처리 (자동 Decimal 변환)"""
         # Arrange
         toss_response = {
@@ -710,10 +709,10 @@ class TestPaymentValidationException:
 
     def test_decimal_with_fractional_rejected(
         self,
-        authenticated_client: Any,
-        order: Order,
-        payment: Payment,
-    ) -> None:
+        authenticated_client,
+        order,
+        payment,
+    ):
         """소수점 금액 거부 (decimal_places=0)"""
         # Arrange - 소수점 포함 금액
         request_data = {
@@ -734,10 +733,10 @@ class TestPaymentValidationException:
 
     def test_very_small_decimal_rejected(
         self,
-        authenticated_client: Any,
-        user: Any,
-        category: Any,
-    ) -> None:
+        authenticated_client,
+        user,
+        category,
+    ):
         """매우 작은 소수 금액 거부 (0.01원)"""
         # Arrange - 소수점 금액은 DB 제약으로 저장 불가
         # 대신 API에서 소수점 금액 전송 시도
@@ -795,10 +794,10 @@ class TestPaymentValidationException:
 
     def test_exceed_max_digits(
         self,
-        authenticated_client: Any,
-        user: Any,
-        category: Any,
-    ) -> None:
+        authenticated_client,
+        user,
+        category,
+    ):
         """자릿수 초과 거부 (11자리)"""
         # Arrange - 10자리 초과 금액
         try:
@@ -851,10 +850,10 @@ class TestPaymentValidationException:
 
     def test_amount_mismatch_in_confirm(
         self,
-        authenticated_client: Any,
-        order: Order,
-        payment: Payment,
-    ) -> None:
+        authenticated_client,
+        order,
+        payment,
+    ):
         """confirm 시 금액 불일치 (payment.amount ≠ request.amount)"""
         # Arrange - 잘못된 금액으로 confirm 시도
         request_data = {
@@ -876,12 +875,12 @@ class TestPaymentValidationException:
 
     def test_amount_tampering_between_steps(
         self,
-        authenticated_client: Any,
-        user: Any,
-        product: Product,
-        add_to_cart_helper: Any,
-        shipping_data: dict[str, str],
-    ) -> None:
+        authenticated_client,
+        user,
+        product,
+        add_to_cart_helper,
+        shipping_data,
+    ):
         """request와 confirm 사이 금액 변조 시도"""
         # Arrange - 정상 주문 생성
         add_to_cart_helper(user, product, quantity=1)
@@ -932,10 +931,10 @@ class TestPaymentValidationException:
 
     def test_order_payment_amount_mismatch(
         self,
-        authenticated_client: Any,
-        user: Any,
-        product: Product,
-    ) -> None:
+        authenticated_client,
+        user,
+        product,
+    ):
         """주문 금액과 Payment 금액 불일치"""
         # Arrange - 주문 생성
         order = Order.objects.create(

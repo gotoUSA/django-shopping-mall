@@ -124,7 +124,7 @@ class PaymentService:
             # 10-2. 적립된 포인트 차감
             if order.earned_points > 0:
                 points_deducted = order.earned_points
-                user.deduct_points(points_deducted)
+                user.use_points(points_deducted)
 
                 # 포인트 차감 이력 기록
                 PointHistory.create_history(

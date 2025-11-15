@@ -106,19 +106,38 @@ class User(AbstractUser):
         return ""
 
     def add_points(self, amount: int) -> bool:
-        """포인트를 추가하는 메서드"""
+        """
+        포인트를 추가하는 메서드 (동시성 제어 적용)
+
+        F() 객체를 사용하여 데이터베이스 레벨에서 안전하게 업데이트합니다.
+        이는 race condition을 방지합니다.
+        """
         if amount > 0:
-            self.points += amount
-            self.save(update_fields=["points"])
+            # F() 객체를 사용하여 DB 레벨에서 안전하게 업데이트
+            User.objects.filter(pk=self.pk).update(points=models.F("points") + amount)
+            # 인스턴스 갱신
+            self.refresh_from_db(fields=["points"])
             return True
         return False
 
     def use_points(self, amount: int) -> bool:
-        """포인트를 사용하는 메서드"""
-        if 0 < amount <= self.points:
-            self.points -= amount
-            self.save(update_fields=["points"])
-            return True
+        """
+        포인트를 사용하는 메서드 (동시성 제어 적용)
+
+        F() 객체를 사용하여 데이터베이스 레벨에서 안전하게 업데이트하며,
+        포인트가 충분한지 확인 후 차감합니다 (원자적 연산).
+        """
+        if amount > 0:
+            # 포인트가 충분한지 체크 후 차감 (원자적 연산)
+            updated = User.objects.filter(
+                pk=self.pk,
+                points__gte=amount
+            ).update(points=models.F("points") - amount)
+
+            if updated:
+                # 인스턴스 갱신
+                self.refresh_from_db(fields=["points"])
+                return True
         return False
 
     def get_earn_rate(self) -> int:

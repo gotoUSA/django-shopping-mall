@@ -211,15 +211,6 @@ class Product(models.Model):
         """구매 가능한지 확인"""
         return self.is_in_stock and self.stock >= quantity
 
-    def decrease_stock(self, quantity: int) -> bool:
-        """재고 차감"""
-        if self.can_purchase(quantity):
-            self.stock -= quantity
-            self.sold_count += quantity
-            self.save()
-            return True
-        return False
-
     # 찜하기 관련 메서드
     def get_wishlist_count(self) -> int:
         """이 상품을 찜한 사용자 수 반환"""

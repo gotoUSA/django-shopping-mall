@@ -7,6 +7,7 @@ from django.db import transaction
 from django.db.models import F
 from django.db.models.functions import Greatest
 
+from ..models.cart import Cart
 from ..models.order import Order
 from ..models.payment import Payment, PaymentLog
 from ..models.point_history import PointHistory
@@ -20,8 +21,128 @@ class PaymentCancelError(Exception):
     pass
 
 
+class PaymentConfirmError(Exception):
+    """결제 승인 관련 에러"""
+
+    pass
+
+
 class PaymentService:
     """결제 관련 비즈니스 로직을 처리하는 서비스"""
+
+    @staticmethod
+    @transaction.atomic
+    def confirm_payment(payment: Payment, payment_key: str, order_id: str, amount: int, user) -> dict[str, Any]:
+        """
+        결제 승인 처리
+
+        Args:
+            payment: 결제 객체
+            payment_key: 토스페이먼츠 결제 키
+            order_id: 주문 번호
+            amount: 결제 금액
+            user: 요청한 사용자
+
+        Returns:
+            결제 승인 결과
+
+        Raises:
+            PaymentConfirmError: 결제 승인 실패
+            TossPaymentError: 토스페이먼츠 API 에러
+        """
+        order = payment.order
+
+        # 토스페이먼츠 API 클라이언트
+        toss_client = TossPaymentClient()
+
+        # 1. 토스페이먼츠에 결제 승인 요청
+        payment_data = toss_client.confirm_payment(
+            payment_key=payment_key,
+            order_id=order_id,
+            amount=amount,
+        )
+
+        # 2. Payment 정보 업데이트
+        payment.mark_as_paid(payment_data)
+
+        # 3. 재고 차감 (sold_count 증가, Product 락으로 동시성 제어)
+        for order_item in order.order_items.all():
+            if order_item.product:
+                # Product를 락으로 보호
+                product = Product.objects.select_for_update().get(pk=order_item.product.pk)
+                # sold_count만 증가 (F 객체로 안전하게)
+                Product.objects.filter(pk=product.pk).update(sold_count=F("sold_count") + order_item.quantity)
+
+        # 4. 주문 상태 변경
+        order.status = "paid"
+        order.payment_method = payment.method
+        order.save(update_fields=["status", "payment_method", "updated_at"])
+
+        # 5. 장바구니 비활성화
+        Cart.objects.filter(user=user, is_active=True).update(is_active=False)
+
+        # 6. 포인트 적립 (구매 금액의 1%)
+        points_to_add = 0
+        # 포인트로만 결제한 경우는 적립하지 않음
+        if order.final_amount > 0:
+            # 등급별 적립률 적용
+            earn_rate = user.get_earn_rate()  # 1, 2, 3, 5 (%)
+            points_to_add = int(order.final_amount * Decimal(earn_rate) / Decimal("100"))
+
+            if points_to_add > 0:
+                # 포인트 적립
+                user.add_points(points_to_add)
+
+                # 주문에 적립 포인트 기록
+                order.earned_points = points_to_add
+                order.save(update_fields=["earned_points"])
+
+                # 포인트 적립 이력 기록
+                PointHistory.create_history(
+                    user=user,
+                    points=points_to_add,
+                    type="earn",
+                    order=order,
+                    description=f"주문 #{order.order_number} 구매 적립",
+                    metadata={
+                        "order_id": order.id,
+                        "order_number": order.order_number,
+                        "payment_amount": str(order.final_amount),
+                        "earn_rate": f"{earn_rate}%",
+                        "membership_level": user.membership_level,
+                    },
+                )
+
+                # 포인트 적립 로그
+                PaymentLog.objects.create(
+                    payment=payment,
+                    log_type="approve",
+                    message=f"포인트 {points_to_add}점 적립",
+                    data={"points": points_to_add},
+                )
+        else:
+            # 포인트 전액 결제 로그
+            if order.used_points > 0:
+                PaymentLog.objects.create(
+                    payment=payment,
+                    log_type="approve",
+                    message=f"포인트 {order.used_points}점으로 전액 결제",
+                    data={"used_points": order.used_points},
+                )
+
+        # 7. 결제 승인 로그
+        PaymentLog.objects.create(
+            payment=payment,
+            log_type="approve",
+            message="결제 승인 완료",
+            data=payment_data,
+        )
+
+        return {
+            "payment": payment,
+            "points_earned": points_to_add,
+            "receipt_url": payment.receipt_url,
+        }
 
     @staticmethod
     @transaction.atomic

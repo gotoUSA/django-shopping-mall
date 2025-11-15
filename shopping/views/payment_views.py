@@ -23,6 +23,7 @@ from ..serializers.payment_serializers import (
     PaymentRequestSerializer,
     PaymentSerializer,
 )
+from ..services.payment_service import PaymentService
 from ..utils.toss_payment import TossPaymentClient, TossPaymentError, get_error_message
 
 # 로거 설정
@@ -116,10 +117,9 @@ class PaymentConfirmView(APIView):
 
     permission_classes = [permissions.IsAuthenticated]
 
-    @transaction.atomic
     def post(self, request):
         """
-        결제 승인 처리
+        결제 승인 처리 (PaymentService 위임)
 
         요청 본문:
         {
@@ -130,118 +130,41 @@ class PaymentConfirmView(APIView):
         """
         # 이메일 인증 체크 (보안)
         if not request.user.is_email_verified:
-            logger.warning(f"미인증 사용자 결제 승인 시도: user_id={request.user.id}, " f"email={request.user.email}")
+            logger.warning(f"미인증 사용자 결제 승인 시도: user_id={request.user.id}, email={request.user.email}")
             return Response(
                 {
                     "error": "이메일 인증이 필요합니다.",
                     "message": "결제를 완료하려면 먼저 이메일을 인증해주세요.",
                     "verification_required": True,
-                    "verification_url": "/api/email-verification/send/",  # 인증 메일 발송 URL
+                    "verification_url": "/api/email-verification/send/",
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )
-        serializer = PaymentConfirmSerializer(data=request.data, context={"request": request})
 
+        # Serializer를 통한 검증
+        serializer = PaymentConfirmSerializer(data=request.data, context={"request": request})
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         payment = serializer.payment
-        order = payment.order
-
-        # 토스페이먼츠 API 클라이언트
-        toss_client = TossPaymentClient()
 
         try:
-            # 1. 토스페이먼츠에 결제 승인 요청
-            payment_data = toss_client.confirm_payment(
+            # PaymentService를 통한 결제 승인 처리
+            result = PaymentService.confirm_payment(
+                payment=payment,
                 payment_key=serializer.validated_data["payment_key"],
                 order_id=serializer.validated_data["order_id"],
                 amount=serializer.validated_data["amount"],
-            )
-
-            # 2. Payment 정보 업데이트
-            payment.mark_as_paid(payment_data)
-
-            # 3. 재고 차감 (Product 락으로 동시성 제어)
-            for order_item in order.order_items.all():
-                if order_item.product:
-                    # Product를 락으로 보호
-                    product = Product.objects.select_for_update().get(pk=order_item.product.pk)
-                    # sold_count만 증가 (F 객체로 안전하게)
-                    Product.objects.filter(pk=product.pk).update(sold_count=F("sold_count") + order_item.quantity)
-
-            # 4. 주문 상태 변경
-            order.status = "paid"
-            order.payment_method = payment.method
-            order.save(update_fields=["status", "payment_method", "updated_at"])
-
-            # 5. 장바구니 비활성화
-            Cart.objects.filter(user=request.user, is_active=True).update(is_active=False)
-
-            # 6. 포인트 적립 (구매 금액의 1%)
-            # 포인트로만 결제한 경우는 적립하지 않음
-            if order.final_amount > 0:
-                # 등급별 적립률 적용
-                earn_rate = request.user.get_earn_rate()  # 1, 2, 3, 5 (%)
-                points_to_add = int(order.final_amount * Decimal(earn_rate) / Decimal("100"))
-
-                if points_to_add > 0:
-                    # 포인트 적립
-                    request.user.add_points(points_to_add)
-
-                    # 주문에 적립 포인트 기록
-                    order.earned_points = points_to_add
-                    order.save(update_fields=["earned_points"])
-
-                    # 포인트 적립 이력 기록
-                    PointHistory.create_history(
-                        user=request.user,
-                        points=points_to_add,
-                        type="earn",
-                        order=order,
-                        description=f"주문 #{order.order_number} 구매 적립",
-                        metadata={
-                            "order_id": order.id,
-                            "order_number": order.order_number,
-                            "payment_amount": str(order.final_amount),
-                            "earn_rate": f"{earn_rate}%",
-                            "membership_level": request.user.membership_level,
-                        },
-                    )
-
-                    # 포인트 적립 로그
-                    PaymentLog.objects.create(
-                        payment=payment,
-                        log_type="approve",
-                        message=f"포인트 {points_to_add}점 적립",
-                        data={"points": points_to_add},
-                    )
-            else:
-                points_to_add = 0
-                # 포인트 전액 결제 로그
-                if order.used_points > 0:
-                    PaymentLog.objects.create(
-                        payment=payment,
-                        log_type="approve",
-                        message=f"포인트 {order.used_points}점으로 전액 결제",
-                        data={"used_points": order.used_points},
-                    )
-
-            # 7. 결제 승인 로그
-            PaymentLog.objects.create(
-                payment=payment,
-                log_type="approve",
-                message="결제 승인 완료",
-                data=payment_data,
+                user=request.user,
             )
 
             # 응답
             return Response(
                 {
                     "message": "결제가 완료되었습니다.",
-                    "payment": PaymentSerializer(payment).data,
-                    "points_earned": points_to_add,
-                    "receipt_url": payment.receipt_url,
+                    "payment": PaymentSerializer(result["payment"]).data,
+                    "points_earned": result["points_earned"],
+                    "receipt_url": result["receipt_url"],
                 },
                 status=status.HTTP_200_OK,
             )

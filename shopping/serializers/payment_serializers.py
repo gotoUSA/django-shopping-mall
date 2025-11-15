@@ -190,30 +190,13 @@ class PaymentConfirmSerializer(serializers.Serializer):
 class PaymentCancelSerializer(serializers.Serializer):
     """
     결제 취소용 시리얼라이저
+
+    입력 검증만 수행하며, 비즈니스 로직 검증은 서비스 레이어에서 처리합니다.
     """
 
     payment_id = serializers.IntegerField(help_text="결제 ID")
 
     cancel_reason = serializers.CharField(max_length=200, help_text="취소 사유")
-
-    def validate_payment_id(self, value):
-        """결제 정보 검증"""
-        user = self.context["request"].user
-
-        try:
-            payment = Payment.objects.get(id=value, order__user=user)
-        except Payment.DoesNotExist:
-            raise serializers.ValidationError("결제 정보를 찾을 수 없습니다.")
-
-        # 취소 가능한지 확인
-        if not payment.can_cancel:
-            if payment.is_canceled:
-                raise serializers.ValidationError("이미 취소된 결제입니다.")
-            else:
-                raise serializers.ValidationError("취소할 수 없는 결제입니다.")
-
-        self.payment = payment
-        return value
 
 
 class PaymentLogSerializer(serializers.ModelSerializer):

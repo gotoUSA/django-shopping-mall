@@ -262,8 +262,8 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                 shipping_phone=validated_data["shipping_phone"],
                 shipping_postal_code=validated_data["shipping_postal_code"],
                 shipping_address=validated_data["shipping_address"],
-                shipping_detail_address=validated_data.get("shipping_detail_address", ""),
-                request_message=validated_data.get("request_message", ""),
+                shipping_address_detail=validated_data.get("shipping_address_detail", ""),
+                order_memo=validated_data.get("order_memo", ""),
                 use_points=use_points,
             )
             return order

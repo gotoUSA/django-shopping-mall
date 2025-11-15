@@ -31,8 +31,8 @@ class OrderService:
         shipping_phone: str,
         shipping_postal_code: str,
         shipping_address: str,
-        shipping_detail_address: str,
-        request_message: str = "",
+        shipping_address_detail: str,
+        order_memo: str = "",
         use_points: int = 0,
     ) -> Order:
         """
@@ -45,8 +45,8 @@ class OrderService:
             shipping_phone: 수령인 전화번호
             shipping_postal_code: 우편번호
             shipping_address: 주소
-            shipping_detail_address: 상세주소
-            request_message: 배송 요청사항
+            shipping_address_detail: 상세주소
+            order_memo: 배송 요청사항
             use_points: 사용할 포인트
 
         Returns:
@@ -82,8 +82,8 @@ class OrderService:
             shipping_phone=shipping_phone,
             shipping_postal_code=shipping_postal_code,
             shipping_address=shipping_address,
-            shipping_detail_address=shipping_detail_address,
-            request_message=request_message,
+            shipping_address_detail=shipping_address_detail,
+            order_memo=order_memo,
         )
 
         # 5. 주문 아이템 생성 + 재고 차감

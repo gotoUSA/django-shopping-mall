@@ -41,6 +41,24 @@ def django_db_setup(django_db_setup, django_db_blocker):
         pass
 
 
+@pytest.fixture(autouse=True)
+def reset_db_connections(db):
+    """
+    각 테스트 후 데이터베이스 연결 정리
+
+    고부하 동시성 테스트에서 "too many clients" 오류를 방지하기 위해
+    각 테스트 완료 후 불필요한 데이터베이스 연결을 명시적으로 정리합니다.
+
+    autouse=True: 모든 테스트에 자동 적용
+    """
+    yield
+    # 테스트 완료 후 연결 정리
+    from django.db import connections
+
+    for conn in connections.all():
+        conn.close_if_unusable_or_obsolete()
+
+
 # ==========================================
 # 2. API 클라이언트 Fixture
 # ==========================================

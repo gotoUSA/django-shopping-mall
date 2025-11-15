@@ -3,10 +3,12 @@
 from decimal import Decimal
 
 import pytest
+from django.db.models import F
 from rest_framework import status
 
 from shopping.models.order import Order, OrderItem
 from shopping.models.payment import Payment
+from shopping.models.product import Product
 
 
 @pytest.mark.django_db
@@ -472,7 +474,6 @@ class TestPaymentSecurityException:
         xss_payload = "<script>alert('XSS')</script>"
 
         # 결제 취소 시 sold_count 감소를 위해 미리 증가
-        from django.db.models import F
         Product.objects.filter(pk=product.pk).update(
             sold_count=F("sold_count") + 1
         )

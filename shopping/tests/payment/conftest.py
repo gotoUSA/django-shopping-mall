@@ -52,10 +52,12 @@ def order_with_multiple_items(db, user, category):
         for i in range(3)
     ]
 
+    total = sum(p.price for p in products)
     order = Order.objects.create(
         user=user,
         status="pending",
-        total_amount=sum(p.price for p in products),
+        total_amount=total,
+        final_amount=total,
         shipping_name="홍길동",
         shipping_phone="010-1234-5678",
         shipping_postal_code="12345",
@@ -133,6 +135,7 @@ def order_with_long_product_name(db, user, category):
         user=user,
         status="pending",
         total_amount=product.price,
+        final_amount=product.price,
         shipping_name="홍길동",
         shipping_phone="010-1234-5678",
         shipping_postal_code="12345",
@@ -166,6 +169,7 @@ def paid_order_with_payment(db, user, product):
         user=user,
         status="paid",
         total_amount=product.price,
+        final_amount=product.price,
         payment_method="card",
         shipping_name="홍길동",
         shipping_phone="010-1234-5678",
@@ -208,6 +212,7 @@ def canceled_order(db, user, product):
         user=user,
         status="canceled",
         total_amount=product.price,
+        final_amount=product.price,
         shipping_name="홍길동",
         shipping_phone="010-1234-5678",
         shipping_postal_code="12345",
@@ -239,6 +244,7 @@ def order_with_existing_payment(db, user, product):
         user=user,
         status="pending",
         total_amount=product.price,
+        final_amount=product.price,
         shipping_name="홍길동",
         shipping_phone="010-1234-5678",
         shipping_postal_code="12345",
@@ -301,6 +307,7 @@ def other_user_order(db, other_user, product):
         user=other_user,
         status="pending",
         total_amount=product.price,
+        final_amount=product.price,
         shipping_name="김철수",
         shipping_phone="010-8888-8888",
         shipping_postal_code="54321",

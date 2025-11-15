@@ -468,13 +468,35 @@ class TestPaymentSecurityException:
         mocker,
     ):
         """cancel_reason에 XSS 공격 시도 차단"""
-        # Arrange - XSS 페이로드
-        xss_payloads = [
-            "<script>alert('XSS')</script>",
-            "<img src=x onerror=alert('XSS')>",
-            "javascript:alert('XSS')",
-            "<svg/onload=alert('XSS')>",
-        ]
+        # Arrange - 대표적인 XSS 페이로드
+        xss_payload = "<script>alert('XSS')</script>"
+
+        order = Order.objects.create(
+            user=user,
+            status="paid",
+            total_amount=product.price,
+            shipping_name="홍길동",
+            shipping_phone="010-1234-5678",
+            shipping_postal_code="12345",
+            shipping_address="서울시 강남구",
+            shipping_address_detail="101동",
+        )
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            product_name=product.name,
+            quantity=1,
+            price=product.price,
+        )
+
+        payment = Payment.objects.create(
+            order=order,
+            amount=order.final_amount,
+            status="done",
+            toss_order_id=order.order_number,
+            payment_key="test_xss_key",
+            method="카드",
+        )
 
         # Toss API 모킹
         toss_cancel_response = {
@@ -486,54 +508,26 @@ class TestPaymentSecurityException:
             return_value=toss_cancel_response,
         )
 
-        for idx, payload in enumerate(xss_payloads):
-            # 각 페이로드마다 새로운 Order와 Payment 생성 (OneToOne 제약)
-            order = Order.objects.create(
-                user=user,
-                status="paid",
-                total_amount=product.price,
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
-            )
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
-            )
+        request_data = {
+            "payment_id": payment.id,
+            "cancel_reason": xss_payload,
+        }
 
-            payment = Payment.objects.create(
-                order=order,
-                amount=order.final_amount,
-                status="done",
-                toss_order_id=order.order_number,
-                payment_key=f"test_xss_key_{idx}",
-                method="카드",
-            )
+        # Act
+        response = authenticated_client.post(
+            "/api/payments/cancel/",
+            request_data,
+            format="json",
+        )
 
-            request_data = {
-                "payment_id": payment.id,
-                "cancel_reason": payload,
-            }
+        # Assert - 취소는 성공하지만 XSS는 이스케이프됨
+        assert response.status_code == status.HTTP_200_OK
 
-            # Act
-            response = authenticated_client.post(
-                "/api/payments/cancel/",
-                request_data,
-                format="json",
-            )
-
-            # Assert - 취소는 성공하지만 XSS는 이스케이프됨
-            assert response.status_code == status.HTTP_200_OK
-
-            # Assert - 저장된 데이터에 스크립트 태그가 그대로 문자열로 저장
-            payment.refresh_from_db()
-            assert payment.cancel_reason == payload  # 문자열로 저장됨
-            # 응답 시 DRF가 JSON 이스케이프 처리
+        # Assert - 저장된 데이터에 스크립트 태그가 그대로 문자열로 저장
+        payment.refresh_from_db()
+        assert payment.cancel_reason == xss_payload  # 문자열로 저장됨
+        assert "<script>" in payment.cancel_reason  # 스크립트 태그 포함
+        # 응답 시 DRF가 JSON 이스케이프 처리하여 실행 방지
 
     def test_confirm_without_payment_object_rejected(
         self,

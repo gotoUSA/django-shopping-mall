@@ -76,6 +76,7 @@ class OrderService:
             total_amount=total_amount,
             shipping_fee=shipping_result["shipping_fee"],
             additional_shipping_fee=shipping_result["additional_fee"],
+            is_free_shipping=shipping_result["is_free_shipping"],
             used_points=use_points,
             final_amount=final_amount,
             shipping_name=shipping_name,

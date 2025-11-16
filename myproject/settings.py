@@ -397,12 +397,17 @@ LOGGING["loggers"]["shopping.tasks"] = {
 
 # 테스트 설정에서 동기 실행 강제
 
+# pytest 또는 Django 테스트 러너 감지
+TESTING = "test" in sys.argv or "pytest" in sys.argv[0] or os.environ.get("PYTEST_CURRENT_TEST")
 
-if "test" in sys.argv:
+if TESTING:
     CELERY_TASK_ALWAYS_EAGER = True
     CELERY_TASK_EAGER_PROPAGATES = True
     CELERY_BROKER_URL = "memory://"
     CELERY_RESULT_BACKEND = "cache+memory://"
+
+    # 테스트 시 로그 propagation 활성화 (caplog가 로그를 캡처할 수 있도록)
+    LOGGING["loggers"]["shopping.services"]["propagate"] = True
 
 # logs 디렉토리 생성
 LOGS_DIR = BASE_DIR / "logs"

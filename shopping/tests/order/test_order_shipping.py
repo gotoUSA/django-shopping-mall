@@ -208,10 +208,12 @@ class TestShippingFeeBoundary:
         assert order.shipping_fee == Decimal("0")
         assert order.is_free_shipping is True
 
-    def test_jeju_postal_code_detection(self, authenticated_client, user, product, add_to_cart_helper, shipping_data):
+    def test_jeju_postal_code_detection(
+        self, authenticated_client, user, product, add_to_cart_helper, shipping_data, postal_codes
+    ):
         """제주 우편번호 감지 (63xxx)"""
         # Arrange - 제주 우편번호로 변경
-        shipping_data["shipping_postal_code"] = "63100"
+        shipping_data["shipping_postal_code"] = postal_codes["jeju"]
         product.price = Decimal("20000")
         product.save()
         add_to_cart_helper(user, product, quantity=1)
@@ -227,10 +229,12 @@ class TestShippingFeeBoundary:
         order = Order.objects.filter(user=user).order_by("-created_at").first()
         assert order.additional_shipping_fee == Decimal("3000")
 
-    def test_ulleung_postal_code_detection(self, authenticated_client, user, product, add_to_cart_helper, shipping_data):
+    def test_ulleung_postal_code_detection(
+        self, authenticated_client, user, product, add_to_cart_helper, shipping_data, postal_codes
+    ):
         """울릉도 우편번호 감지 (59xxx)"""
         # Arrange - 울릉도 우편번호로 변경
-        shipping_data["shipping_postal_code"] = "59000"
+        shipping_data["shipping_postal_code"] = postal_codes["ulleung"]
         product.price = Decimal("20000")
         product.save()
         add_to_cart_helper(user, product, quantity=1)
@@ -246,10 +250,12 @@ class TestShippingFeeBoundary:
         order = Order.objects.filter(user=user).order_by("-created_at").first()
         assert order.additional_shipping_fee == Decimal("3000")
 
-    def test_other_remote_postal_code_detection(self, authenticated_client, user, product, add_to_cart_helper, shipping_data):
+    def test_other_remote_postal_code_detection(
+        self, authenticated_client, user, product, add_to_cart_helper, shipping_data, postal_codes
+    ):
         """기타 도서산간 우편번호 감지 (52xxx)"""
         # Arrange - 도서산간 우편번호로 변경
-        shipping_data["shipping_postal_code"] = "52000"
+        shipping_data["shipping_postal_code"] = postal_codes["other_remote"]
         product.price = Decimal("20000")
         product.save()
         add_to_cart_helper(user, product, quantity=1)

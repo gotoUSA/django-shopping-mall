@@ -13,19 +13,13 @@ from shopping.models.user import User
 class TestRegistrationSuccess:
     """정상 회원가입 테스트"""
 
-    def test_register_with_valid_data(self, api_client):
+    def test_register_with_valid_data(self, api_client, valid_registration_data):
         """올바른 데이터로 회원가입 성공"""
         # Arrange
         url = reverse("auth-register")
-        data = {
-            "username": "newuser",
-            "email": "newuser@example.com",
-            "password": "testpass123!",
-            "password2": "testpass123!",
-        }
 
         # Act
-        response = api_client.post(url, data, format="json")
+        response = api_client.post(url, valid_registration_data, format="json")
 
         # Assert - 201 Created 응답 확인
         assert response.status_code == status.HTTP_201_CREATED
@@ -41,16 +35,11 @@ class TestRegistrationSuccess:
         assert response.data["user"]["username"] == "newuser"
         assert response.data["user"]["email"] == "newuser@example.com"
 
-    def test_jwt_tokens_issued(self, api_client):
+    def test_jwt_tokens_issued(self, api_client, registration_data_factory):
         """회원가입 시 JWT 토큰 발급 확인"""
         # Arrange
         url = reverse("auth-register")
-        data = {
-            "username": "tokenuser",
-            "email": "token@example.com",
-            "password": "testpass123!",
-            "password2": "testpass123!",
-        }
+        data = registration_data_factory(username="tokenuser", email="token@example.com")
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -61,16 +50,11 @@ class TestRegistrationSuccess:
         assert len(response.data["tokens"]["access"]) > 0
         assert len(response.data["tokens"]["refresh"]) > 0
 
-    def test_user_created_in_database(self, api_client):
+    def test_user_created_in_database(self, api_client, registration_data_factory):
         """DB에 사용자 실제 생성 확인"""
         # Arrange
         url = reverse("auth-register")
-        data = {
-            "username": "dbuser",
-            "email": "dbuser@example.com",
-            "password": "testpass123!",
-            "password2": "testpass123!",
-        }
+        data = registration_data_factory(username="dbuser", email="dbuser@example.com")
 
         # 회원가입 전 사용자 수
         user_count_before = User.objects.count()
@@ -86,16 +70,11 @@ class TestRegistrationSuccess:
         assert user.email == "dbuser@example.com"
         assert user.check_password("testpass123!")  # 비밀번호 해시 확인
 
-    def test_initial_email_verified_false(self, api_client):
+    def test_initial_email_verified_false(self, api_client, registration_data_factory):
         """회원가입 직후 is_email_verified=False"""
         # Arrange
         url = reverse("auth-register")
-        data = {
-            "username": "unverifuser",
-            "email": "unverif@example.com",
-            "password": "testpass123!",
-            "password2": "testpass123!",
-        }
+        data = registration_data_factory(username="unverifuser", email="unverif@example.com")
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -104,16 +83,11 @@ class TestRegistrationSuccess:
         user = User.objects.get(username="unverifuser")
         assert user.is_email_verified is False
 
-    def test_initial_points_zero(self, api_client):
+    def test_initial_points_zero(self, api_client, registration_data_factory):
         """초기 포인트 0 확인"""
         # Arrange
         url = reverse("auth-register")
-        data = {
-            "username": "pointuser",
-            "email": "point@example.com",
-            "password": "testpass123!",
-            "password2": "testpass123!",
-        }
+        data = registration_data_factory(username="pointuser", email="point@example.com")
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -122,16 +96,11 @@ class TestRegistrationSuccess:
         user = User.objects.get(username="pointuser")
         assert user.points == 0
 
-    def test_initial_membership_level_bronze(self, api_client):
+    def test_initial_membership_level_bronze(self, api_client, registration_data_factory):
         """초기 등급 bronze 확인"""
         # Arrange
         url = reverse("auth-register")
-        data = {
-            "username": "leveluser",
-            "email": "level@example.com",
-            "password": "testpass123!",
-            "password2": "testpass123!",
-        }
+        data = registration_data_factory(username="leveluser", email="level@example.com")
 
         # Act
         _ = api_client.post(url, data, format="json")

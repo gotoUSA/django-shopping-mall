@@ -33,7 +33,7 @@ from shopping.models.user import User
 class TestSocialAccountCreation:
     """소셜 계정 생성 기본 로직 테스트"""
 
-    def test_create_social_account_with_new_user(self, db):
+    def test_create_social_account_with_new_user(self, social_app_google, user_factory):
         """
         신규 사용자 소셜 계정 생성
 
@@ -43,22 +43,10 @@ class TestSocialAccountCreation:
         3. SocialAccount 생성 및 연결
         4. 이메일 자동 인증
         """
-        # Arrange
-        site = Site.objects.get_or_create(id=1, defaults={"domain": "testserver", "name": "testserver"})[0]
-
-        app = SocialApp.objects.create(
-            provider="google",
-            name="Google Test",
-            client_id="test_google_client_id",
-            secret="test_google_secret",
-        )
-        app.sites.add(site)
-
-        # Act - 신규 사용자 생성 (소셜 로그인)
-        user = User.objects.create_user(
+        # Arrange & Act - 신규 사용자 생성 (소셜 로그인)
+        user = user_factory(
             username="google_user_123",
             email="newuser@gmail.com",
-            password="random_generated_password",
             is_email_verified=True,  # 소셜 로그인은 자동 인증
         )
 
@@ -77,7 +65,7 @@ class TestSocialAccountCreation:
         assert user.is_email_verified is True
         assert "email" in social_account.extra_data
 
-    def test_connect_social_account_to_existing_user(self, db):
+    def test_connect_social_account_to_existing_user(self, social_app_kakao, user_factory):
         """
         기존 사용자에게 소셜 계정 연결
 
@@ -86,22 +74,10 @@ class TestSocialAccountCreation:
         2. 같은 이메일로 소셜 로그인 시도
         3. 기존 계정에 소셜 계정 연결
         """
-        # Arrange
-        site = Site.objects.get_or_create(id=1, defaults={"domain": "testserver"})[0]
-
-        app = SocialApp.objects.create(
-            provider="kakao",
-            name="Kakao Test",
-            client_id="test_kakao_client_id",
-            secret="test_kakao_secret",
-        )
-        app.sites.add(site)
-
-        # 기존 사용자 (일반 가입)
-        existing_user = User.objects.create_user(
+        # Arrange - 기존 사용자 (일반 가입)
+        existing_user = user_factory(
             username="existing_user",
             email="existing@example.com",
-            password="testpass123",
             is_email_verified=False,  # 이메일 미인증 상태
         )
 
@@ -124,34 +100,18 @@ class TestSocialAccountCreation:
         assert existing_user.socialaccount_set.count() == 1
         assert existing_user.is_email_verified is True  # 자동 인증됨
 
-    def test_multiple_social_accounts_for_one_user(self, db):
+    def test_multiple_social_accounts_for_one_user(
+        self, social_app_google, social_app_kakao, social_app_naver, user_factory
+    ):
         """
         한 사용자가 여러 소셜 계정 연결
 
         Google, Kakao, Naver 모두 연결 가능
         """
         # Arrange
-        site = Site.objects.get_or_create(id=1, defaults={"domain": "testserver"})[0]
-
-        providers_config = [
-            ("google", "Google Test", "google_client_id", "google_secret"),
-            ("kakao", "Kakao Test", "kakao_client_id", "kakao_secret"),
-            ("naver", "Naver Test", "naver_client_id", "naver_secret"),
-        ]
-
-        for provider, name, client_id, secret in providers_config:
-            app = SocialApp.objects.create(
-                provider=provider,
-                name=name,
-                client_id=client_id,
-                secret=secret,
-            )
-            app.sites.add(site)
-
-        user = User.objects.create_user(
+        user = user_factory(
             username="multi_social_user",
             email="multi@example.com",
-            password="testpass123",
             is_email_verified=True,
         )
 
@@ -173,29 +133,17 @@ class TestSocialAccountCreation:
 class TestSocialLoginEmailVerification:
     """소셜 로그인 이메일 자동 인증 테스트"""
 
-    def test_email_auto_verified_on_social_signup(self, db):
+    def test_email_auto_verified_on_social_signup(self, social_app_google, user_factory):
         """
         소셜 가입 시 이메일 자동 인증
 
         OAuth 제공자가 이메일을 이미 인증했으므로
         별도 인증 절차 불필요
         """
-        # Arrange
-        site = Site.objects.get_or_create(id=1, defaults={"domain": "testserver"})[0]
-
-        app = SocialApp.objects.create(
-            provider="google",
-            name="Google Test",
-            client_id="test_client_id",
-            secret="test_secret",
-        )
-        app.sites.add(site)
-
-        # Act - 소셜 로그인으로 신규 가입
-        user = User.objects.create_user(
+        # Arrange & Act - 소셜 로그인으로 신규 가입
+        user = user_factory(
             username="social_newuser",
             email="newuser@gmail.com",
-            password="random_password",
             is_email_verified=True,  # 소셜은 자동 인증
         )
 
@@ -208,7 +156,7 @@ class TestSocialLoginEmailVerification:
         # Assert
         assert user.is_email_verified is True
 
-    def test_existing_verification_tokens_invalidated(self, db):
+    def test_existing_verification_tokens_invalidated(self, social_app_kakao, user_factory):
         """
         소셜 연결 시 기존 인증 토큰 무효화
 
@@ -219,20 +167,9 @@ class TestSocialLoginEmailVerification:
         4. 기존 토큰 무효화
         """
         # Arrange
-        site = Site.objects.get_or_create(id=1, defaults={"domain": "testserver"})[0]
-
-        app = SocialApp.objects.create(
-            provider="kakao",
-            name="Kakao Test",
-            client_id="test_client_id",
-            secret="test_secret",
-        )
-        app.sites.add(site)
-
-        user = User.objects.create_user(
+        user = user_factory(
             username="unverified_user",
             email="unverified@example.com",
-            password="testpass123",
             is_email_verified=False,  # 미인증
         )
 
@@ -270,46 +207,19 @@ class TestSocialLoginEmailVerification:
 class TestSocialAppConfiguration:
     """소셜 앱 설정 검증 테스트"""
 
-    def test_social_app_creation(self, db):
+    def test_social_app_creation(self, social_app_google):
         """SocialApp 생성 검증"""
-        # Arrange
-        site = Site.objects.get_or_create(id=1, defaults={"domain": "testserver"})[0]
-
-        # Act
-        app = SocialApp.objects.create(
-            provider="google",
-            name="Google App",
-            client_id="test_client_id_12345",
-            secret="test_secret_67890",
-        )
-        app.sites.add(site)
-
-        # Assert
+        # Assert - fixture가 이미 생성함
         assert SocialApp.objects.count() == 1
-        assert app.provider == "google"
-        assert app.name == "Google App"
-        assert app.sites.filter(id=1).exists()
+        assert social_app_google.provider == "google"
+        assert social_app_google.sites.filter(id=1).exists()
 
-    def test_multiple_providers_configured(self, db):
+    def test_multiple_providers_configured(self, social_app_google, social_app_kakao, social_app_naver):
         """여러 제공자 동시 설정"""
-        # Arrange
-        site = Site.objects.get_or_create(id=1, defaults={"domain": "testserver"})[0]
-
-        providers = ["google", "kakao", "naver"]
-
-        # Act
-        for provider in providers:
-            app = SocialApp.objects.create(
-                provider=provider,
-                name=f"{provider.title()} Test",
-                client_id=f"test_{provider}_id",
-                secret=f"test_{provider}_secret",
-            )
-            app.sites.add(site)
-
-        # Assert
+        # Assert - fixtures가 이미 생성함
         assert SocialApp.objects.count() == 3
 
+        providers = ["google", "kakao", "naver"]
         for provider in providers:
             assert SocialApp.objects.filter(provider=provider).exists()
 
@@ -318,7 +228,7 @@ class TestSocialAppConfiguration:
 class TestSocialAccountExceptions:
     """소셜 계정 예외 상황 테스트"""
 
-    def test_duplicate_social_account_same_provider(self, db):
+    def test_duplicate_social_account_same_provider(self, social_app_google, user_factory):
         """
         같은 제공자로 중복 연결 방지
 
@@ -326,21 +236,7 @@ class TestSocialAccountExceptions:
         중복으로 연결할 수 없음
         """
         # Arrange
-        site = Site.objects.get_or_create(id=1, defaults={"domain": "testserver"})[0]
-
-        app = SocialApp.objects.create(
-            provider="google",
-            name="Google Test",
-            client_id="test_client_id",
-            secret="test_secret",
-        )
-        app.sites.add(site)
-
-        user = User.objects.create_user(
-            username="testuser",
-            email="test@example.com",
-            password="testpass123",
-        )
+        user = user_factory(username="testuser", email="test@example.com")
 
         # Act - 첫 번째 Google 계정 연결
         social1 = SocialAccount.objects.create(
@@ -355,27 +251,16 @@ class TestSocialAccountExceptions:
         assert existing_accounts.count() == 1
         assert existing_accounts.first() == social1
 
-    def test_inactive_user_cannot_social_login(self, db):
+    def test_inactive_user_cannot_social_login(self, social_app_naver, user_factory):
         """
         비활성화된 사용자는 소셜 로그인 불가
 
         is_active=False인 사용자는 로그인 거부
         """
         # Arrange
-        site = Site.objects.get_or_create(id=1, defaults={"domain": "testserver"})[0]
-
-        app = SocialApp.objects.create(
-            provider="naver",
-            name="Naver Test",
-            client_id="test_client_id",
-            secret="test_secret",
-        )
-        app.sites.add(site)
-
-        user = User.objects.create_user(
+        user = user_factory(
             username="inactive_user",
             email="inactive@example.com",
-            password="testpass123",
             is_active=False,  # 비활성화
         )
 
@@ -396,28 +281,14 @@ class TestSocialAccountExceptions:
 class TestSocialAccountDataStructure:
     """소셜 계정 데이터 구조 테스트"""
 
-    def test_extra_data_storage(self, db):
+    def test_extra_data_storage(self, social_app_google, user_factory):
         """
         extra_data 필드에 OAuth 데이터 저장
 
         OAuth 제공자로부터 받은 추가 정보 저장
         """
         # Arrange
-        site = Site.objects.get_or_create(id=1, defaults={"domain": "testserver"})[0]
-
-        app = SocialApp.objects.create(
-            provider="google",
-            name="Google Test",
-            client_id="test_client_id",
-            secret="test_secret",
-        )
-        app.sites.add(site)
-
-        user = User.objects.create_user(
-            username="datatest_user",
-            email="data@example.com",
-            password="testpass123",
-        )
+        user = user_factory(username="datatest_user", email="data@example.com")
 
         extra_data = {
             "id": "123456789",
@@ -440,24 +311,10 @@ class TestSocialAccountDataStructure:
         assert social_account.extra_data["email"] == "data@example.com"
         assert social_account.extra_data["verified_email"] is True
 
-    def test_social_account_timestamps(self, db):
+    def test_social_account_timestamps(self, social_app_kakao, user_factory):
         """소셜 계정 생성 시간 기록"""
         # Arrange
-        site = Site.objects.get_or_create(id=1, defaults={"domain": "testserver"})[0]
-
-        app = SocialApp.objects.create(
-            provider="kakao",
-            name="Kakao Test",
-            client_id="test_client_id",
-            secret="test_secret",
-        )
-        app.sites.add(site)
-
-        user = User.objects.create_user(
-            username="timestamp_user",
-            email="timestamp@example.com",
-            password="testpass123",
-        )
+        user = user_factory(username="timestamp_user", email="timestamp@example.com")
 
         # Act
         before_create = timezone.now()
@@ -477,7 +334,7 @@ class TestSocialAccountDataStructure:
 class TestSocialLoginScenarios:
     """실제 사용 시나리오 통합 테스트"""
 
-    def test_complete_new_user_signup_flow(self, db):
+    def test_complete_new_user_signup_flow(self, social_app_google, user_factory):
         """
         신규 사용자 완전 가입 플로우
 
@@ -487,22 +344,10 @@ class TestSocialLoginScenarios:
         4. 이메일 자동 인증
         5. 최종 상태 검증
         """
-        # Arrange - 환경 설정
-        site = Site.objects.get_or_create(id=1, defaults={"domain": "testserver"})[0]
-
-        app = SocialApp.objects.create(
-            provider="google",
-            name="Google Production",
-            client_id="production_client_id",
-            secret="production_secret",
-        )
-        app.sites.add(site)
-
-        # Act - 신규 가입 플로우
-        user = User.objects.create_user(
+        # Arrange & Act - 신규 가입 플로우
+        user = user_factory(
             username="complete_user",
             email="complete@gmail.com",
-            password="random_secure_password",
             is_email_verified=True,
         )
 
@@ -525,7 +370,7 @@ class TestSocialLoginScenarios:
         assert social_account.provider == "google"
         assert "email" in social_account.extra_data
 
-    def test_existing_user_adds_social_account(self, db):
+    def test_existing_user_adds_social_account(self, social_app_kakao, user_factory):
         """
         기존 사용자가 소셜 계정 추가
 
@@ -534,22 +379,10 @@ class TestSocialLoginScenarios:
         3. 자동 인증 처리
         4. 기존 인증 토큰 무효화
         """
-        # Arrange
-        site = Site.objects.get_or_create(id=1, defaults={"domain": "testserver"})[0]
-
-        app = SocialApp.objects.create(
-            provider="kakao",
-            name="Kakao Test",
-            client_id="test_client_id",
-            secret="test_secret",
-        )
-        app.sites.add(site)
-
-        # 기존 사용자 (이메일 미인증)
-        user = User.objects.create_user(
+        # Arrange - 기존 사용자 (이메일 미인증)
+        user = user_factory(
             username="existing_adds_social",
             email="existing@example.com",
-            password="testpass123",
             is_email_verified=False,
         )
 

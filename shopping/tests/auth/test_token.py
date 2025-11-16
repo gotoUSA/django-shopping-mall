@@ -239,25 +239,22 @@ class TestTokenTampering:
         # Assert
         assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
 
-    def test_different_user_token(self, api_client, user, db):
+    def test_different_user_token(self, api_client, user, second_user):
         """다른 사용자의 토큰으로 접근"""
         # Arrange
-        # user2 생성
-        user2 = User.objects.create_user(username="otheruser", email="other@example.com", password="otherpass123")
-
-        # user2의 토큰 발급
+        # second_user의 토큰 발급
         url = reverse("auth-login")
-        response = api_client.post(url, {"username": "otheruser", "password": "otherpass123"})
+        response = api_client.post(url, {"username": "seconduser", "password": "testpass123"})
         user2_token = response.data["access"]
 
-        # Act - user2의 토큰으로 user1의 프로필 접근 시도
+        # Act - second_user의 토큰으로 user의 프로필 접근 시도
         # (프로필은 자기 자신만 조회 가능)
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {user2_token}")
         profile_response = api_client.get(reverse("user-profile"))
 
-        # Assert - user2의 정보가 나와야 함 (user1 정보 아님)
+        # Assert - second_user의 정보가 나와야 함 (user 정보 아님)
         assert profile_response.status_code == status.HTTP_200_OK
-        assert profile_response.data["username"] == "otheruser"
+        assert profile_response.data["username"] == "seconduser"
         assert profile_response.data["username"] != user.username
 
 

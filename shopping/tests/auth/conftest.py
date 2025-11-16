@@ -787,3 +787,187 @@ def user_with_multiple_social_accounts(db, user, social_site):
         SocialAccount.objects.create(user=user, provider=provider, uid=uid, extra_data={"email": email})
 
     return user
+
+
+# ==========================================
+# 8. 데이터 Fixture & Factory (재사용 가능한 테스트 데이터)
+# ==========================================
+
+
+@pytest.fixture
+def valid_login_data():
+    """
+    정상 로그인 데이터
+
+    사용 예시:
+        def test_login(api_client, valid_login_data):
+            response = api_client.post("/api/auth/login/", valid_login_data)
+    """
+    return {"username": "testuser", "password": "testpass123"}
+
+
+@pytest.fixture
+def valid_registration_data():
+    """
+    정상 회원가입 데이터
+
+    사용 예시:
+        def test_register(api_client, valid_registration_data):
+            response = api_client.post("/api/auth/register/", valid_registration_data)
+    """
+    return {
+        "username": "newuser",
+        "email": "newuser@example.com",
+        "password": "testpass123!",
+        "password2": "testpass123!",
+    }
+
+
+@pytest.fixture
+def password_change_data():
+    """
+    비밀번호 변경 데이터
+
+    사용 예시:
+        def test_change_password(authenticated_client, password_change_data):
+            response = authenticated_client.post("/api/auth/password/change/", password_change_data)
+    """
+    return {
+        "old_password": "testpass123",
+        "new_password": "NewSecurePass456!",
+        "new_password2": "NewSecurePass456!",
+    }
+
+
+@pytest.fixture
+def profile_update_data():
+    """
+    프로필 업데이트 데이터
+
+    사용 예시:
+        def test_update_profile(authenticated_client, profile_update_data):
+            response = authenticated_client.patch("/api/auth/profile/", profile_update_data)
+    """
+    return {
+        "first_name": "수정된",
+        "last_name": "이름",
+        "phone_number": "010-9999-8888",
+    }
+
+
+@pytest.fixture
+def registration_data_factory():
+    """
+    회원가입 데이터 팩토리 - 유연한 생성
+
+    사용 예시:
+        def test_multiple_users(api_client, registration_data_factory):
+            data1 = registration_data_factory(username="user1")
+            data2 = registration_data_factory(username="user2", email="custom@example.com")
+    """
+
+    def _create_data(username="newuser", email=None, password="testpass123!", **kwargs):
+        email = email or f"{username}@example.com"
+        return {
+            "username": username,
+            "email": email,
+            "password": password,
+            "password2": kwargs.get("password2", password),
+            **kwargs,
+        }
+
+    return _create_data
+
+
+@pytest.fixture
+def login_data_factory():
+    """
+    로그인 데이터 팩토리
+
+    사용 예시:
+        def test_login(api_client, login_data_factory):
+            data = login_data_factory(username="testuser", password="testpass123")
+    """
+
+    def _create_data(username="testuser", password="testpass123"):
+        return {"username": username, "password": password}
+
+    return _create_data
+
+
+@pytest.fixture
+def password_change_data_factory():
+    """
+    비밀번호 변경 데이터 팩토리
+
+    사용 예시:
+        def test_change_password(authenticated_client, password_change_data_factory):
+            data = password_change_data_factory(
+                old_password="testpass123",
+                new_password="NewPass456!"
+            )
+    """
+
+    def _create_data(old_password="testpass123", new_password="NewSecurePass456!", new_password2=None):
+        return {
+            "old_password": old_password,
+            "new_password": new_password,
+            "new_password2": new_password2 or new_password,
+        }
+
+    return _create_data
+
+
+@pytest.fixture
+def password_reset_confirm_data_factory():
+    """
+    비밀번호 재설정 확인 데이터 팩토리
+
+    사용 예시:
+        def test_reset_password(api_client, password_reset_token, password_reset_confirm_data_factory):
+            data = password_reset_confirm_data_factory(
+                token=password_reset_token.token,
+                new_password="NewPass123!"
+            )
+            response = api_client.post("/api/auth/password/reset/confirm/", data)
+    """
+
+    def _create_data(token, new_password="NewSecurePass123!", new_password2=None):
+        return {
+            "token": str(token),
+            "new_password": new_password,
+            "new_password2": new_password2 or new_password,
+        }
+
+    return _create_data
+
+
+@pytest.fixture
+def user_with_points(user):
+    """
+    특정 포인트를 가진 사용자 (5000 포인트)
+
+    사용 예시:
+        def test_withdrawal_with_points(authenticated_client, user_with_points):
+            assert user_with_points.points == 5000
+    """
+    user.points = 5000
+    user.save()
+    return user
+
+
+@pytest.fixture
+def second_user(db):
+    """
+    두 번째 테스트 사용자
+
+    사용 예시:
+        def test_different_users(user, second_user):
+            assert user.id != second_user.id
+    """
+    return User.objects.create_user(
+        username="seconduser",
+        email="second@example.com",
+        password="testpass123",
+        is_email_verified=True,
+    )

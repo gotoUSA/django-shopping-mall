@@ -58,6 +58,9 @@ class PointService:
         # 동시성 제어: F() 객체로 안전하게 증가
         User.objects.filter(pk=user.pk).update(points=F("points") + amount)
 
+        # F() 객체로 업데이트 후 최신 값 가져오기
+        user.refresh_from_db()
+
         # 포인트 이력 기록
         PointHistory.create_history(
             user=user,
@@ -115,6 +118,9 @@ class PointService:
 
         # F() 객체로 안전하게 차감
         User.objects.filter(pk=user.pk).update(points=F("points") - amount)
+
+        # F() 객체로 업데이트 후 최신 값 가져오기
+        user.refresh_from_db()
 
         # 포인트 이력 기록 (음수로 기록)
         PointHistory.create_history(

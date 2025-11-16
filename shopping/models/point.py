@@ -92,10 +92,11 @@ class PointHistory(models.Model):
         return f"{self.user.username} - {self.get_type_display()} {self.points:+d}P"
 
     def save(self, *args: Any, **kwargs: Any) -> None:
-        """저장 시 잔액 자동 계산"""
-        if not self.pk:  # 신규 생성시
-            # 현재 사용자 포인트를 잔액으로 설정
-            self.balance = self.user.points
+        """
+        저장 시 자동 처리는 서비스 레이어에서 담당합니다.
+        포인트 이력 생성: PointHistory.create_history() 또는 PointService 사용
+        balance는 항상 명시적으로 전달되어야 합니다.
+        """
         super().save(*args, **kwargs)
 
     @classmethod

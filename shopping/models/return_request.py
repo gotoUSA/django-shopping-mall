@@ -229,56 +229,28 @@ class Return(models.Model):
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """
-        저장 시 자동 처리:
-        1. return_number가 없으면 자동 생성
-        2. 환불 금액 자동 계산 (처음 저장 시)
+        저장 시 자동 처리는 서비스 레이어에서 담당합니다.
+        교환/환불 생성: ReturnService.create_return() 사용
         """
-        # return_number 자동 생성
-        if not self.return_number:
-            self.return_number = self.generate_return_number()
-
-        # 환불 금액 자동 계산 (처음 계산 시)
-        if not self.pk and self.type == "refund" and self.refund_amount == 0:
-            self.refund_amount = self.calculate_refund_amount()
-
         super().save(*args, **kwargs)
 
     def generate_return_number(self) -> str:
         """
         교환/환불 번호 자동 생성
-        형식: RET + YYYYMMDD + 일련번호(3자리)
-        예: RET20250115001
+
+        DEPRECATED: ReturnService.generate_return_number() 사용 권장
         """
-        from django.db.models import Max
-
-        today = timezone.now().strftime("%Y%m%d")
-        prefix = f"RET{today}"
-
-        # 오늘 날짜의 마지막 번호 조회
-        last_return = Return.objects.filter(return_number__startswith=prefix).aggregate(Max("return_number"))[
-            "return_number__max"
-        ]
-
-        if last_return:
-            # 마지막 3자리 추출하여 +1
-            last_number = int(last_return[-3:])
-            new_number = last_number + 1
-        else:
-            new_number = 1
-
-        return f"{prefix}{new_number:03d}"
+        from shopping.services.return_service import ReturnService
+        return ReturnService.generate_return_number()
 
     def calculate_refund_amount(self) -> Decimal:
         """
         환불 금액 계산
 
-        반품하는 상품들의 총 금액 계산
-        향후 부분 환불, 쿠폰 차감 등 로직 추가 가능
+        DEPRECATED: ReturnService.calculate_refund_amount() 사용 권장
         """
-        total = Decimal("0")
-        for item in self.return_items.all():
-            total += item.product_price * item.quantity
-        return total
+        from shopping.services.return_service import ReturnService
+        return ReturnService.calculate_refund_amount(self.return_items.all())
 
     def can_request(self) -> tuple[bool, str]:
         """

@@ -122,30 +122,39 @@ class ReturnCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data: dict[str, Any]) -> Return:
         """교환/환불 신청 생성"""
+        from shopping.services import ReturnService
+
         request = self.context.get("request")
         return_items_data = validated_data.pop("return_items", [])
+        order = validated_data.pop("order")
 
+        # ReturnItem 데이터 준비
+        return_items_list = []
+        for item_data in return_items_data:
+            order_item_id = item_data.pop("order_item_id")
+            order_item = OrderItem.objects.get(id=order_item_id)
+
+            return_items_list.append({
+                'order_item': order_item,
+                'quantity': item_data['quantity'],
+                'product_name': order_item.product_name,
+                'product_price': order_item.price,
+            })
+
+        # ReturnService를 통해 생성
         with transaction.atomic():
-            # Return 생성
-            return_obj = Return.objects.create(user=request.user, **validated_data)
-
-            # ReturnItem 생성
-            for item_data in return_items_data:
-                order_item_id = item_data.pop("order_item_id")
-                order_item = OrderItem.objects.get(id=order_item_id)
-
-                ReturnItem.objects.create(
-                    return_request=return_obj,
-                    order_item=order_item,
-                    quantity=item_data["quantity"],
-                    product_name=order_item.product_name,
-                    product_price=order_item.price,
-                )
-
-            # 환불 금액 재계산
-            if return_obj.type == "refund":
-                return_obj.refund_amount = return_obj.calculate_refund_amount()
-                return_obj.save(update_fields=["refund_amount"])
+            return_obj = ReturnService.create_return(
+                order=order,
+                user=request.user,
+                type=validated_data['type'],
+                reason=validated_data['reason'],
+                reason_detail=validated_data['reason_detail'],
+                return_items_data=return_items_list,
+                refund_account_bank=validated_data.get('refund_account_bank', ''),
+                refund_account_number=validated_data.get('refund_account_number', ''),
+                refund_account_holder=validated_data.get('refund_account_holder', ''),
+                exchange_product=validated_data.get('exchange_product'),
+            )
 
             # 판매자에게 알림 발송
             from shopping.models import Notification

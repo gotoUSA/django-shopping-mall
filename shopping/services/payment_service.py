@@ -376,6 +376,18 @@ class PaymentService:
 
             # 10-2. 적립된 포인트 차감
             if order.earned_points > 0:
+                # 포인트 부족 사전 체크
+                user.refresh_from_db()
+                if user.points < order.earned_points:
+                    logger.warning(
+                        f"포인트 부족으로 결제 취소 불가: user_id={user.id}, "
+                        f"required={order.earned_points}, available={user.points}"
+                    )
+                    raise PaymentCancelError(
+                        f"포인트가 부족하여 결제를 취소할 수 없습니다. "
+                        f"(필요: {order.earned_points}P, 보유: {user.points}P)"
+                    )
+
                 points_deducted = order.earned_points
                 logger.info(
                     f"적립 포인트 차감 시작: user_id={user.id}, order_id={order.id}, "

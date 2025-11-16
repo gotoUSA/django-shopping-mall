@@ -26,6 +26,44 @@ class OrderService:
     """주문 관련 비즈니스 로직을 처리하는 서비스"""
 
     @staticmethod
+    def _validate_point_usage(user, use_points: int, total_payment_amount: Decimal) -> None:
+        """
+        포인트 사용 검증 (비즈니스 로직)
+
+        Args:
+            user: 사용자
+            use_points: 사용할 포인트
+            total_payment_amount: 총 결제 금액 (배송비 포함)
+
+        Raises:
+            OrderServiceError: 포인트 사용 조건 불충족
+        """
+        if use_points <= 0:
+            return
+
+        # 1. 최소 사용 포인트 체크 (100포인트)
+        if use_points < 100:
+            raise OrderServiceError("포인트는 최소 100포인트 이상 사용 가능합니다.")
+
+        # 2. 보유 포인트 체크
+        if use_points > user.points:
+            raise OrderServiceError(
+                f"보유 포인트가 부족합니다. (보유: {user.points}P, 사용 요청: {use_points}P)"
+            )
+
+        # 3. 배송비를 포함한 총 금액보다 많은 포인트 사용 불가
+        if use_points > total_payment_amount:
+            raise OrderServiceError(
+                f"주문 금액보다 많은 포인트를 사용할 수 없습니다. "
+                f"(주문 금액: {total_payment_amount}원, 사용 요청: {use_points}P)"
+            )
+
+        logger.info(
+            f"포인트 사용 검증 통과: user_id={user.id}, use_points={use_points}, "
+            f"user_points={user.points}, total_payment_amount={total_payment_amount}"
+        )
+
+    @staticmethod
     @transaction.atomic
     def create_order_from_cart(
         user,
@@ -77,13 +115,16 @@ class OrderService:
             f"is_free_shipping={shipping_result['is_free_shipping']}"
         )
 
-        # 3. 최종 결제 금액 계산 (배송비 포함, 포인트 차감)
-        total_with_shipping = (
+        # 3. 포인트 사용 검증 (비즈니스 로직)
+        total_payment_amount = (
             total_amount + shipping_result["shipping_fee"] + shipping_result["additional_fee"]
         )
-        final_amount = max(Decimal("0"), total_with_shipping - Decimal(str(use_points)))
+        OrderService._validate_point_usage(user, use_points, total_payment_amount)
 
-        # 4. 주문 생성
+        # 4. 최종 결제 금액 계산 (배송비 포함, 포인트 차감)
+        final_amount = max(Decimal("0"), total_payment_amount - Decimal(str(use_points)))
+
+        # 5. 주문 생성
         order = Order.objects.create(
             user=user,
             status="pending",  # 결제 대기 상태
@@ -105,14 +146,14 @@ class OrderService:
             f"total_amount={total_amount}, final_amount={final_amount}"
         )
 
-        # 5. 주문 아이템 생성 + 재고 차감
+        # 6. 주문 아이템 생성 + 재고 차감
         OrderService._create_order_items_and_decrease_stock(order, cart)
 
-        # 6. 포인트 사용 처리
+        # 7. 포인트 사용 처리
         if use_points > 0:
             OrderService._process_point_usage(user, order, use_points, total_amount, final_amount)
 
-        # 7. 장바구니 비우기
+        # 8. 장바구니 비우기
         cart.items.all().delete()
         logger.info(f"장바구니 비우기 완료: cart_id={cart.id}, user_id={user.id}")
 

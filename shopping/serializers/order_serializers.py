@@ -13,7 +13,6 @@ from ..models.order import Order, OrderItem
 from ..models.point import PointHistory
 from ..models.product import Product
 from ..services.order_service import OrderService, OrderServiceError
-from ..services.shipping_service import ShippingService
 from .product_serializers import ProductListSerializer
 
 
@@ -116,10 +115,10 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     """
     주문 생성용 Serializer (장바구니 -> 주문 변환)
 
-    ⚠️ 변경사항: 포인트 사용 기능 추가
-    - 주문 생성시 포인트 사용 가능
-    - 최소 100포인트 이상 사용
-    - 최대 주문 금액의 100%까지 사용 가능
+    역할: 입력 데이터 형식 검증 및 OrderService 호출
+    - 입력 필드 형식 검증 (타입, 필수 여부 등)
+    - 장바구니 존재 및 항목 검증 (데이터 검증)
+    - 비즈니스 로직(포인트 규칙, 배송비 계산)은 OrderService에서 처리
     """
 
     use_points = serializers.IntegerField(
@@ -192,9 +191,12 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         return cart_items
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
-        """장바구니 및 포인트 검증"""
+        """
+        입력 데이터 검증 (형식 및 데이터 존재 여부만)
+
+        비즈니스 로직 검증(포인트 규칙, 배송비 계산 등)은 OrderService에서 처리
+        """
         user = self.context["request"].user
-        use_points = attrs.get("use_points", 0)
 
         # 이메일 인증 확인
         if not user.is_email_verified:
@@ -208,39 +210,8 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         # 장바구니 항목 검증 (비활성 상품, 품절, 재고 부족)
         self._validate_cart_items(cart)
 
-        # 배송비 계산 (ShippingService 사용)
-        total_amount = cart.total_amount
-        shipping_postal_code = attrs.get("shipping_postal_code", "")
-        shipping_result = ShippingService.calculate_fee(
-            total_amount=total_amount, postal_code=shipping_postal_code
-        )
-
-        # 배송비를 포함한 총 결제 예정 금액
-        total_payment_amount = (
-            total_amount + shipping_result["shipping_fee"] + shipping_result["additional_fee"]
-        )
-
-        # 포인트 검증
-        if use_points > 0:
-            # 최소 사용 포인트 체크 (100포인트)
-            if use_points < 100:
-                raise serializers.ValidationError("포인트는 최소 100포인트 이상 사용 가능합니다.")
-
-            # 보유 포인트 체크
-            if use_points > user.points:
-                raise serializers.ValidationError(
-                    f"보유 포인트가 부족합니다. (보유: {user.points}P, 사용 요청: {use_points}P)"
-                )
-
-            # 배송비를 포함한 총 금액보다 많은 포인트 사용 불가
-            if use_points > total_payment_amount:
-                raise serializers.ValidationError(
-                    f"주문 금액보다 많은 포인트를 사용할 수 없습니다. "
-                    f"(주문 금액: {total_payment_amount}원, 사용 요청: {use_points}P)"
-                )
-
+        # 검증된 장바구니를 인스턴스 변수에 저장
         self.cart = cart
-        attrs["use_points"] = use_points
         return attrs
 
     def create(self, validated_data: dict[str, Any]) -> Order:

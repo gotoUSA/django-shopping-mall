@@ -1,216 +1,216 @@
 """
-Rate limiting (throttling) classes for API endpoints.
+API 엔드포인트 Rate Limiting (속도 제한) 클래스
 
-This module implements various throttle classes to protect against abuse:
-- Authentication endpoints (login, register): Strict limits to prevent brute force
-- Payment endpoints: Moderate limits to prevent abuse while allowing legitimate use
-- Order endpoints: Moderate limits to prevent spam
-- Email verification: Strict limits to prevent spam
-- Global limits: Default limits for all API requests
+이 모듈은 다양한 throttle 클래스를 구현하여 API 남용을 방지합니다:
+- 인증 엔드포인트 (로그인, 회원가입): 엄격한 제한으로 brute force 공격 방지
+- 결제 엔드포인트: 적절한 제한으로 남용 방지하면서 정상적인 사용 허용
+- 주문 엔드포인트: 적절한 제한으로 스팸 방지
+- 이메일 인증: 엄격한 제한으로 스팸 방지
+- 전역 제한: 모든 API 요청에 대한 기본 제한
 
-All throttle classes use Redis cache backend for optimal performance and
-distributed rate limiting support.
+모든 throttle 클래스는 최적의 성능과 분산 rate limiting 지원을 위해
+Redis 캐시 백엔드를 사용합니다.
 """
 
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
 
 # ============================================================
-# Authentication Throttles (High Security)
+# 인증 관련 Throttles (높은 보안)
 # ============================================================
 
 
 class LoginRateThrottle(AnonRateThrottle):
     """
-    Login endpoint rate limiting.
+    로그인 엔드포인트 속도 제한
 
-    Prevents brute force attacks on login endpoint.
-    Limit: 5 requests per 15 minutes per IP address.
+    Brute force 공격을 방지합니다.
+    제한: IP 주소당 15분에 5회
 
-    Applied to: LoginView
+    적용 대상: LoginView
     """
     scope = "login"
 
 
 class RegisterRateThrottle(AnonRateThrottle):
     """
-    Registration endpoint rate limiting.
+    회원가입 엔드포인트 속도 제한
 
-    Prevents spam account creation.
-    Limit: 3 requests per hour per IP address.
+    스팸 계정 생성을 방지합니다.
+    제한: IP 주소당 1시간에 3회
 
-    Applied to: RegisterView
+    적용 대상: RegisterView
     """
     scope = "register"
 
 
 class TokenRefreshRateThrottle(UserRateThrottle):
     """
-    Token refresh endpoint rate limiting.
+    토큰 갱신 엔드포인트 속도 제한
 
-    Prevents excessive token refresh requests.
-    Limit: 10 requests per minute per user.
+    과도한 토큰 갱신 요청을 방지합니다.
+    제한: 사용자당 1분에 10회
 
-    Applied to: CustomTokenRefreshView
+    적용 대상: CustomTokenRefreshView
     """
     scope = "token_refresh"
 
 
 class PasswordResetRateThrottle(AnonRateThrottle):
     """
-    Password reset endpoint rate limiting.
+    비밀번호 재설정 엔드포인트 속도 제한
 
-    Prevents password reset spam.
-    Limit: 3 requests per hour per IP address.
+    비밀번호 재설정 스팸을 방지합니다.
+    제한: IP 주소당 1시간에 3회
 
-    Applied to: Password reset views
+    적용 대상: PasswordResetRequestView
     """
     scope = "password_reset"
 
 
 # ============================================================
-# Email Verification Throttles (High Security)
+# 이메일 인증 관련 Throttles (높은 보안)
 # ============================================================
 
 
 class EmailVerificationRateThrottle(UserRateThrottle):
     """
-    Email verification send endpoint rate limiting.
+    이메일 인증 발송 엔드포인트 속도 제한
 
-    Prevents email spam and abuse.
-    Limit: 1 request per minute per user.
+    이메일 스팸과 남용을 방지합니다.
+    제한: 사용자당 1분에 1회
 
-    Applied to: Email verification send view
+    적용 대상: SendVerificationEmailView
     """
     scope = "email_verification"
 
 
 class EmailVerificationResendRateThrottle(UserRateThrottle):
     """
-    Email verification resend endpoint rate limiting.
+    이메일 인증 재발송 엔드포인트 속도 제한
 
-    Prevents excessive resend requests.
-    Limit: 3 requests per hour per user.
+    과도한 재발송 요청을 방지합니다.
+    제한: 사용자당 1시간에 3회
 
-    Applied to: Email verification resend view
+    적용 대상: ResendVerificationEmailView
     """
     scope = "email_verification_resend"
 
 
 # ============================================================
-# Payment Throttles (Medium Security)
+# 결제 관련 Throttles (중간 보안)
 # ============================================================
 
 
 class PaymentRequestRateThrottle(UserRateThrottle):
     """
-    Payment request endpoint rate limiting.
+    결제 요청 엔드포인트 속도 제한
 
-    Prevents payment spam while allowing legitimate purchases.
-    Limit: 10 requests per minute per user.
+    결제 스팸을 방지하면서 정상적인 구매는 허용합니다.
+    제한: 사용자당 1분에 10회
 
-    Applied to: PaymentRequestView
+    적용 대상: PaymentRequestView
     """
     scope = "payment_request"
 
 
 class PaymentConfirmRateThrottle(UserRateThrottle):
     """
-    Payment confirmation endpoint rate limiting.
+    결제 승인 엔드포인트 속도 제한
 
-    Prevents duplicate payment confirmations.
-    Limit: 5 requests per minute per user.
+    중복 결제 승인을 방지합니다.
+    제한: 사용자당 1분에 5회
 
-    Applied to: PaymentConfirmView
+    적용 대상: PaymentConfirmView
     """
     scope = "payment_confirm"
 
 
 class PaymentCancelRateThrottle(UserRateThrottle):
     """
-    Payment cancellation endpoint rate limiting.
+    결제 취소 엔드포인트 속도 제한
 
-    Prevents excessive cancellation requests.
-    Limit: 5 requests per minute per user.
+    과도한 취소 요청을 방지합니다.
+    제한: 사용자당 1분에 5회
 
-    Applied to: PaymentCancelView
+    적용 대상: PaymentCancelView
     """
     scope = "payment_cancel"
 
 
 # ============================================================
-# Order Throttles (Medium Security)
+# 주문 관련 Throttles (중간 보안)
 # ============================================================
 
 
 class OrderCreateRateThrottle(UserRateThrottle):
     """
-    Order creation endpoint rate limiting.
+    주문 생성 엔드포인트 속도 제한
 
-    Prevents order spam while allowing legitimate purchases.
-    Limit: 10 requests per minute per user.
+    주문 스팸을 방지하면서 정상적인 구매는 허용합니다.
+    제한: 사용자당 1분에 10회
 
-    Applied to: OrderViewSet.create
+    적용 대상: OrderViewSet.create
     """
     scope = "order_create"
 
 
 class OrderCancelRateThrottle(UserRateThrottle):
     """
-    Order cancellation endpoint rate limiting.
+    주문 취소 엔드포인트 속도 제한
 
-    Prevents excessive cancellation requests.
-    Limit: 5 requests per minute per user.
+    과도한 취소 요청을 방지합니다.
+    제한: 사용자당 1분에 5회
 
-    Applied to: OrderViewSet.cancel
+    적용 대상: OrderViewSet.cancel
     """
     scope = "order_cancel"
 
 
 # ============================================================
-# Global Throttles (Default Security)
+# 전역 Throttles (기본 보안)
 # ============================================================
 
 
 class GlobalAnonRateThrottle(AnonRateThrottle):
     """
-    Global rate limit for anonymous users.
+    비인증 사용자 전역 속도 제한
 
-    Default limit for all unauthenticated API requests.
-    Limit: 100 requests per hour per IP address.
+    모든 비인증 API 요청에 대한 기본 제한입니다.
+    제한: IP 주소당 1시간에 100회
 
-    Applied to: All API endpoints (default)
+    적용 대상: 모든 API 엔드포인트 (기본값)
     """
     scope = "anon_global"
 
 
 class GlobalUserRateThrottle(UserRateThrottle):
     """
-    Global rate limit for authenticated users.
+    인증 사용자 전역 속도 제한
 
-    Default limit for all authenticated API requests.
-    Limit: 1000 requests per hour per user.
+    모든 인증된 API 요청에 대한 기본 제한입니다.
+    제한: 사용자당 1시간에 1000회
 
-    Applied to: All API endpoints (default)
+    적용 대상: 모든 API 엔드포인트 (기본값)
     """
     scope = "user_global"
 
 
 # ============================================================
-# Special Case Throttles
+# 특수 케이스 Throttles
 # ============================================================
 
 
 class WebhookRateThrottle(AnonRateThrottle):
     """
-    Webhook endpoint rate limiting.
+    웹훅 엔드포인트 속도 제한
 
-    Prevents webhook spam from external services.
-    Limit: 100 requests per minute per IP address.
+    외부 서비스로부터의 웹훅 스팸을 방지합니다.
+    제한: IP 주소당 1분에 100회
 
-    Note: This is a generous limit as webhooks are from trusted sources
-    and verified by signature. Adjust based on expected webhook volume.
+    참고: 웹훅은 신뢰할 수 있는 소스에서 오고 시그니처로 검증되므로
+    관대한 제한을 설정했습니다. 예상되는 웹훅 볼륨에 따라 조정하세요.
 
-    Applied to: Webhook views (e.g., TossPayments webhook)
+    적용 대상: 웹훅 뷰 (예: TossPayments 웹훅)
     """
     scope = "webhook"

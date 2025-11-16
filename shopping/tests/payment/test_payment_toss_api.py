@@ -170,7 +170,10 @@ class TestTossConfirmPaymentBoundary:
     def test_confirm_payment_timeout_at_30_seconds(self, mocker):
         """정확히 30초에 타임아웃 발생"""
         # Arrange
-        mock_post = mocker.patch("requests.post")
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"status": "DONE", "totalAmount": 10000}
+        mock_post = mocker.patch("requests.post", return_value=mock_response)
 
         # Act
         self.client.confirm_payment(

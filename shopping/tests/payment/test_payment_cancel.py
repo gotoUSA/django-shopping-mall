@@ -453,6 +453,7 @@ class TestPaymentCancelNormalCase:
         PointHistory.create_history(
             user=user,
             points=earned_points,
+            balance=user.points,
             type="purchase",
             order=paid_order,
             description="결제 완료 적립",

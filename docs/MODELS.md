@@ -426,13 +426,17 @@ product.save()
 **적립:**
 ```python
 earn_amount = order.final_amount * (user.earn_rate / 100)
+# F() 객체로 안전하게 포인트 증가
+User.objects.filter(pk=user.pk).update(points=F('points') + earn_amount)
+user.refresh_from_db()
+# 이력 기록 (balance 명시적 전달 필수)
 PointHistory.create_history(
     user=user,
     points=earn_amount,
+    balance=user.points,
     type='earn',
     expires_at=now + 1년
 )
-user.points += earn_amount
 ```
 
 **사용 (FIFO):**

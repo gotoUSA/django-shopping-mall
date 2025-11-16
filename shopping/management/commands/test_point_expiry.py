@@ -67,6 +67,7 @@ class Command(BaseCommand):
             PointHistory.create_history(
                 user=user,
                 points=1000,
+                balance=1000,
                 type="earn",
                 description="[테스트] 400일 전 적립 (만료됨)",
             )
@@ -76,6 +77,7 @@ class Command(BaseCommand):
             PointHistory.create_history(
                 user=user,
                 points=2000,
+                balance=3000,
                 type="earn",
                 description="[테스트] 365일 전 적립 (오늘 만료)",
             )
@@ -85,6 +87,7 @@ class Command(BaseCommand):
             PointHistory.create_history(
                 user=user,
                 points=3000,
+                balance=6000,
                 type="earn",
                 description="[테스트] 358일 전 적립 (7일 후 만료)",
             )
@@ -94,6 +97,7 @@ class Command(BaseCommand):
             PointHistory.create_history(
                 user=user,
                 points=4000,
+                balance=10000,
                 type="earn",
                 description="[테스트] 335일 전 적립 (30일 후 만료)",
             )
@@ -102,6 +106,7 @@ class Command(BaseCommand):
         PointHistory.create_history(
             user=user,
             points=5000,
+            balance=15000,
             type="earn",
             description="[테스트] 오늘 적립 (1년 후 만료)",
         )

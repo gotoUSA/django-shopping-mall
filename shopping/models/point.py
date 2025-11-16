@@ -93,9 +93,11 @@ class PointHistory(models.Model):
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """
-        저장 시 자동 처리는 서비스 레이어에서 담당합니다.
-        포인트 이력 생성: PointHistory.create_history() 또는 PointService 사용
-        balance는 항상 명시적으로 전달되어야 합니다.
+        포인트 이력을 직접 저장하지 마세요.
+        반드시 PointHistory.create_history() 또는 PointService를 사용하세요.
+
+        create_history() 메서드는 balance를 필수 파라미터로 요구하여
+        잔액이 항상 명시적으로 기록되도록 보장합니다.
         """
         super().save(*args, **kwargs)
 
@@ -104,6 +106,7 @@ class PointHistory(models.Model):
         cls,
         user: User,
         points: int,
+        balance: int,
         type: str,
         order: Order | None = None,
         description: str | None = None,
@@ -115,6 +118,7 @@ class PointHistory(models.Model):
         Args:
             user: 사용자
             points: 포인트 변동량
+            balance: 변경 후 잔액 (명시적 전달 필수)
             type: 이력 타입
             order: 관련 주문 (선택)
             description: 설명 (선택)
@@ -144,7 +148,7 @@ class PointHistory(models.Model):
         return cls.objects.create(
             user=user,
             points=points,
-            balance=user.points,  # 현재 잔액
+            balance=balance,
             type=type,
             order=order,
             description=description,

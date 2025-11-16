@@ -66,6 +66,7 @@ class PointService:
         PointHistory.create_history(
             user=user,
             points=amount,
+            balance=user.points,
             type=type,
             order=order,
             description=description or f"포인트 {amount}점 추가",
@@ -127,6 +128,7 @@ class PointService:
         PointHistory.create_history(
             user=user,
             points=-amount,
+            balance=user.points,
             type=type,
             order=order,
             description=description or f"포인트 {amount}점 사용",
@@ -212,10 +214,14 @@ class PointService:
                         points=Greatest(F("points") - remaining, 0)
                     )
 
+                    # F() 객체로 업데이트 후 최신 값 가져오기
+                    user.refresh_from_db()
+
                     # 만료 이력 생성
                     PointHistory.create_history(
                         user=user,
                         points=-remaining,
+                        balance=user.points,
                         type="expire",
                         description=f"포인트 만료 (적립일: {point_history.created_at.date()})",
                         metadata={
@@ -372,6 +378,7 @@ class PointService:
         PointHistory.create_history(
             user=user,
             points=-amount,
+            balance=user.points,
             type=type,
             order=order,
             description=description or "포인트 사용 (FIFO)",

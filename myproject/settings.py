@@ -132,8 +132,8 @@ DATABASES = {
         "PASSWORD": os.getenv("DATABASE_PASSWORD", ""),
         "HOST": os.getenv("DATABASE_HOST", ""),
         "PORT": os.getenv("DATABASE_PORT", ""),
-        # Connection pooling: reuse connections to avoid "too many clients"
-        "CONN_MAX_AGE": 60 if TESTING else 600,
+        # Connection pooling: disabled in tests to prevent pool exhaustion
+        "CONN_MAX_AGE": 0 if TESTING else 600,
         # Health checks to ensure connections are valid (Django 4.1+)
         "CONN_HEALTH_CHECKS": True,
     }
@@ -329,8 +329,8 @@ if os.environ.get("DATABASE_ENGINE"):
             "PASSWORD": os.environ.get("DATABASE_PASSWORD", ""),
             "HOST": os.environ.get("DATABASE_HOST", ""),
             "PORT": os.environ.get("DATABASE_PORT", ""),
-            # Connection pooling: reuse connections to avoid "too many clients"
-            "CONN_MAX_AGE": 60 if TESTING else 600,
+            # Connection pooling: disabled in tests to prevent pool exhaustion
+            "CONN_MAX_AGE": 0 if TESTING else 600,
             # Health checks to ensure connections are valid (Django 4.1+)
             "CONN_HEALTH_CHECKS": True,
             # PostgreSQL-specific options for better connection management

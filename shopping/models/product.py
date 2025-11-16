@@ -273,10 +273,16 @@ class ProductImage(models.Model):
         return f"{self.product.name} - 이미지 {self.order}"
 
     def save(self, *args: Any, **kwargs: Any) -> None:
-        # 대표 이미지는 1개만
-        if self.is_primary:
-            ProductImage.objects.filter(product=self.product, is_primary=True).exclude(pk=self.pk).update(is_primary=False)
+        """
+        저장 시 자동 처리:
+        대표 이미지 설정은 ProductService를 통해 처리
+        """
         super().save(*args, **kwargs)
+
+        # 대표 이미지로 설정된 경우, 다른 이미지들 해제
+        if self.is_primary:
+            from shopping.services import ProductService
+            ProductService.set_primary_image(self)
 
 
 class ProductReview(models.Model):

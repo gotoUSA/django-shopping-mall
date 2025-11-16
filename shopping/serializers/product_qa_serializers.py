@@ -202,10 +202,17 @@ class ProductAnswerCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data: dict[str, Any]) -> ProductAnswer:
         """답변 생성"""
+        from shopping.services import ProductQAService
+
         question = self.context["question"]
         user = self.context["request"].user
+        content = validated_data["content"]
 
-        return ProductAnswer.objects.create(question=question, seller=user, **validated_data)
+        return ProductQAService.create_answer(
+            question=question,
+            seller=user,
+            content=content
+        )
 
 
 class ProductAnswerUpdateSerializer(serializers.ModelSerializer):

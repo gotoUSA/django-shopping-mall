@@ -135,27 +135,7 @@ class ProductAnswer(models.Model):
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """
-        답변 저장 시 자동 처리:
-        1. 문의를 답변 완료 상태로 변경
-        2. 질문자에게 알림 발송
+        저장 시 자동 처리는 서비스 레이어에서 담당합니다.
+        답변 생성: ProductQAService.create_answer() 사용
         """
-        is_new = self.pk is None
-
         super().save(*args, **kwargs)
-
-        # 새 답변인 경우에만 처리
-        if is_new:
-            # 문의를 답변 완료로 변경
-            self.question.is_answered = True
-            self.question.save(update_fields=["is_answered"])
-
-            # 알림 생성
-            from .notification import Notification
-
-            Notification.objects.create(
-                user=self.question.user,
-                notification_type="qa_answer",
-                title="상품 문의에 답변이 달렸습니다",
-                message=f'"{self.question.title}" 문의에 판매자가 답변했습니다.',
-                link=f"/products/{self.question.product.id}/questions/{self.question.id}",
-            )

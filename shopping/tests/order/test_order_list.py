@@ -61,6 +61,7 @@ class TestOrderListHappyPath:
             OrderItem.objects.create(
                 order=order_obj,
                 product=product,
+                product_name=product.name,
                 quantity=i + 1,
                 price=product.price,
             )
@@ -461,6 +462,7 @@ class TestOrderListBoundary:
             OrderItem.objects.create(
                 order=order_obj,
                 product=product,
+                product_name=product.name,
                 quantity=1,
                 price=product.price,
             )
@@ -660,6 +662,7 @@ class TestOrderListException:
             OrderItem.objects.create(
                 order=order_obj,
                 product=product,
+                product_name=product.name,
                 quantity=1,
                 price=product.price,
             )

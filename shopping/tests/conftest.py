@@ -579,6 +579,7 @@ def order(db, user, product):
     OrderItem.objects.create(
         order=order,
         product=product,
+        product_name=product.name,
         quantity=1,
         price=product.price,
     )
@@ -615,6 +616,7 @@ def paid_order(db, user, product):
     OrderItem.objects.create(
         order=order,
         product=product,
+        product_name=product.name,
         quantity=1,
         price=product.price,
     )
@@ -663,6 +665,7 @@ def order_with_multiple_items(db, user, multiple_products):
         OrderItem.objects.create(
             order=order,
             product=product,
+            product_name=product.name,
             quantity=1,
             price=product.price,
         )

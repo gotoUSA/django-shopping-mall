@@ -228,11 +228,20 @@ class Payment(models.Model):
         self.save()
 
     def save(self, *args: Any, **kwargs: Any) -> None:
-        """저장 전 처리"""
-        # toss_order_id가 없으면 주문번호로 설정
-        if not self.toss_order_id and self.order:
-            self.toss_order_id = self.order.order_number
+        """
+        Payment는 반드시 PaymentService를 통해서만 생성되어야 합니다.
 
+        올바른 사용:
+            PaymentService.create_payment(order, payment_method)
+
+        테스트 등에서 직접 생성 시 모든 필드를 명시적으로 설정해야 합니다:
+            Payment.objects.create(
+                order=order,
+                toss_order_id=order.order_number,  # 명시적 설정 필수
+                amount=order.final_amount,
+                status="ready",
+            )
+        """
         super().save(*args, **kwargs)
 
 

@@ -67,11 +67,17 @@ class Cart(models.Model):
 
     @property
     def total_amount(self) -> Decimal:
-        """장바구니 총 금액 계산"""
-        total = Decimal("0")
-        for item in self.items.all():
-            total += item.subtotal
-        return total
+        """장바구니 총 금액 계산 (DB에서 집계)"""
+        from django.db.models import DecimalField, F, Sum
+        from django.db.models.functions import Coalesce
+
+        result = self.items.aggregate(
+            total=Coalesce(
+                Sum(F("product__price") * F("quantity"), output_field=DecimalField()),
+                Decimal("0"),
+            )
+        )
+        return result["total"]
 
     @property
     def total_quantity(self) -> int:

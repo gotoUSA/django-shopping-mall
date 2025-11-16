@@ -120,8 +120,12 @@ WSGI_APPLICATION = "myproject.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# 테스트 환경 감지
-TESTING = "test" in sys.argv or os.getenv("TESTING") == "True"
+# 테스트 환경 감지 (pytest 및 Django test 모두 지원)
+TESTING = (
+    "test" in sys.argv
+    or "pytest" in sys.argv[0]
+    or os.getenv("TESTING") == "True"
+)
 
 # 데이터베이스 설정
 DATABASES = {

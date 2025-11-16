@@ -207,11 +207,11 @@ class TestPaymentServiceConfirmPayment:
         test_user.points = 70000
         test_user.save()
 
-        # 포인트로 전액 결제
+        # 포인트로 전액 결제 (상품 50000원 = 총 결제 금액과 동일)
         order = OrderService.create_order_from_cart(
             user=test_user,
             cart=cart,
-            use_points=60000,  # 충분한 포인트
+            use_points=50000,  # 주문 금액과 정확히 일치
             **shipping_info,
         )
 

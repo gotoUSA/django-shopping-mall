@@ -238,17 +238,18 @@ class OrderItem(models.Model):
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """
-        저장 시 자동 처리:
-        1. product_name이 없으면 현재 상품명으로 설정
-        2. price가 없으면 현재 상품 가격으로 설정
+        OrderItem은 반드시 OrderService를 통해서만 생성되어야 합니다.
 
-        Note: OrderItem은 OrderService를 통해서만 생성되어야 합니다.
-              주문 총액 업데이트 등의 부수 효과(side effect)는 서비스 레이어에서 명시적으로 처리합니다.
+        올바른 사용:
+            OrderService.create_order_from_cart(...)
+
+        테스트 등에서 직접 생성 시 모든 필드를 명시적으로 설정해야 합니다:
+            OrderItem.objects.create(
+                order=order,
+                product=product,
+                product_name=product.name,  # 명시적 설정 필수
+                price=product.price,         # 명시적 설정 필수
+                quantity=1,
+            )
         """
-        if not self.product_name and self.product:
-            self.product_name = self.product.name
-
-        if not self.price and self.product:
-            self.price = self.product.price
-
         super().save(*args, **kwargs)

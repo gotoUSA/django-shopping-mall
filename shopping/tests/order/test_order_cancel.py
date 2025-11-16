@@ -68,6 +68,7 @@ class TestOrderCancelHappyPath:
         OrderItem.objects.create(
             order=order,
             product=product,
+            product_name=product.name,
             quantity=order_quantity,
             price=product.price,
         )
@@ -103,6 +104,7 @@ class TestOrderCancelHappyPath:
             OrderItem.objects.create(
                 order=order,
                 product=product,
+                product_name=product.name,
                 quantity=2,
                 price=product.price,
             )
@@ -156,6 +158,7 @@ class TestOrderCancelBoundary:
         OrderItem.objects.create(
             order=other_order,
             product=product,
+            product_name=product.name,
             quantity=1,
             price=product.price,
         )
@@ -194,6 +197,7 @@ class TestOrderCancelBoundary:
         OrderItem.objects.create(
             order=other_order,
             product=product,
+            product_name=product.name,
             quantity=1,
             price=product.price,
         )
@@ -263,6 +267,7 @@ class TestOrderCancelBoundary:
         OrderItem.objects.create(
             order=order,
             product=out_of_stock_product,
+            product_name=out_of_stock_product.name,
             quantity=5,
             price=out_of_stock_product.price,
         )
@@ -382,6 +387,7 @@ class TestOrderCancelException:
         order_item = OrderItem.objects.create(
             order=order,
             product=product,
+            product_name=product.name,
             quantity=2,
             price=product.price,
         )

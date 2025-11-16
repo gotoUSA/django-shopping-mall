@@ -153,6 +153,7 @@ class TestOrderStockRestore:
         OrderItem.objects.create(
             order=order,
             product=product,
+            product_name=product.name,
             quantity=order_quantity,
             price=product.price,
         )
@@ -198,6 +199,7 @@ class TestOrderStockRestore:
         OrderItem.objects.create(
             order=order,
             product=product,
+            product_name=product.name,
             quantity=order_quantity,
             price=product.price,
         )
@@ -246,6 +248,7 @@ class TestOrderStockRestore:
             OrderItem.objects.create(
                 order=order,
                 product=product,
+                product_name=product.name,
                 quantity=order_quantity,
                 price=product.price,
             )
@@ -282,6 +285,7 @@ class TestOrderStockRestore:
         OrderItem.objects.create(
             order=order,
             product=product,
+                product_name=product.name,
             quantity=order_quantity,
             price=product.price,
         )
@@ -324,6 +328,7 @@ class TestOrderStockRestore:
         OrderItem.objects.create(
             order=order,
             product=product,
+                product_name=product.name,
             quantity=large_quantity,
             price=product.price,
         )
@@ -358,6 +363,7 @@ class TestOrderStockRestore:
         order_item = OrderItem.objects.create(
             order=order,
             product=product,
+                product_name=product.name,
             quantity=2,
             price=product.price,
         )

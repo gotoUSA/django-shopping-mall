@@ -74,7 +74,13 @@ class TestOrderAuthentication:
             shipping_address="서울시",
             shipping_address_detail="101호",
         )
-        OrderItem.objects.create(order=order, product=product, quantity=1, price=product.price)
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            product_name=product.name,
+            quantity=1,
+            price=product.price,
+        )
 
         url = reverse("order-detail", kwargs={"pk": order.id})
 
@@ -281,7 +287,13 @@ class TestOrderOwnership:
             shipping_address="서울시",
             shipping_address_detail="101호",
         )
-        OrderItem.objects.create(order=order, product=product, quantity=1, price=product.price)
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            product_name=product.name,
+            quantity=1,
+            price=product.price,
+        )
 
         url = reverse("order-detail", kwargs={"pk": order.id})
 

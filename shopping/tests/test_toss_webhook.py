@@ -535,7 +535,13 @@ class TestPaymentCanceledWebhook:
         )
 
         for product in multiple_products:
-            OrderItem.objects.create(order=order, product=product, quantity=1, price=product.price)
+            OrderItem.objects.create(
+                order=order,
+                product=product,
+                product_name=product.name,
+                quantity=1,
+                price=product.price,
+            )
 
         # Payment 생성
         payment = Payment.objects.create(

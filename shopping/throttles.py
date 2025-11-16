@@ -25,7 +25,7 @@ class LoginRateThrottle(AnonRateThrottle):
     로그인 엔드포인트 속도 제한
 
     Brute force 공격을 방지합니다.
-    제한: IP 주소당 15분에 5회
+    제한: IP 주소당 1분에 3회
 
     적용 대상: LoginView
     """

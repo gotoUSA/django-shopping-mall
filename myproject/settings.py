@@ -199,14 +199,17 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",  # 읽기는 누구나, 쓰기는 로그인 필요
     ],
-    # Rate Limiting (Throttling) 설정
-    "DEFAULT_THROTTLE_CLASSES": [
+}
+
+# Rate Limiting (Throttling) 설정 - 테스트 환경에서는 비활성화
+if not TESTING:
+    REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = [
         "shopping.throttles.GlobalAnonRateThrottle",  # 비인증 사용자 전역 제한
         "shopping.throttles.GlobalUserRateThrottle",  # 인증 사용자 전역 제한
-    ],
-    "DEFAULT_THROTTLE_RATES": {
+    ]
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
         # Authentication throttles (High Security)
-        "login": "5/15min",  # 로그인: 15분당 5회
+        "login": "3/min",  # 로그인: 1분당 3회
         "register": "3/hour",  # 회원가입: 1시간당 3회
         "token_refresh": "10/min",  # 토큰 갱신: 1분당 10회
         "password_reset": "3/hour",  # 비밀번호 재설정: 1시간당 3회
@@ -225,8 +228,7 @@ REST_FRAMEWORK = {
         "user_global": "1000/hour",  # 인증 사용자 전역: 1시간당 1000회
         # Special case throttles
         "webhook": "100/min",  # 웹훅: 1분당 100회 (외부 서비스용)
-    },
-}
+    }
 
 # JWT 설정
 from datetime import timedelta

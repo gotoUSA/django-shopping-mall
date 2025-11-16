@@ -364,17 +364,13 @@ class TestPaymentPointsCancelNormalCase:
 class TestPaymentPointsBoundary:
     """경계값 테스트"""
 
-    def test_partial_expired_points_deduction(self):
+    def test_partial_expired_points_deduction(self, user_factory):
         """부분 만료된 포인트 회수 처리"""
         # Arrange
-        from shopping.models.user import User
-
-        user = User.objects.create_user(
+        user = user_factory(
             username="expiry_test_user",
             email="expiry@test.com",
-            password="test123",
             phone_number="010-1111-2222",
-            is_email_verified=True,
         )
 
         now = timezone.now()
@@ -429,17 +425,13 @@ class TestPaymentPointsBoundary:
 class TestPaymentPointsException:
     """예외 케이스"""
 
-    def test_insufficient_points_for_deduction(self):
+    def test_insufficient_points_for_deduction(self, user_factory):
         """포인트 부족으로 회수 불가"""
         # Arrange
-        from shopping.models.user import User
-
-        user = User.objects.create_user(
+        user = user_factory(
             username="insufficient_user",
             email="insufficient@test.com",
-            password="test123",
             phone_number="010-2222-3333",
-            is_email_verified=True,
         )
 
         now = timezone.now()
@@ -474,17 +466,13 @@ class TestPaymentPointsException:
         user.refresh_from_db()
         assert user.points == 1000
 
-    def test_expired_points_cannot_be_deducted(self):
+    def test_expired_points_cannot_be_deducted(self, user_factory):
         """만료된 포인트 회수 불가 - 만료 처리 후"""
         # Arrange
-        from shopping.models.user import User
-
-        user = User.objects.create_user(
+        user = user_factory(
             username="expired_user",
             email="expired@test.com",
-            password="test123",
             phone_number="010-3333-4444",
-            is_email_verified=True,
         )
 
         now = timezone.now()
@@ -616,17 +604,13 @@ class TestPaymentPointsException:
         assert order.status == "paid"
         assert payment.status == "done"
 
-    def test_fifo_with_mixed_availability(self):
+    def test_fifo_with_mixed_availability(self, user_factory):
         """FIFO 회수 시 일부 사용된 포인트 처리"""
         # Arrange
-        from shopping.models.user import User
-
-        user = User.objects.create_user(
+        user = user_factory(
             username="mixed_user",
             email="mixed@test.com",
-            password="test123",
             phone_number="010-5555-6666",
-            is_email_verified=True,
         )
 
         now = timezone.now()
@@ -675,17 +659,13 @@ class TestPaymentPointsException:
         assert history1.metadata.get("used_amount", 0) == 1000  # 500 + 500
         assert history2.metadata.get("used_amount", 0) == 500
 
-    def test_points_deduction_fifo_order_validation(self):
+    def test_points_deduction_fifo_order_validation(self, user_factory):
         """FIFO 회수 순서 엄격 검증"""
         # Arrange
-        from shopping.models.user import User
-
-        user = User.objects.create_user(
+        user = user_factory(
             username="fifo_strict_user",
             email="fifo@test.com",
-            password="test123",
             phone_number="010-4444-5555",
-            is_email_verified=True,
         )
 
         now = timezone.now()

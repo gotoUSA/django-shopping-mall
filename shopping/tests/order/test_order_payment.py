@@ -24,6 +24,7 @@ class TestOrderPaymentIntegration:
         product,
         add_to_cart_helper,
         shipping_data,
+        mock_payment_success,
     ):
         """포인트 일부 사용 + 결제 완료 → 포인트 적립 확인"""
         # Arrange
@@ -48,11 +49,7 @@ class TestOrderPaymentIntegration:
 
         # Act - 결제 승인 (Mock 사용)
         with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm:
-            mock_confirm.return_value = {
-                "status": "DONE",
-                "approvedAt": "2025-01-15T10:30:00+09:00",
-                "totalAmount": int(order.final_amount),
-            }
+            mock_confirm.return_value = mock_payment_success(order.final_amount)
 
             confirm_response = authenticated_client.post(
                 "/api/payments/confirm/",
@@ -96,6 +93,7 @@ class TestOrderPaymentIntegration:
         product,
         add_to_cart_helper,
         shipping_data,
+        mock_payment_success,
     ):
         """포인트 미사용 결제 플로우"""
         # Arrange
@@ -120,11 +118,7 @@ class TestOrderPaymentIntegration:
 
         # Act - 결제 승인 (Mock)
         with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm:
-            mock_confirm.return_value = {
-                "status": "DONE",
-                "approvedAt": "2025-01-15T10:30:00+09:00",
-                "totalAmount": int(expected_amount),
-            }
+            mock_confirm.return_value = mock_payment_success(expected_amount)
 
             confirm_response = authenticated_client.post(
                 "/api/payments/confirm/",
@@ -294,6 +288,7 @@ class TestOrderPaymentIntegration:
         product,
         add_to_cart_helper,
         shipping_data,
+        mock_payment_success,
     ):
         """결제 승인 후 포인트 적립 확인"""
         # Arrange
@@ -309,11 +304,7 @@ class TestOrderPaymentIntegration:
         authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
         with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm:
-            mock_confirm.return_value = {
-                "status": "DONE",
-                "approvedAt": "2025-01-15T10:30:00+09:00",
-                "totalAmount": int(order.final_amount),
-            }
+            mock_confirm.return_value = mock_payment_success(order.final_amount)
 
             confirm_response = authenticated_client.post(
                 "/api/payments/confirm/",
@@ -343,6 +334,7 @@ class TestOrderPaymentIntegration:
         add_to_cart_helper,
         shipping_data,
         user_factory,
+        mock_payment_success,
     ):
         """포인트 적립률 1% 고정 검증 (현재 구현)"""
         # Arrange - 여러 사용자 생성 (등급 무관하게 1% 적립)
@@ -359,11 +351,7 @@ class TestOrderPaymentIntegration:
             authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
             with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm:
-                mock_confirm.return_value = {
-                    "status": "DONE",
-                    "approvedAt": "2025-01-15T10:30:00+09:00",
-                    "totalAmount": int(order.final_amount),
-                }
+                mock_confirm.return_value = mock_payment_success(order.final_amount)
 
                 confirm_response = authenticated_client.post(
                     "/api/payments/confirm/",
@@ -390,6 +378,8 @@ class TestOrderPaymentIntegration:
         product,
         add_to_cart_helper,
         shipping_data,
+        mock_payment_success,
+        mock_payment_cancel,
     ):
         """결제 취소 시 사용한 포인트 환불 확인"""
         # Arrange - 포인트 사용 주문 및 결제
@@ -404,11 +394,7 @@ class TestOrderPaymentIntegration:
         authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
         with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm:
-            mock_confirm.return_value = {
-                "status": "DONE",
-                "approvedAt": "2025-01-15T10:30:00+09:00",
-                "totalAmount": int(order.final_amount),
-            }
+            mock_confirm.return_value = mock_payment_success(order.final_amount)
             authenticated_client.post(
                 "/api/payments/confirm/",
                 {
@@ -422,11 +408,8 @@ class TestOrderPaymentIntegration:
         payment = Payment.objects.get(order=order)
 
         # Act - 결제 취소 (Mock)
-        with patch("shopping.utils.toss_payment.TossPaymentClient.cancel_payment") as mock_cancel:
-            mock_cancel.return_value = {
-                "status": "CANCELED",
-                "canceledAt": "2025-01-15T11:00:00+09:00",
-            }
+        with patch("shopping.utils.toss_payment.TossPaymentClient.cancel_payment") as mock_cancel_client:
+            mock_cancel_client.return_value = mock_payment_cancel
 
             cancel_response = authenticated_client.post(
                 "/api/payments/cancel/",
@@ -457,6 +440,8 @@ class TestOrderPaymentIntegration:
         product,
         add_to_cart_helper,
         shipping_data,
+        mock_payment_success,
+        mock_payment_cancel,
     ):
         """결제 취소 시 적립된 포인트 차감 확인"""
         # Arrange - 결제 완료
@@ -470,11 +455,7 @@ class TestOrderPaymentIntegration:
         authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
         with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm:
-            mock_confirm.return_value = {
-                "status": "DONE",
-                "approvedAt": "2025-01-15T10:30:00+09:00",
-                "totalAmount": int(order.final_amount),
-            }
+            mock_confirm.return_value = mock_payment_success(order.final_amount)
             authenticated_client.post(
                 "/api/payments/confirm/",
                 {
@@ -493,11 +474,8 @@ class TestOrderPaymentIntegration:
         payment = Payment.objects.get(order=order)
 
         # Act - 결제 취소
-        with patch("shopping.utils.toss_payment.TossPaymentClient.cancel_payment") as mock_cancel:
-            mock_cancel.return_value = {
-                "status": "CANCELED",
-                "canceledAt": "2025-01-15T11:00:00+09:00",
-            }
+        with patch("shopping.utils.toss_payment.TossPaymentClient.cancel_payment") as mock_cancel_client:
+            mock_cancel_client.return_value = mock_payment_cancel
 
             cancel_response = authenticated_client.post(
                 "/api/payments/cancel/",

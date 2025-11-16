@@ -484,21 +484,17 @@ class PaymentListView(APIView):
 
 @login_required
 def payment_test_page(request, order_id):
-    """결제 테스트 페이지 - 포인트 정보 표시"""
+    """
+    결제 테스트 페이지 - 포인트 정보 표시
+
+    Note: order_number는 Order 생성 시 post_save signal에서 자동으로 생성됩니다.
+          (signals.py의 generate_order_number 참조)
+    """
     # 관리자는 모든 주문 접근 가능
     if request.user.is_staff or request.user.is_superuser:
         order = get_object_or_404(Order, id=order_id)
     else:
         order = get_object_or_404(Order, id=order_id, user=request.user)
-
-    # order_number가 없으면 생성
-    if not order.order_number:
-        from django.utils import timezone
-
-        date_str = timezone.now().strftime("%Y%m%d")
-        order.order_number = f"{date_str}{order.id:06d}"
-        order.save(update_fields=["order_number"])
-        print(f"Order number 생성됨: {order.order_number}")
 
     # 이미 결제된 주문인지 확인
     if hasattr(order, "payment") and order.payment.is_paid:
@@ -517,13 +513,22 @@ def payment_test_page(request, order_id):
 
 @login_required
 def payment_success(request):
-    """결제 성공 처리"""
+    """
+    결제 성공 콜백 처리 (템플릿 렌더링용)
+
+    Note: 비즈니스 로직은 PaymentService를 통해 처리합니다.
+          새로운 구현에서는 PaymentConfirmView API를 사용하는 것을 권장합니다.
+    """
     # URL 파라미터에서 값 가져오기
     payment_key = request.GET.get("paymentKey")
     order_id = request.GET.get("orderId")
     amount = request.GET.get("amount")
 
     if not all([payment_key, order_id, amount]):
+        logger.warning(
+            f"결제 성공 콜백 파라미터 누락: payment_key={payment_key}, "
+            f"order_id={order_id}, amount={amount}"
+        )
         return render(
             request,
             "shopping/payment_fail.html",
@@ -534,49 +539,79 @@ def payment_success(request):
         # Payment 찾기
         payment = Payment.objects.get(toss_order_id=order_id)
 
-        # 토스페이먼츠 API 클라이언트 사용
-        from ..utils.toss_payment import TossPaymentClient
+        # PaymentService를 통한 결제 승인 처리
+        result = PaymentService.confirm_payment(
+            payment=payment,
+            payment_key=payment_key,
+            order_id=order_id,
+            amount=int(amount),
+            user=request.user,
+        )
 
-        toss_client = TossPaymentClient()
-        result = toss_client.confirm_payment(payment_key=payment_key, order_id=order_id, amount=int(amount))
-
-        # 결제 성공 처리
-        payment.mark_as_paid(result)
-
-        # 주문 상태 업데이트
-        order = payment.order
-        order.status = "paid"
-        order.save()
+        logger.info(
+            f"템플릿 결제 성공 처리 완료: payment_id={payment.id}, "
+            f"order_id={result['payment'].order.id}, user_id={request.user.id}"
+        )
 
         return render(
             request,
             "shopping/payment_success.html",
-            {"payment": payment, "order": order},
+            {
+                "payment": result["payment"],
+                "order": result["payment"].order,
+                "points_earned": result["points_earned"],
+            },
         )
+
     except Payment.DoesNotExist:
+        logger.error(f"결제 정보를 찾을 수 없음: order_id={order_id}")
         return render(
             request,
             "shopping/payment_fail.html",
             {"message": "결제 정보를 찾을 수 없습니다."},
         )
+
+    except (PaymentConfirmError, TossPaymentError) as e:
+        logger.error(f"결제 승인 실패: order_id={order_id}, error={str(e)}")
+        return render(
+            request,
+            "shopping/payment_fail.html",
+            {"message": f"결제 처리 중 오류가 발생했습니다: {str(e)}"},
+        )
+
     except Exception as e:
-        return render(request, "shopping/payment_fail.html", {"message": str(e)})
+        logger.error(f"결제 성공 처리 중 예상치 못한 오류: order_id={order_id}, error={str(e)}")
+        return render(
+            request,
+            "shopping/payment_fail.html",
+            {"message": "결제 처리 중 오류가 발생했습니다."},
+        )
 
 
 @login_required
 def payment_fail(request):
-    """결제 실패 처리"""
+    """
+    결제 실패 콜백 처리 (템플릿 렌더링용)
+
+    Note: 간단한 상태 업데이트만 수행합니다.
+          새로운 구현에서는 PaymentFailView API를 사용하는 것을 권장합니다.
+    """
     code = request.GET.get("code")
     message = request.GET.get("message")
     order_id = request.GET.get("orderId")
+
+    logger.warning(
+        f"결제 실패 콜백 수신: code={code}, message={message}, order_id={order_id}"
+    )
 
     # Payment 상태 업데이트
     if order_id:
         try:
             payment = Payment.objects.get(toss_order_id=order_id)
             payment.mark_as_failed(message)
+            logger.info(f"결제 실패 상태 업데이트: payment_id={payment.id}, order_id={order_id}")
         except Payment.DoesNotExist:
-            pass
+            logger.error(f"결제 정보를 찾을 수 없음: order_id={order_id}")
 
     return render(
         request,

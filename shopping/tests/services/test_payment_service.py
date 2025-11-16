@@ -203,6 +203,10 @@ class TestPaymentServiceConfirmPayment:
             "order_memo": "",
         }
 
+        # 포인트 충분하게 설정 (주문 생성 전에 설정 필요)
+        test_user.points = 70000
+        test_user.save()
+
         # 포인트로 전액 결제
         order = OrderService.create_order_from_cart(
             user=test_user,
@@ -210,10 +214,6 @@ class TestPaymentServiceConfirmPayment:
             use_points=60000,  # 충분한 포인트
             **shipping_info,
         )
-
-        # 포인트 충분하게 설정
-        test_user.points = 70000
-        test_user.save()
 
         payment = PaymentService.create_payment(order, "card")
 

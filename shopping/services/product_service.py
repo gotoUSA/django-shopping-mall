@@ -32,10 +32,10 @@ class ProductService:
         if not product_image.is_primary:
             return
 
-        # 같은 상품의 다른 대표 이미지 해제
+        # 같은 상품의 다른 대표 이미지 해제 (동시성 제어)
         from shopping.models.product import ProductImage
 
-        ProductImage.objects.filter(
+        ProductImage.objects.select_for_update().filter(
             product=product_image.product,
             is_primary=True
         ).exclude(pk=product_image.pk).update(is_primary=False)

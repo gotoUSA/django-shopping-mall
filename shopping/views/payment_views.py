@@ -332,9 +332,7 @@ class PaymentFailView(APIView):
 
         try:
             # 1. Payment 상태를 aborted로 변경
-            payment.status = "aborted"
-            payment.fail_reason = f"[{fail_code}] {fail_message}"
-            payment.save(update_fields=["status", "fail_reason", "updated_at"])
+            payment.mark_as_failed(f"[{fail_code}] {fail_message}")
 
             # 2. 실패 로그 기록
             PaymentLog.objects.create(

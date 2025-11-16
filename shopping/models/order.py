@@ -160,22 +160,12 @@ class Order(models.Model):
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """
-        주문 생성시 자동으로 주문번호 생성
-        형식: YYYYMMDD + 6자리 ID
-        예: 202508090000001
-        """
-        if not self.pk:  # 신규 생성시에만
-            # 1. 먼저 저장하여 ID(PK) 생성
-            super().save(*args, **kwargs)
+        주문 저장
 
-            # 2. ID를 포함한 주문번호 생성
-            date_str = timezone.now().strftime("%Y%m%d")
-            self.order_number = f"{date_str}{self.id:06d}"  # 이거 맞는건지 클로드한테 물어보기
-            # 3. 주문번호만 업데이트
-            self.save(update_fields=["order_number"])
-        else:
-            # 수정시에는 그냥 저장
-            super().save(*args, **kwargs)
+        주문번호는 post_save signal에서 자동으로 생성됩니다.
+        (signals.py의 generate_order_number 참조)
+        """
+        super().save(*args, **kwargs)
 
     @property
     def get_full_shipping_address(self) -> str:

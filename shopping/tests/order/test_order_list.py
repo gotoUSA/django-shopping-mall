@@ -10,6 +10,8 @@ from rest_framework import status
 from shopping.models.order import Order, OrderItem
 from shopping.models.user import User
 
+from .conftest import TEST_ADMIN_PASSWORD, TEST_USER_PASSWORD
+
 
 @pytest.mark.django_db
 class TestOrderListHappyPath:
@@ -363,7 +365,7 @@ class TestOrderListException:
         # Assert
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    def test_user_sees_only_own_orders(self, api_client, user, other_user, order_factory):
+    def test_user_sees_only_own_orders(self, user, other_user, order_factory, login_helper):
         """일반 사용자는 본인 주문만 조회"""
         # Arrange - 두 명의 사용자와 각각의 주문 생성
         user1 = user
@@ -376,24 +378,18 @@ class TestOrderListException:
         order_factory(user2, status="pending", total_amount=Decimal("20000"), shipping_name="사용자2", shipping_phone="010-2222-2222", shipping_address_detail="202호")
 
         # user1으로 로그인
-        login_response = api_client.post(
-            reverse("auth-login"),
-            {"username": "testuser", "password": "testpass123"},
-        )
-        token = login_response.json()["access"]
-        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
-
+        client, _ = login_helper(user1)
         url = reverse("order-list")
 
         # Act
-        response = api_client.get(url)
+        response = client.get(url)
 
         # Assert
         assert response.status_code == status.HTTP_200_OK
         assert response.data["count"] == 1  # 본인 주문만
         assert response.data["results"][0]["user_username"] == "testuser"
 
-    def test_admin_sees_all_orders(self, api_client, user, admin_user, order_factory):
+    def test_admin_sees_all_orders(self, user, admin_user, order_factory, login_helper):
         """관리자는 모든 주문 조회 가능"""
         # Arrange - 관리자와 일반 사용자 생성
         # 일반 사용자 주문
@@ -403,17 +399,11 @@ class TestOrderListException:
         order_factory(admin_user, status="pending", total_amount=Decimal("20000"), shipping_name="관리자", shipping_phone="010-2222-2222", shipping_address_detail="202호")
 
         # 관리자로 로그인
-        login_response = api_client.post(
-            reverse("auth-login"),
-            {"username": "admin", "password": "admin123"},
-        )
-        token = login_response.json()["access"]
-        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
-
+        client, _ = login_helper(admin_user)
         url = reverse("order-list")
 
         # Act
-        response = api_client.get(url)
+        response = client.get(url)
 
         # Assert
         assert response.status_code == status.HTTP_200_OK

@@ -28,6 +28,14 @@ from shopping.models.product import Product
 from shopping.models.user import User
 
 # ==========================================
+# 테스트용 비밀번호 상수
+# ==========================================
+
+TEST_USER_PASSWORD = "testpass123"
+TEST_ADMIN_PASSWORD = "admin123"
+TEST_SELLER_PASSWORD = "sellerpass123"
+
+# ==========================================
 # 1. 포인트 보유 사용자 Fixture
 # ==========================================
 
@@ -42,7 +50,7 @@ def user_with_points(db):
     return User.objects.create_user(
         username="pointuser",
         email="pointuser@example.com",
-        password="testpass123",
+        password=TEST_USER_PASSWORD,
         phone_number="010-1234-5678",
         points=5000,
         is_email_verified=True,
@@ -59,7 +67,7 @@ def user_with_high_points(db):
     return User.objects.create_user(
         username="richuser",
         email="richuser@example.com",
-        password="testpass123",
+        password=TEST_USER_PASSWORD,
         phone_number="010-9999-8888",
         points=50000,
         is_email_verified=True,
@@ -76,7 +84,7 @@ def user_no_points(db):
     return User.objects.create_user(
         username="nopoint",
         email="nopoint@example.com",
-        password="testpass123",
+        password=TEST_USER_PASSWORD,
         phone_number="010-0000-0000",
         points=0,
         is_email_verified=True,
@@ -93,7 +101,7 @@ def unverified_user(db):
     return User.objects.create_user(
         username="unverified",
         email="unverified@example.com",
-        password="testpass123",
+        password=TEST_USER_PASSWORD,
         phone_number="010-5555-5555",
         is_email_verified=False,
     )
@@ -109,7 +117,7 @@ def admin_user(db):
     return User.objects.create_user(
         username="admin",
         email="admin@example.com",
-        password="admin123",
+        password=TEST_ADMIN_PASSWORD,
         is_staff=True,
         is_superuser=True,
         is_email_verified=True,
@@ -126,7 +134,7 @@ def other_user(db):
     return User.objects.create_user(
         username="otheruser",
         email="other@example.com",
-        password="testpass123",
+        password=TEST_USER_PASSWORD,
         phone_number="010-8888-8888",
         is_email_verified=True,
     )
@@ -326,7 +334,7 @@ def login_helper(api_client):
 
     def _login(user):
         response = api_client.post(
-            reverse("auth-login"), {"username": user.username, "password": "testpass123"}, format="json"
+            reverse("auth-login"), {"username": user.username, "password": TEST_USER_PASSWORD}, format="json"
         )
         if response.status_code == 200:
             token = response.json()["access"]
@@ -334,7 +342,7 @@ def login_helper(api_client):
             return api_client, token
         # admin의 경우 비밀번호가 다를 수 있음
         response = api_client.post(
-            reverse("auth-login"), {"username": user.username, "password": "admin123"}, format="json"
+            reverse("auth-login"), {"username": user.username, "password": TEST_ADMIN_PASSWORD}, format="json"
         )
         token = response.json()["access"]
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")

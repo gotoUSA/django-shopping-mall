@@ -118,8 +118,9 @@ class TestPaymentServiceCreatePayment:
 
     def test_create_payment_logging(self, test_order, caplog):
         """결제 정보 생성 시 로깅 확인"""
+        import logging
         # Act
-        with caplog.at_level("INFO"):
+        with caplog.at_level(logging.INFO, logger="shopping.services.payment_service"):
             payment = PaymentService.create_payment(test_order, "card")
 
         # Assert
@@ -135,6 +136,12 @@ class TestPaymentServiceConfirmPayment:
     def test_confirm_payment_success(self, test_user, test_order, product, mock_toss_client):
         """결제 승인 성공"""
         # Arrange
+        # 주문 생성 후 재고를 확인 (주문 생성 시 이미 재고가 차감됨)
+        product.refresh_from_db()
+        stock_after_order = product.stock
+        initial_sold_count = product.sold_count
+        initial_points = test_user.points
+
         payment = PaymentService.create_payment(test_order, "card")
 
         # TossPaymentClient 모킹
@@ -147,10 +154,6 @@ class TestPaymentServiceConfirmPayment:
             "method": "카드",
             "receiptUrl": "http://receipt.url",
         }
-
-        initial_stock = product.stock
-        initial_sold_count = product.sold_count
-        initial_points = test_user.points
 
         # Act
         result = PaymentService.confirm_payment(
@@ -170,9 +173,9 @@ class TestPaymentServiceConfirmPayment:
         test_order.refresh_from_db()
         assert test_order.status == "paid"
 
-        # sold_count 증가 확인
+        # sold_count 증가 확인 (재고는 주문 생성 시 이미 차감되어 변하지 않음)
         product.refresh_from_db()
-        assert product.stock == initial_stock  # 재고는 이미 차감됨 (주문 생성 시)
+        assert product.stock == stock_after_order  # 재고는 변하지 않음
         assert product.sold_count == initial_sold_count + 1
 
         # 포인트 적립 확인 (silver: 2% 적립)
@@ -235,6 +238,7 @@ class TestPaymentServiceConfirmPayment:
 
     def test_confirm_payment_logging(self, test_user, test_order, mock_toss_client, caplog):
         """결제 승인 시 로깅 확인"""
+        import logging
         # Arrange
         payment = PaymentService.create_payment(test_order, "card")
 
@@ -249,7 +253,7 @@ class TestPaymentServiceConfirmPayment:
         }
 
         # Act
-        with caplog.at_level("INFO"):
+        with caplog.at_level(logging.INFO, logger="shopping.services.payment_service"):
             PaymentService.confirm_payment(
                 payment=payment,
                 payment_key="test_payment_key_123",
@@ -274,6 +278,11 @@ class TestPaymentServiceCancelPayment:
     def test_cancel_payment_success(self, test_user, test_order, product, mock_toss_client):
         """결제 취소 성공"""
         # Arrange
+        # 주문 생성 후 재고 확인 (주문 생성 시 이미 재고가 차감됨)
+        product.refresh_from_db()
+        stock_after_order = product.stock
+        initial_sold_count = product.sold_count
+
         payment = PaymentService.create_payment(test_order, "card")
 
         # 먼저 결제 승인
@@ -302,8 +311,10 @@ class TestPaymentServiceCancelPayment:
             "canceledAmount": int(test_order.final_amount),
         }
 
-        initial_stock = product.stock
-        initial_sold_count = product.sold_count
+        # 결제 승인 후 sold_count 확인
+        product.refresh_from_db()
+        sold_count_after_confirm = product.sold_count
+        test_order.refresh_from_db()
         earned_points = test_order.earned_points
 
         # Act
@@ -324,8 +335,8 @@ class TestPaymentServiceCancelPayment:
 
         # 재고 복구 및 sold_count 차감 확인
         product.refresh_from_db()
-        assert product.stock == initial_stock + 1
-        assert product.sold_count == initial_sold_count - 1
+        assert product.stock == stock_after_order + 1  # 주문 시 차감된 재고가 복구됨
+        assert product.sold_count == sold_count_after_confirm - 1  # 승인 시 증가한 sold_count 차감
 
         # 적립 포인트 차감 확인
         assert result["points_deducted"] == earned_points
@@ -374,7 +385,11 @@ class TestPaymentServiceCancelPayment:
             user=test_user,
         )
 
-        initial_points = test_user.points
+        # 결제 승인 후 포인트 확인
+        test_user.refresh_from_db()
+        points_after_confirm = test_user.points
+        order.refresh_from_db()
+        earned_points = order.earned_points
 
         # 취소 API 모킹
         mock_instance.cancel_payment.return_value = {
@@ -393,9 +408,11 @@ class TestPaymentServiceCancelPayment:
         # Assert
         # 사용한 포인트 환불 확인
         assert result["points_refunded"] == use_points
+        assert result["points_deducted"] == earned_points
+
         test_user.refresh_from_db()
-        # initial_points + 환불포인트 - 적립포인트차감
-        expected_points = initial_points + use_points - order.earned_points
+        # points_after_confirm + 환불포인트 - 적립포인트차감
+        expected_points = points_after_confirm + use_points - earned_points
         assert test_user.points == expected_points
 
     def test_cancel_payment_already_canceled(self, test_user, test_order, mock_toss_client):
@@ -503,6 +520,7 @@ class TestPaymentServiceCancelPayment:
 
     def test_cancel_payment_logging(self, test_user, test_order, mock_toss_client, caplog):
         """결제 취소 시 로깅 확인"""
+        import logging
         # Arrange
         payment = PaymentService.create_payment(test_order, "card")
 
@@ -531,7 +549,7 @@ class TestPaymentServiceCancelPayment:
         }
 
         # Act
-        with caplog.at_level("INFO"):
+        with caplog.at_level(logging.INFO, logger="shopping.services.payment_service"):
             PaymentService.cancel_payment(
                 payment_id=payment.id,
                 user=test_user,

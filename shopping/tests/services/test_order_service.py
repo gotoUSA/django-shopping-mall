@@ -150,17 +150,20 @@ class TestOrderServiceCreateOrder:
     def test_create_order_multiple_products(self, test_user, category, shipping_info):
         """여러 상품으로 주문 생성"""
         # Arrange
+        import uuid
         product1 = Product.objects.create(
             name="상품1",
             price=Decimal("10000"),
             stock=10,
             category=category,
+            sku=f"SKU-{uuid.uuid4().hex[:8]}",
         )
         product2 = Product.objects.create(
             name="상품2",
             price=Decimal("20000"),
             stock=10,
             category=category,
+            sku=f"SKU-{uuid.uuid4().hex[:8]}",
         )
 
         cart = Cart.objects.create(user=test_user, is_active=True)
@@ -202,8 +205,9 @@ class TestOrderServiceCreateOrder:
 
     def test_create_order_logging(self, test_user, cart_with_items, shipping_info, caplog):
         """주문 생성 시 로깅 확인"""
+        import logging
         # Act
-        with caplog.at_level("INFO"):
+        with caplog.at_level(logging.INFO, logger="shopping.services.order_service"):
             order = OrderService.create_order_from_cart(
                 user=test_user,
                 cart=cart_with_items,
@@ -226,6 +230,8 @@ class TestOrderServiceCancelOrder:
     def test_cancel_pending_order(self, test_user, product_with_stock, shipping_info):
         """pending 상태 주문 취소"""
         # Arrange
+        initial_stock = product_with_stock.stock  # 주문 생성 전 재고 저장
+
         cart = Cart.objects.create(user=test_user, is_active=True)
         CartItem.objects.create(cart=cart, product=product_with_stock, quantity=2)
 
@@ -236,7 +242,9 @@ class TestOrderServiceCancelOrder:
             **shipping_info,
         )
 
-        initial_stock = product_with_stock.stock
+        # 주문 생성 후 재고가 차감되었는지 확인
+        product_with_stock.refresh_from_db()
+        assert product_with_stock.stock == initial_stock - 2
 
         # Act
         OrderService.cancel_order(order)
@@ -245,9 +253,9 @@ class TestOrderServiceCancelOrder:
         order.refresh_from_db()
         assert order.status == "canceled"
 
-        # 재고 복구 확인
+        # 재고 복구 확인 (원래 재고로 돌아와야 함)
         product_with_stock.refresh_from_db()
-        assert product_with_stock.stock == initial_stock + 2
+        assert product_with_stock.stock == initial_stock
 
     def test_cancel_paid_order(self, test_user, product_with_stock, shipping_info):
         """paid 상태 주문 취소 (sold_count도 차감)"""
@@ -307,6 +315,7 @@ class TestOrderServiceCancelOrder:
 
     def test_cancel_order_logging(self, test_user, product_with_stock, shipping_info, caplog):
         """주문 취소 시 로깅 확인"""
+        import logging
         # Arrange
         cart = Cart.objects.create(user=test_user, is_active=True)
         CartItem.objects.create(cart=cart, product=product_with_stock, quantity=1)
@@ -319,7 +328,7 @@ class TestOrderServiceCancelOrder:
         )
 
         # Act
-        with caplog.at_level("INFO"):
+        with caplog.at_level(logging.INFO, logger="shopping.services.order_service"):
             OrderService.cancel_order(order)
 
         # Assert

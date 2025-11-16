@@ -209,3 +209,137 @@ class PointExpiryTestCase(TestCase):
 
         # Then: 모든 사용자의 포인트가 만료됨
         self.assertEqual(expired_count, 2)
+
+    def test_fifo_usage_integration_with_order_flow(self):
+        """주문 플로우에서 FIFO 포인트 사용 통합 테스트"""
+        # Given: 여러 시점에 적립된 포인트들
+        base_time = timezone.now()
+
+        # 6개월 전 적립
+        with patch("django.utils.timezone.now", return_value=base_time - timedelta(days=180)):
+            history1 = PointHistory.create_history(user=self.user, points=1000, type="earn", description="첫 번째 적립")
+
+        # 3개월 전 적립
+        with patch("django.utils.timezone.now", return_value=base_time - timedelta(days=90)):
+            history2 = PointHistory.create_history(user=self.user, points=2000, type="earn", description="두 번째 적립")
+
+        # 사용자 총 포인트 설정
+        self.user.points = 3000
+        self.user.save()
+
+        # When: 1500 포인트 사용 (주문 시나리오)
+        result = self.point_service.use_points_fifo(self.user, 1500)
+
+        # Then: FIFO 순서로 사용됨
+        self.assertTrue(result["success"])
+        self.assertEqual(len(result["used_details"]), 2)
+
+        # 첫 번째 적립 전액 사용
+        self.assertEqual(result["used_details"][0]["amount"], 1000)
+        self.assertEqual(result["used_details"][0]["history_id"], history1.id)
+
+        # 두 번째 적립 일부 사용
+        self.assertEqual(result["used_details"][1]["amount"], 500)
+        self.assertEqual(result["used_details"][1]["history_id"], history2.id)
+
+        # 사용자 포인트 차감 확인
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.points, 1500)
+
+    def test_point_expiry_after_partial_usage(self):
+        """부분 사용 후 만료 처리 통합 테스트"""
+        # Given: 포인트 적립 및 부분 사용
+        expired_date = timezone.now() - timedelta(days=366)
+
+        # 1년 전 적립 (현재는 만료됨)
+        with patch("django.utils.timezone.now", return_value=expired_date):
+            PointHistory.create_history(user=self.user, points=2000, type="earn", description="만료 예정 포인트")
+
+        # 사용자 포인트 설정
+        self.user.points = 2000
+        self.user.save()
+
+        # When: 800 포인트 사용
+        result = self.point_service.use_points_fifo(self.user, 800)
+        self.assertTrue(result["success"])
+
+        # 만료 처리 실행
+        expired_count = self.point_service.expire_points()
+
+        # Then:
+        # 1. 만료 처리 1건 실행
+        self.assertEqual(expired_count, 1)
+
+        # 2. 남은 포인트만 차감 (2000 - 800 = 1200 차감)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.points, 0)
+
+        # 3. 만료 이력 확인
+        expire_history = PointHistory.objects.filter(user=self.user, type="expire").first()
+        self.assertIsNotNone(expire_history)
+        self.assertEqual(expire_history.points, -1200)
+
+    def test_fifo_usage_prevents_double_deduction(self):
+        """FIFO 사용 후 만료 시 중복 차감 방지 테스트"""
+        # Given: 만료 예정 포인트 적립
+        expired_date = timezone.now() - timedelta(days=366)
+
+        with patch("django.utils.timezone.now", return_value=expired_date):
+            history = PointHistory.create_history(user=self.user, points=1000, type="earn", description="만료 포인트")
+
+        self.user.points = 1000
+        self.user.save()
+
+        # When: 전액 사용
+        result = self.point_service.use_points_fifo(self.user, 1000)
+        self.assertTrue(result["success"])
+
+        # 만료 처리 실행
+        expired_count = self.point_service.expire_points()
+
+        # Then:
+        # 1. 만료 처리는 실행되지만 차감할 포인트가 없음
+        self.assertEqual(expired_count, 0)
+
+        # 2. 사용자 포인트는 0 유지 (중복 차감 없음)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.points, 0)
+
+        # 3. 이미 전액 사용되어 만료 이력 미생성
+        expire_history = PointHistory.objects.filter(user=self.user, type="expire")
+        self.assertEqual(expire_history.count(), 0)
+
+    def test_multiple_fifo_usage_tracking(self):
+        """여러 번 FIFO 사용 시 정확한 추적 테스트"""
+        # Given: 포인트 적립
+        PointHistory.create_history(user=self.user, points=1000, type="earn", description="첫 적립")
+
+        self.user.points = 1000
+        self.user.save()
+
+        # When: 여러 번 나누어 사용
+        # 첫 번째 사용
+        result1 = self.point_service.use_points_fifo(self.user, 300)
+        self.assertTrue(result1["success"])
+
+        # 두 번째 사용
+        result2 = self.point_service.use_points_fifo(self.user, 200)
+        self.assertTrue(result2["success"])
+
+        # 세 번째 사용
+        result3 = self.point_service.use_points_fifo(self.user, 100)
+        self.assertTrue(result3["success"])
+
+        # Then:
+        # 1. 사용자 포인트 확인
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.points, 400)
+
+        # 2. 적립 이력의 used_amount 확인
+        history = PointHistory.objects.filter(user=self.user, type="earn").first()
+        remaining = self.point_service.get_remaining_points(history)
+        self.assertEqual(remaining, 400)
+
+        # 3. 메타데이터에 사용 내역 누적 확인
+        history.refresh_from_db()
+        self.assertEqual(history.metadata.get("used_amount"), 600)

@@ -144,12 +144,13 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
     def _validate_cart_items(self, cart: Cart) -> QuerySet:
         """
-            장바구니 항목 검증 (별도 메서드)
+        장바구니 항목 검증 (별도 메서드)
 
         검증 항목:
         - 비활성 상품 (is_active=False)
         - 품절 상품 (stock=0)
-        - 재고 부족 (stock < quantity)
+
+        Note: 재고 부족 검증은 OrderService에서 select_for_update로 락을 걸고 처리
 
         Args:
             cart: 검증할 장바구니 객체
@@ -179,10 +180,6 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             # 2. 품절 체크
             if product.stock == 0:
                 errors.append(f"'{product.name}'은(는) 품절되었습니다.")
-
-            # 3. 재고 부족 체크
-            if product.stock < item.quantity:
-                errors.append(f"'{product.name}'의 재고가 부족합니다. " f"(요청: {item.quantity}개, 재고: {product.stock}개)")
 
         # 에러가 있으면 모두 반환
         if errors:

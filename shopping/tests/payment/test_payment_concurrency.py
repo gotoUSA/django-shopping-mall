@@ -16,6 +16,7 @@ from shopping.models.order import Order, OrderItem
 from shopping.models.payment import Payment
 from shopping.models.product import Product
 from shopping.models.user import User
+from shopping.services.point_service import PointService
 
 
 def login_and_get_token(username, password="testpass123"):
@@ -476,7 +477,7 @@ class TestPaymentConcurrencyHappyPath:
             users.append(user)
 
             # 포인트 차감 (실제 주문 시스템처럼)
-            user.use_points(1000)
+            PointService.use_points(user=user, amount=1000)
 
             order = Order.objects.create(
                 user=user,
@@ -741,7 +742,7 @@ class TestPaymentConcurrencyBoundary:
             users.append(user)
 
             # 포인트 전액 차감 (실제 주문 시스템처럼)
-            user.use_points(int(product.price))
+            PointService.use_points(user=user, amount=int(product.price))
 
             order = Order.objects.create(
                 user=user,

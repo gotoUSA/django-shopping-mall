@@ -14,6 +14,7 @@ from rest_framework.serializers import BaseSerializer
 from ..models.order import Order
 from ..serializers.order_serializers import OrderCreateSerializer, OrderDetailSerializer, OrderListSerializer
 from ..services.order_service import OrderService, OrderServiceError
+from ..throttles import OrderCancelRateThrottle, OrderCreateRateThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,14 @@ class OrderViewSet(viewsets.ModelViewSet):
     filterset_fields = ["status"]  # status 필터 지원
     ordering_fields = ["created_at"]  # created_at 정렬만 지원
     ordering = ["-created_at"]  # 기본 정렬: 최신순
+
+    def get_throttles(self):
+        """액션별로 다른 throttle 적용"""
+        if self.action == "create":
+            return [OrderCreateRateThrottle()]
+        elif self.action == "cancel":
+            return [OrderCancelRateThrottle()]
+        return super().get_throttles()
 
     def get_queryset(self) -> Any:
         """주문 조회 - 관리자는 전체, 일반 사용자는 본인 것만"""

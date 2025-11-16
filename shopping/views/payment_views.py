@@ -24,6 +24,7 @@ from ..serializers.payment_serializers import (
     PaymentSerializer,
 )
 from ..services.payment_service import PaymentConfirmError, PaymentService
+from ..throttles import PaymentCancelRateThrottle, PaymentConfirmRateThrottle, PaymentRequestRateThrottle
 from ..utils.toss_payment import TossPaymentClient, TossPaymentError, get_error_message
 
 # 로거 설정
@@ -41,6 +42,7 @@ class PaymentRequestView(APIView):
     """
 
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [PaymentRequestRateThrottle]
 
     def post(self, request):
         """
@@ -116,6 +118,7 @@ class PaymentConfirmView(APIView):
     """
 
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [PaymentConfirmRateThrottle]
 
     def post(self, request):
         """
@@ -232,6 +235,7 @@ class PaymentCancelView(APIView):
     """
 
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [PaymentCancelRateThrottle]
 
     def post(self, request):
         """

@@ -199,6 +199,33 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",  # 읽기는 누구나, 쓰기는 로그인 필요
     ],
+    # Rate Limiting (Throttling) 설정
+    "DEFAULT_THROTTLE_CLASSES": [
+        "shopping.throttles.GlobalAnonRateThrottle",  # 비인증 사용자 전역 제한
+        "shopping.throttles.GlobalUserRateThrottle",  # 인증 사용자 전역 제한
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        # Authentication throttles (High Security)
+        "login": "5/15min",  # 로그인: 15분당 5회
+        "register": "3/hour",  # 회원가입: 1시간당 3회
+        "token_refresh": "10/min",  # 토큰 갱신: 1분당 10회
+        "password_reset": "3/hour",  # 비밀번호 재설정: 1시간당 3회
+        # Email verification throttles (High Security)
+        "email_verification": "1/min",  # 이메일 인증 발송: 1분당 1회
+        "email_verification_resend": "3/hour",  # 이메일 재발송: 1시간당 3회
+        # Payment throttles (Medium Security)
+        "payment_request": "10/min",  # 결제 요청: 1분당 10회
+        "payment_confirm": "5/min",  # 결제 승인: 1분당 5회
+        "payment_cancel": "5/min",  # 결제 취소: 1분당 5회
+        # Order throttles (Medium Security)
+        "order_create": "10/min",  # 주문 생성: 1분당 10회
+        "order_cancel": "5/min",  # 주문 취소: 1분당 5회
+        # Global throttles (Default Security)
+        "anon_global": "100/hour",  # 비인증 사용자 전역: 1시간당 100회
+        "user_global": "1000/hour",  # 인증 사용자 전역: 1시간당 1000회
+        # Special case throttles
+        "webhook": "100/min",  # 웹훅: 1분당 100회 (외부 서비스용)
+    },
 }
 
 # JWT 설정

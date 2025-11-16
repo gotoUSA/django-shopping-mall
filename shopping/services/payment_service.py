@@ -112,6 +112,17 @@ class PaymentService:
             PaymentConfirmError: 결제 승인 실패
             TossPaymentError: 토스페이먼츠 API 에러
         """
+        # 동시성 제어: 결제 객체를 락으로 보호하고 최신 상태 확인
+        payment = Payment.objects.select_for_update().get(pk=payment.pk)
+
+        # 이미 처리된 결제인지 확인
+        if payment.is_paid:
+            raise PaymentConfirmError("이미 완료된 결제입니다.")
+
+        # 유효하지 않은 상태 확인
+        if payment.status in ["expired", "canceled", "aborted"]:
+            raise PaymentConfirmError(f"유효하지 않은 결제 상태입니다: {payment.get_status_display()}")
+
         order = payment.order
 
         logger.info(

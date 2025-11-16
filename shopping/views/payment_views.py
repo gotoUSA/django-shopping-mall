@@ -23,7 +23,7 @@ from ..serializers.payment_serializers import (
     PaymentRequestSerializer,
     PaymentSerializer,
 )
-from ..services.payment_service import PaymentService
+from ..services.payment_service import PaymentConfirmError, PaymentService
 from ..utils.toss_payment import TossPaymentClient, TossPaymentError, get_error_message
 
 # 로거 설정
@@ -167,6 +167,14 @@ class PaymentConfirmView(APIView):
                     "receipt_url": result["receipt_url"],
                 },
                 status=status.HTTP_200_OK,
+            )
+
+        except PaymentConfirmError as e:
+            # 결제 승인 에러 (중복 결제, 잘못된 상태 등)
+            logger.warning(f"Payment confirm error: {str(e)}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         except TossPaymentError as e:

@@ -393,15 +393,23 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
 # ========== 캐시 설정 (Redis 사용) ==========
 
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/1"),
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        },
+# 테스트 환경에서는 더미 캐시 사용 (throttling도 비활성화되어 있음)
+if TESTING:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.dummy.DummyCache",
+        }
     }
-}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/1"),
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            },
+        }
+    }
 
 # ========== 추가 로깅 설정 ==========
 

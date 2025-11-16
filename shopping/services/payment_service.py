@@ -382,8 +382,9 @@ class PaymentService:
                     f"points={points_deducted}"
                 )
 
-                # 포인트 차감 (PointService 사용)
-                PointService.use_points(
+                # 포인트 차감 (FIFO 방식)
+                point_service = PointService()
+                result = point_service.use_points_fifo(
                     user=user,
                     amount=points_deducted,
                     type="cancel_deduct",
@@ -395,6 +396,9 @@ class PaymentService:
                         "cancel_reason": cancel_reason,
                     },
                 )
+
+                if not result["success"]:
+                    raise ValueError(f"포인트 차감 실패: {result['message']}")
 
                 # 차감 로그
                 PaymentLog.objects.create(

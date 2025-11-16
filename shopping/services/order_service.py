@@ -236,8 +236,9 @@ class OrderService:
             f"use_points={use_points}"
         )
 
-        # 포인트 차감 (PointService 사용)
-        PointService.use_points(
+        # 포인트 차감 (FIFO 방식)
+        point_service = PointService()
+        result = point_service.use_points_fifo(
             user=user,
             amount=use_points,
             type="use",
@@ -250,6 +251,9 @@ class OrderService:
                 "final_amount": str(final_amount),
             },
         )
+
+        if not result["success"]:
+            raise ValueError(f"포인트 사용 실패: {result['message']}")
 
         logger.info(
             f"포인트 사용 완료: user_id={user.id}, order_id={order.id}, "

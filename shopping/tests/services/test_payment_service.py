@@ -119,9 +119,12 @@ class TestPaymentServiceCreatePayment:
     def test_create_payment_logging(self, test_order, caplog):
         """결제 정보 생성 시 로깅 확인"""
         import logging
+
+        # caplog.set_level을 사용하여 로그 캡처
+        caplog.set_level(logging.INFO)
+
         # Act
-        with caplog.at_level(logging.INFO, logger="shopping.services.payment_service"):
-            payment = PaymentService.create_payment(test_order, "card")
+        payment = PaymentService.create_payment(test_order, "card")
 
         # Assert
         assert "결제 정보 생성 시작" in caplog.text
@@ -239,6 +242,10 @@ class TestPaymentServiceConfirmPayment:
     def test_confirm_payment_logging(self, test_user, test_order, mock_toss_client, caplog):
         """결제 승인 시 로깅 확인"""
         import logging
+
+        # caplog.set_level을 사용하여 로그 캡처
+        caplog.set_level(logging.INFO)
+
         # Arrange
         payment = PaymentService.create_payment(test_order, "card")
 
@@ -253,14 +260,13 @@ class TestPaymentServiceConfirmPayment:
         }
 
         # Act
-        with caplog.at_level(logging.INFO, logger="shopping.services.payment_service"):
-            PaymentService.confirm_payment(
-                payment=payment,
-                payment_key="test_payment_key_123",
-                order_id=test_order.order_number,
-                amount=int(test_order.final_amount),
-                user=test_user,
-            )
+        PaymentService.confirm_payment(
+            payment=payment,
+            payment_key="test_payment_key_123",
+            order_id=test_order.order_number,
+            amount=int(test_order.final_amount),
+            user=test_user,
+        )
 
         # Assert
         assert "결제 승인 시작" in caplog.text
@@ -521,6 +527,10 @@ class TestPaymentServiceCancelPayment:
     def test_cancel_payment_logging(self, test_user, test_order, mock_toss_client, caplog):
         """결제 취소 시 로깅 확인"""
         import logging
+
+        # caplog.set_level을 사용하여 로그 캡처
+        caplog.set_level(logging.INFO)
+
         # Arrange
         payment = PaymentService.create_payment(test_order, "card")
 
@@ -549,12 +559,11 @@ class TestPaymentServiceCancelPayment:
         }
 
         # Act
-        with caplog.at_level(logging.INFO, logger="shopping.services.payment_service"):
-            PaymentService.cancel_payment(
-                payment_id=payment.id,
-                user=test_user,
-                cancel_reason="단순 변심",
-            )
+        PaymentService.cancel_payment(
+            payment_id=payment.id,
+            user=test_user,
+            cancel_reason="단순 변심",
+        )
 
         # Assert
         assert "결제 취소 시작" in caplog.text

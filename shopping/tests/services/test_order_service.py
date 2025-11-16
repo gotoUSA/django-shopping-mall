@@ -206,14 +206,17 @@ class TestOrderServiceCreateOrder:
     def test_create_order_logging(self, test_user, cart_with_items, shipping_info, caplog):
         """주문 생성 시 로깅 확인"""
         import logging
+
+        # caplog.set_level을 사용하여 로그 캡처
+        caplog.set_level(logging.INFO)
+
         # Act
-        with caplog.at_level(logging.INFO, logger="shopping.services.order_service"):
-            order = OrderService.create_order_from_cart(
-                user=test_user,
-                cart=cart_with_items,
-                use_points=0,
-                **shipping_info,
-            )
+        order = OrderService.create_order_from_cart(
+            user=test_user,
+            cart=cart_with_items,
+            use_points=0,
+            **shipping_info,
+        )
 
         # Assert
         assert "주문 생성 시작" in caplog.text
@@ -316,6 +319,10 @@ class TestOrderServiceCancelOrder:
     def test_cancel_order_logging(self, test_user, product_with_stock, shipping_info, caplog):
         """주문 취소 시 로깅 확인"""
         import logging
+
+        # caplog.set_level을 사용하여 로그 캡처
+        caplog.set_level(logging.INFO)
+
         # Arrange
         cart = Cart.objects.create(user=test_user, is_active=True)
         CartItem.objects.create(cart=cart, product=product_with_stock, quantity=1)
@@ -328,8 +335,7 @@ class TestOrderServiceCancelOrder:
         )
 
         # Act
-        with caplog.at_level(logging.INFO, logger="shopping.services.order_service"):
-            OrderService.cancel_order(order)
+        OrderService.cancel_order(order)
 
         # Assert
         assert "주문 취소 시작" in caplog.text

@@ -134,22 +134,13 @@ class TestOrderStockDecrease:
 class TestOrderStockRestore:
     """주문 취소 시 재고 복구 테스트"""
 
-    def test_pending_order_cancel_restores_stock(self, authenticated_client, user, product):
+    def test_pending_order_cancel_restores_stock(self, authenticated_client, user, product, order_factory):
         """pending 상태 주문 취소 시 재고 복구"""
         # Arrange
         initial_stock = product.stock
         order_quantity = 3
 
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=product.price * order_quantity,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101호",
-        )
+        order = order_factory(user, status="pending", total_amount=product.price * order_quantity)
         OrderItem.objects.create(
             order=order,
             product=product,
@@ -178,24 +169,14 @@ class TestOrderStockRestore:
         product.refresh_from_db()
         assert product.stock == initial_stock
 
-    def test_paid_order_cancel_restores_stock_and_sold_count(self, authenticated_client, user, product):
+    def test_paid_order_cancel_restores_stock_and_sold_count(self, authenticated_client, user, product, order_factory):
         """paid 상태 주문 취소 시 재고 복구 및 sold_count 차감"""
         # Arrange
         initial_stock = product.stock
         initial_sold_count = product.sold_count
         order_quantity = 2
 
-        order = Order.objects.create(
-            user=user,
-            status="paid",
-            total_amount=product.price * order_quantity,
-            payment_method="card",
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101호",
-        )
+        order = order_factory(user, status="paid", total_amount=product.price * order_quantity, payment_method="card")
         OrderItem.objects.create(
             order=order,
             product=product,
@@ -227,22 +208,13 @@ class TestOrderStockRestore:
         assert product.stock == initial_stock
         assert product.sold_count == initial_sold_count
 
-    def test_multiple_products_cancel_restores_all_stock(self, authenticated_client, user, multiple_products):
+    def test_multiple_products_cancel_restores_all_stock(self, authenticated_client, user, multiple_products, order_factory):
         """여러 상품 주문 취소 시 모든 재고 복구"""
         # Arrange
         initial_stocks = {p.id: p.stock for p in multiple_products}
         order_quantity = 2
 
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=sum(p.price for p in multiple_products) * order_quantity,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101호",
-        )
+        order = order_factory(user, status="pending", total_amount=sum(p.price for p in multiple_products) * order_quantity)
 
         for product in multiple_products:
             OrderItem.objects.create(
@@ -267,25 +239,16 @@ class TestOrderStockRestore:
             product.refresh_from_db()
             assert product.stock == initial_stocks[product.id]
 
-    def test_cancel_with_zero_stock_product(self, authenticated_client, user, product):
+    def test_cancel_with_zero_stock_product(self, authenticated_client, user, product, order_factory):
         """재고 0인 상품 주문 취소 시 재고 복구"""
         # Arrange
         order_quantity = 3
 
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=product.price * order_quantity,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101호",
-        )
+        order = order_factory(user, status="pending", total_amount=product.price * order_quantity)
         OrderItem.objects.create(
             order=order,
             product=product,
-                product_name=product.name,
+            product_name=product.name,
             quantity=order_quantity,
             price=product.price,
         )
@@ -306,7 +269,7 @@ class TestOrderStockRestore:
         product.refresh_from_db()
         assert product.stock == order_quantity
 
-    def test_cancel_restores_large_quantity(self, authenticated_client, user, product):
+    def test_cancel_restores_large_quantity(self, authenticated_client, user, product, order_factory):
         """대량 주문 취소 시 재고 정확히 복구"""
         # Arrange
         product.stock
@@ -315,20 +278,11 @@ class TestOrderStockRestore:
         product.stock = 100
         product.save()
 
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=product.price * large_quantity,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101호",
-        )
+        order = order_factory(user, status="pending", total_amount=product.price * large_quantity)
         OrderItem.objects.create(
             order=order,
             product=product,
-                product_name=product.name,
+            product_name=product.name,
             quantity=large_quantity,
             price=product.price,
         )
@@ -347,23 +301,14 @@ class TestOrderStockRestore:
         product.refresh_from_db()
         assert product.stock == 100
 
-    def test_cancel_with_deleted_product_skips_restore(self, authenticated_client, user, product):
+    def test_cancel_with_deleted_product_skips_restore(self, authenticated_client, user, product, order_factory):
         """상품이 삭제된 주문 취소 시 재고 복구 스킵"""
         # Arrange
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=product.price * 2,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101호",
-        )
+        order = order_factory(user, status="pending", total_amount=product.price * 2)
         order_item = OrderItem.objects.create(
             order=order,
             product=product,
-                product_name=product.name,
+            product_name=product.name,
             quantity=2,
             price=product.price,
         )

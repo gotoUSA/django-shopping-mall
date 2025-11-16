@@ -49,22 +49,13 @@ class TestOrderCancelHappyPath:
         product.refresh_from_db()
         assert product.stock == initial_stock + 1
 
-    def test_cancel_order_single_product_stock_restored(self, authenticated_client, user, product):
+    def test_cancel_order_single_product_stock_restored(self, authenticated_client, user, product, order_factory):
         """단일 상품 주문 취소 시 재고 복구"""
         # Arrange
         initial_stock = product.stock
         order_quantity = 3
 
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=product.price * order_quantity,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101호",
-        )
+        order = order_factory(user, status="pending", total_amount=product.price * order_quantity)
         OrderItem.objects.create(
             order=order,
             product=product,
@@ -84,21 +75,12 @@ class TestOrderCancelHappyPath:
         product.refresh_from_db()
         assert product.stock == initial_stock + order_quantity
 
-    def test_cancel_order_multiple_products_stock_restored(self, authenticated_client, user, multiple_products):
+    def test_cancel_order_multiple_products_stock_restored(self, authenticated_client, user, multiple_products, order_factory):
         """여러 상품 주문 취소 시 모든 재고 복구"""
         # Arrange
         initial_stocks = {p.id: p.stock for p in multiple_products}
 
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=sum(p.price for p in multiple_products),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101호",
-        )
+        order = order_factory(user, status="pending", total_amount=sum(p.price for p in multiple_products))
 
         for product in multiple_products:
             OrderItem.objects.create(
@@ -142,19 +124,10 @@ class TestOrderCancelHappyPath:
 class TestOrderCancelBoundary:
     """주문 취소 - 경계값 테스트"""
 
-    def test_cancel_other_user_order(self, authenticated_client, seller_user, product):
+    def test_cancel_other_user_order(self, authenticated_client, seller_user, product, order_factory):
         """다른 사용자의 주문 취소 시도"""
         # Arrange
-        other_order = Order.objects.create(
-            user=seller_user,
-            status="pending",
-            total_amount=product.price,
-            shipping_name="판매자",
-            shipping_phone="010-9999-8888",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101호",
-        )
+        other_order = order_factory(seller_user, status="pending", total_amount=product.price, shipping_name="판매자", shipping_phone="010-9999-8888")
         OrderItem.objects.create(
             order=other_order,
             product=product,
@@ -171,29 +144,10 @@ class TestOrderCancelBoundary:
         # Assert
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_admin_cancel_other_user_order(self, api_client, user, seller_user, product):
+    def test_admin_cancel_other_user_order(self, api_client, user, seller_user, product, admin_user, order_factory):
         """관리자가 다른 사용자 주문 취소"""
         # Arrange
-        from shopping.models.user import User
-
-        admin_user = User.objects.create_user(
-            username="admin",
-            email="admin@example.com",
-            password="admin123",
-            is_staff=True,
-            is_email_verified=True,
-        )
-
-        other_order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=product.price,
-            shipping_name="일반사용자",
-            shipping_phone="010-1111-2222",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101호",
-        )
+        other_order = order_factory(user, status="pending", total_amount=product.price, shipping_name="일반사용자", shipping_phone="010-1111-2222")
         OrderItem.objects.create(
             order=other_order,
             product=product,
@@ -249,21 +203,12 @@ class TestOrderCancelBoundary:
         product.refresh_from_db()
         assert product.stock == initial_stock + 1
 
-    def test_cancel_order_with_zero_stock_product(self, authenticated_client, user, out_of_stock_product):
+    def test_cancel_order_with_zero_stock_product(self, authenticated_client, user, out_of_stock_product, order_factory):
         """재고 0인 상품 주문 취소 시 재고 복구"""
         # Arrange
         assert out_of_stock_product.stock == 0
 
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=out_of_stock_product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101호",
-        )
+        order = order_factory(user, status="pending", total_amount=out_of_stock_product.price)
         OrderItem.objects.create(
             order=order,
             product=out_of_stock_product,
@@ -371,19 +316,10 @@ class TestOrderCancelException:
         # Assert
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    def test_cancel_order_with_deleted_product(self, authenticated_client, user, product):
+    def test_cancel_order_with_deleted_product(self, authenticated_client, user, product, order_factory):
         """상품이 삭제된 주문 취소 (재고 복구 스킵)"""
         # Arrange
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101호",
-        )
+        order = order_factory(user, status="pending", total_amount=product.price)
         order_item = OrderItem.objects.create(
             order=order,
             product=product,

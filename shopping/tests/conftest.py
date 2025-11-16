@@ -28,6 +28,28 @@ def setup_celery_for_tests():
     settings.CELERY_TASK_EAGER_PROPAGATES = True
 
 
+@pytest.fixture(scope="session", autouse=True)
+def setup_logging_for_tests():
+    """
+    테스트 환경에서 로그 propagation 활성화
+
+    caplog가 로그를 캡처할 수 있도록 propagate=True로 설정
+    Session scope: 전체 테스트 세션에서 한 번만 실행
+    autouse: 자동으로 모든 테스트에 적용
+    """
+    import logging
+
+    # shopping.services 로거와 그 하위 로거들의 propagate를 True로 설정
+    # 설정 파일이 아닌 실제 로거 객체를 직접 변경
+    logger = logging.getLogger("shopping.services")
+    logger.propagate = True
+
+    # 하위 로거들도 명시적으로 설정 (필요시)
+    for logger_name in ["shopping.services.order_service", "shopping.services.payment_service"]:
+        child_logger = logging.getLogger(logger_name)
+        child_logger.propagate = True
+
+
 @pytest.fixture(scope="session")
 def django_db_setup(django_db_setup, django_db_blocker):
     """

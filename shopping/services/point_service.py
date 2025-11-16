@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import F
+from django.db.models.functions import Greatest
 from django.utils import timezone
 
 from shopping.models.point import PointHistory
@@ -203,10 +204,13 @@ class PointService:
                 remaining = self.get_remaining_points(point_history)
 
                 if remaining > 0:
-                    # 사용자 포인트 차감
-                    user = point_history.user
-                    user.points = max(0, user.points - remaining)
-                    user.save(update_fields=["points"])
+                    # 동시성 제어: select_for_update로 락 획득
+                    user = User.objects.select_for_update().get(pk=point_history.user_id)
+
+                    # F() 객체로 안전하게 차감 (Greatest로 0 이하 방지)
+                    User.objects.filter(pk=user.pk).update(
+                        points=Greatest(F("points") - remaining, 0)
+                    )
 
                     # 만료 이력 생성
                     PointHistory.create_history(
@@ -281,16 +285,20 @@ class PointService:
                 "message": "사용할 포인트는 0보다 커야 합니다.",
             }
 
-        if user.points < amount:
+        # 동시성 제어: select_for_update로 락 획득
+        locked_user = User.objects.select_for_update().get(pk=user.pk)
+
+        if locked_user.points < amount:
             return {
                 "success": False,
                 "used_details": [],
                 "message": "포인트가 부족합니다.",
             }
 
-        # 사용 가능한 포인트 조회 (만료일 순서)
+        # 사용 가능한 포인트 조회 (만료일 순서, select_for_update로 락 획득)
         available_points = (
-            PointHistory.objects.filter(
+            PointHistory.objects.select_for_update()
+            .filter(
                 user=user,
                 type="earn",
                 expires_at__gt=timezone.now(),  # 만료되지 않은 것만
@@ -339,9 +347,11 @@ class PointService:
 
             remaining_to_use -= use_from_this
 
-        # 사용자 포인트 차감
-        user.points -= amount
-        user.save(update_fields=["points"])
+        # F() 객체로 안전하게 포인트 차감
+        User.objects.filter(pk=user.pk).update(points=F("points") - amount)
+
+        # F() 객체로 업데이트 후 최신 값 가져오기
+        user.refresh_from_db()
 
         # 사용 이력 생성
         PointHistory.create_history(

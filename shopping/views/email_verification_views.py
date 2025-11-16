@@ -17,12 +17,14 @@ from shopping.serializers.email_verification_serializers import (
     SendVerificationEmailSerializer,
 )
 from shopping.tasks.email_tasks import send_verification_email_task
+from shopping.throttles import EmailVerificationRateThrottle, EmailVerificationResendRateThrottle
 
 
 class SendVerificationEmailView(APIView):
     """이메일 인증 발송 API (비동기 처리)"""
 
     permission_classes = [IsAuthenticated]
+    throttle_classes = [EmailVerificationRateThrottle]
 
     def post(self, request: Request) -> Response:
         serializer = SendVerificationEmailSerializer(data=request.data, context={"request": request})
@@ -167,6 +169,7 @@ class ResendVerificationEmailView(APIView):
     """이메일 재발송 API"""
 
     permission_classes = [IsAuthenticated]
+    throttle_classes = [EmailVerificationResendRateThrottle]
 
     def post(self, request: Request) -> Response:
         serializer = ResendVerificationEmailSerializer(data=request.data, context={"request": request})

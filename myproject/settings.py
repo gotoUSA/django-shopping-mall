@@ -120,8 +120,13 @@ WSGI_APPLICATION = "myproject.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# 테스트 환경 감지
-TESTING = "test" in sys.argv or os.getenv("TESTING") == "True"
+# 테스트 환경 감지 (pytest 및 Django test 모두 지원)
+TESTING = (
+    "test" in sys.argv  # Django test
+    or ("pytest" in sys.argv[0] if sys.argv else False)  # pytest (sys.argv[0] 체크)
+    or os.getenv("PYTEST_CURRENT_TEST") is not None  # pytest 실행 중 (가장 확실)
+    or os.getenv("TESTING") == "True"  # 수동 설정
+)
 
 # 데이터베이스 설정
 DATABASES = {
@@ -132,10 +137,10 @@ DATABASES = {
         "PASSWORD": os.getenv("DATABASE_PASSWORD", ""),
         "HOST": os.getenv("DATABASE_HOST", ""),
         "PORT": os.getenv("DATABASE_PORT", ""),
-        # Connection pooling: reuse connections to avoid "too many clients"
-        "CONN_MAX_AGE": 60 if TESTING else 600,
-        # Health checks to ensure connections are valid (Django 4.1+)
-        "CONN_HEALTH_CHECKS": True,
+        # Connection pooling: 테스트에서는 즉시 닫기, 프로덕션에서는 재사용
+        "CONN_MAX_AGE": 0 if TESTING else 600,
+        # Health checks: 테스트에서는 비활성화하여 연결 절약
+        "CONN_HEALTH_CHECKS": not TESTING,
     }
 }
 
@@ -200,6 +205,53 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",  # 읽기는 누구나, 쓰기는 로그인 필요
     ],
 }
+
+# Rate Limiting (Throttling) 설정
+# 테스트 환경에서는 매우 높은 제한값으로 설정 (동시성 테스트 통과용)
+if TESTING:
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
+        "login": "1000/min",
+        "register": "1000/hour",
+        "token_refresh": "1000/min",
+        "password_reset": "1000/hour",
+        "email_verification": "1000/min",
+        "email_verification_resend": "1000/hour",
+        "payment_request": "1000/min",
+        "payment_confirm": "1000/min",
+        "payment_cancel": "1000/min",
+        "order_create": "1000/min",
+        "order_cancel": "1000/min",
+        "anon_global": "10000/hour",
+        "user_global": "10000/hour",
+        "webhook": "1000/min",
+    }
+else:
+    REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = [
+        "shopping.throttles.GlobalAnonRateThrottle",  # 비인증 사용자 전역 제한
+        "shopping.throttles.GlobalUserRateThrottle",  # 인증 사용자 전역 제한
+    ]
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
+        # Authentication throttles (High Security)
+        "login": "3/min",  # 로그인: 1분당 3회
+        "register": "3/hour",  # 회원가입: 1시간당 3회
+        "token_refresh": "10/min",  # 토큰 갱신: 1분당 10회
+        "password_reset": "3/hour",  # 비밀번호 재설정: 1시간당 3회
+        # Email verification throttles (High Security)
+        "email_verification": "1/min",  # 이메일 인증 발송: 1분당 1회
+        "email_verification_resend": "3/hour",  # 이메일 재발송: 1시간당 3회
+        # Payment throttles (Medium Security)
+        "payment_request": "10/min",  # 결제 요청: 1분당 10회
+        "payment_confirm": "5/min",  # 결제 승인: 1분당 5회
+        "payment_cancel": "5/min",  # 결제 취소: 1분당 5회
+        # Order throttles (Medium Security)
+        "order_create": "10/min",  # 주문 생성: 1분당 10회
+        "order_cancel": "5/min",  # 주문 취소: 1분당 5회
+        # Global throttles (Default Security)
+        "anon_global": "100/hour",  # 비인증 사용자 전역: 1시간당 100회
+        "user_global": "1000/hour",  # 인증 사용자 전역: 1시간당 1000회
+        # Special case throttles
+        "webhook": "100/min",  # 웹훅: 1분당 100회 (외부 서비스용)
+    }
 
 # JWT 설정
 from datetime import timedelta
@@ -329,10 +381,10 @@ if os.environ.get("DATABASE_ENGINE"):
             "PASSWORD": os.environ.get("DATABASE_PASSWORD", ""),
             "HOST": os.environ.get("DATABASE_HOST", ""),
             "PORT": os.environ.get("DATABASE_PORT", ""),
-            # Connection pooling: reuse connections to avoid "too many clients"
-            "CONN_MAX_AGE": 60 if TESTING else 600,
-            # Health checks to ensure connections are valid (Django 4.1+)
-            "CONN_HEALTH_CHECKS": True,
+            # Connection pooling: 테스트에서는 즉시 닫기, 프로덕션에서는 재사용
+            "CONN_MAX_AGE": 0 if TESTING else 600,
+            # Health checks: 테스트에서는 비활성화하여 연결 절약
+            "CONN_HEALTH_CHECKS": not TESTING,
             # PostgreSQL-specific options for better connection management
             "OPTIONS": {
                 "connect_timeout": 10,
@@ -364,15 +416,23 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
 # ========== 캐시 설정 (Redis 사용) ==========
 
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/1"),
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        },
+# 테스트 환경에서는 더미 캐시 사용 (throttling도 비활성화되어 있음)
+if TESTING:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.dummy.DummyCache",
+        }
     }
-}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/1"),
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            },
+        }
+    }
 
 # ========== 추가 로깅 설정 ==========
 

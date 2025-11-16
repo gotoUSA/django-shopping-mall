@@ -13,6 +13,7 @@ from shopping.models.email_verification import EmailLog
 from shopping.models.password_reset import PasswordResetToken
 from shopping.serializers.password_reset_serializers import PasswordResetConfirmSerializer, PasswordResetRequestSerializer
 from shopping.tasks.email_tasks import send_email_task
+from shopping.throttles import PasswordResetRateThrottle
 
 User = get_user_model()
 
@@ -27,6 +28,7 @@ class PasswordResetRequestView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetRateThrottle]
 
     def post(self, request: Request) -> Response:
         """

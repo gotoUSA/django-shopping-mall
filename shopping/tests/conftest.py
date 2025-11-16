@@ -29,6 +29,33 @@ def setup_celery_for_tests():
 
 
 @pytest.fixture(scope="session", autouse=True)
+def setup_throttle_for_tests():
+    """
+    테스트 환경에서 throttle rates를 매우 높게 설정
+
+    동시성 테스트에서 rate limiting에 걸리지 않도록 설정
+    Session scope: 전체 테스트 세션에서 한 번만 실행
+    autouse: 자동으로 모든 테스트에 적용
+    """
+    settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
+        "login": "10000/min",
+        "register": "10000/hour",
+        "token_refresh": "10000/min",
+        "password_reset": "10000/hour",
+        "email_verification": "10000/min",
+        "email_verification_resend": "10000/hour",
+        "payment_request": "10000/min",
+        "payment_confirm": "10000/min",
+        "payment_cancel": "10000/min",
+        "order_create": "10000/min",
+        "order_cancel": "10000/min",
+        "anon_global": "100000/hour",
+        "user_global": "100000/hour",
+        "webhook": "10000/min",
+    }
+
+
+@pytest.fixture(scope="session", autouse=True)
 def setup_logging_for_tests():
     """
     테스트 환경에서 로그 propagation 활성화

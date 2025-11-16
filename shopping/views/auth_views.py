@@ -20,6 +20,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from shopping.models.email_verification import EmailVerificationToken
 from shopping.serializers.user_serializers import LoginSerializer, PasswordChangeSerializer, RegisterSerializer, UserSerializer
 from shopping.tasks.email_tasks import send_verification_email_task
+from shopping.throttles import LoginRateThrottle, RegisterRateThrottle, TokenRefreshRateThrottle
 
 
 class RegisterView(APIView):
@@ -29,6 +30,7 @@ class RegisterView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = [RegisterRateThrottle]
 
     def post(self, request: Request) -> Response:
         serializer = RegisterSerializer(data=request.data)
@@ -73,6 +75,7 @@ class LoginView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request: Request) -> Response:
         serializer = LoginSerializer(data=request.data, context={"request": request})
@@ -116,6 +119,8 @@ class CustomTokenRefreshView(TokenRefreshView):
 
     기본 TokenRefreshView를 상속받아 커스터마이징
     """
+
+    throttle_classes = [TokenRefreshRateThrottle]
 
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """

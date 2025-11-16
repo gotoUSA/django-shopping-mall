@@ -122,9 +122,10 @@ WSGI_APPLICATION = "myproject.wsgi.application"
 
 # 테스트 환경 감지 (pytest 및 Django test 모두 지원)
 TESTING = (
-    "test" in sys.argv
-    or "pytest" in sys.argv[0]
-    or os.getenv("TESTING") == "True"
+    "test" in sys.argv  # Django test
+    or ("pytest" in sys.argv[0] if sys.argv else False)  # pytest (sys.argv[0] 체크)
+    or os.getenv("PYTEST_CURRENT_TEST") is not None  # pytest 실행 중 (가장 확실)
+    or os.getenv("TESTING") == "True"  # 수동 설정
 )
 
 # 데이터베이스 설정

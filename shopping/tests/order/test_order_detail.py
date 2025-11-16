@@ -59,20 +59,15 @@ class TestOrderDetailHappyPath:
         assert "name" in product_info
         assert "price" in product_info
 
-    def test_amount_calculation(self, authenticated_client, user, product):
+    def test_amount_calculation(self, authenticated_client, user, product, order_factory):
         """금액 계산 정확성 검증"""
         # Arrange - 포인트 사용한 주문 생성
-        order = Order.objects.create(
-            user=user,
+        order = order_factory(
+            user,
             status="pending",
             total_amount=Decimal("50000"),
             used_points=5000,
             final_amount=Decimal("45000"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울",
-            shipping_address_detail="101호",
         )
         OrderItem.objects.create(
             order=order,
@@ -145,19 +140,10 @@ class TestOrderDetailHappyPath:
 class TestOrderDetailBoundary:
     """특수한 상황의 주문 조회"""
 
-    def test_order_with_no_items(self, authenticated_client, user):
+    def test_order_with_no_items(self, authenticated_client, user, order_factory):
         """주문 아이템이 0개인 경우"""
         # Arrange - 아이템 없는 주문 생성
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=Decimal("0"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울",
-            shipping_address_detail="101호",
-        )
+        order = order_factory(user, status="pending", total_amount=Decimal("0"))
         url = reverse("order-detail", kwargs={"pk": order.id})
 
         # Act
@@ -168,19 +154,10 @@ class TestOrderDetailBoundary:
         assert response.data["order_items"] == []
         assert Decimal(response.data["total_amount"]) == Decimal("0")
 
-    def test_order_with_many_items(self, authenticated_client, user, product):
+    def test_order_with_many_items(self, authenticated_client, user, product, order_factory):
         """주문 아이템이 많은 경우 (100개)"""
         # Arrange
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=Decimal("1000000"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울",
-            shipping_address_detail="101호",
-        )
+        order = order_factory(user, status="pending", total_amount=Decimal("1000000"))
 
         # 100개 아이템 생성
         for i in range(100):
@@ -201,30 +178,12 @@ class TestOrderDetailBoundary:
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["order_items"]) == 100
 
-    def test_all_order_statuses(self, authenticated_client, user, product):
+    def test_all_order_statuses(self, authenticated_client, user, product, order_factory, order_statuses):
         """모든 주문 상태별 조회 테스트"""
         # Arrange
-        statuses = [
-            ("pending", "결제대기"),
-            ("paid", "결제완료"),
-            ("preparing", "배송준비중"),
-            ("shipped", "배송중"),
-            ("delivered", "배송완료"),
-            ("canceled", "주문취소"),
-            ("refunded", "환불완료"),
-        ]
-
-        for status_code, status_display in statuses:
-            order = Order.objects.create(
-                user=user,
-                status=status_code,
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울",
-                shipping_address_detail="101호",
-            )
+        for status_code in order_statuses["all"]:
+            order = order_factory(user, status=status_code, total_amount=Decimal("10000"))
+            status_display = order_statuses["display"][status_code]
             url = reverse("order-detail", kwargs={"pk": order.id})
 
             # Act
@@ -235,20 +194,15 @@ class TestOrderDetailBoundary:
             assert response.data["status"] == status_code
             assert response.data["status_display"] == status_display
 
-    def test_order_with_max_points(self, authenticated_client, user, product):
+    def test_order_with_max_points(self, authenticated_client, user, product, order_factory):
         """포인트 최대 사용한 주문"""
         # Arrange
-        order = Order.objects.create(
-            user=user,
+        order = order_factory(
+            user,
             status="pending",
             total_amount=Decimal("50000"),
             used_points=50000,  # 전액 포인트 사용
             final_amount=Decimal("0"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울",
-            shipping_address_detail="101호",
         )
         url = reverse("order-detail", kwargs={"pk": order.id})
 
@@ -260,20 +214,15 @@ class TestOrderDetailBoundary:
         assert response.data["used_points"] == 50000
         assert Decimal(response.data["final_amount"]) == Decimal("0")
 
-    def test_order_with_no_points(self, authenticated_client, user, product):
+    def test_order_with_no_points(self, authenticated_client, user, product, order_factory):
         """포인트 사용하지 않은 주문"""
         # Arrange
-        order = Order.objects.create(
-            user=user,
+        order = order_factory(
+            user,
             status="pending",
             total_amount=Decimal("50000"),
             used_points=0,
             final_amount=Decimal("50000"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울",
-            shipping_address_detail="101호",
         )
         url = reverse("order-detail", kwargs={"pk": order.id})
 
@@ -285,20 +234,15 @@ class TestOrderDetailBoundary:
         assert response.data["used_points"] == 0
         assert Decimal(response.data["final_amount"]) == Decimal("50000")
 
-    def test_order_with_shipping_fee(self, authenticated_client, user, product):
+    def test_order_with_shipping_fee(self, authenticated_client, user, product, order_factory):
         """배송비가 있는 주문"""
         # Arrange
-        order = Order.objects.create(
-            user=user,
+        order = order_factory(
+            user,
             status="pending",
             total_amount=Decimal("50000"),
             shipping_fee=Decimal("3000"),
             final_amount=Decimal("53000"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울",
-            shipping_address_detail="101호",
         )
         url = reverse("order-detail", kwargs={"pk": order.id})
 
@@ -309,19 +253,10 @@ class TestOrderDetailBoundary:
         assert response.status_code == status.HTTP_200_OK
         assert Decimal(response.data["shipping_fee"]) == Decimal("3000")
 
-    def test_order_id_boundary_values(self, authenticated_client, user, product):
+    def test_order_id_boundary_values(self, authenticated_client, user, product, order_factory):
         """주문 ID 경계값 테스트"""
         # Arrange - ID=1 주문 생성
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=Decimal("10000"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울",
-            shipping_address_detail="101호",
-        )
+        order = order_factory(user, status="pending", total_amount=Decimal("10000"))
 
         # 생성된 ID로 조회
         url = reverse("order-detail", kwargs={"pk": order.id})
@@ -361,16 +296,9 @@ class TestOrderDetailException:
         # Assert
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_other_user_order(self, api_client, order):
+    def test_other_user_order(self, api_client, order, other_user):
         """다른 사용자의 주문 조회 시도 (403)"""
         # Arrange
-        other_user = User.objects.create_user(
-            username="otheruser",
-            email="other@example.com",
-            password="testpass123",
-            is_email_verified=True,
-        )
-
         login_response = api_client.post(
             reverse("auth-login"),
             {"username": "otheruser", "password": "testpass123"},
@@ -386,21 +314,12 @@ class TestOrderDetailException:
         # Assert - 권한 없으면 404 반환
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_admin_access_all_orders(self, api_client, order):
+    def test_admin_access_all_orders(self, api_client, order, admin_user):
         """관리자는 모든 주문 조회 가능 (200)"""
         # Arrange
-        admin_user = User.objects.create_user(
-            username="admin",
-            email="admin@example.com",
-            password="adminpass123",
-            is_staff=True,
-            is_superuser=True,
-            is_email_verified=True,
-        )
-
         login_response = api_client.post(
             reverse("auth-login"),
-            {"username": "admin", "password": "adminpass123"},
+            {"username": "admin", "password": "admin123"},
         )
         token = login_response.json()["access"]
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
@@ -459,7 +378,7 @@ class TestOrderDetailException:
         # Assert
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    def test_deleted_user_order(self, api_client, product):
+    def test_deleted_user_order(self, api_client, product, order_factory):
         """탈퇴한 사용자의 주문 조회"""
         # Arrange - 사용자 생성 및 주문 생성
         user = User.objects.create_user(
@@ -469,16 +388,7 @@ class TestOrderDetailException:
             is_email_verified=True,
         )
 
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=Decimal("10000"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울",
-            shipping_address_detail="101호",
-        )
+        order = order_factory(user, status="pending", total_amount=Decimal("10000"))
 
         # 사용자 비활성화
         user.is_active = False

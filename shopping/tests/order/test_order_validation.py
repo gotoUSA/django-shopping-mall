@@ -66,30 +66,23 @@ class TestOrderValidationHappyPath:
         assert user.points == 3000  # 5000 - 2000
 
     def test_create_order_with_full_points_payment(
-        self, authenticated_client, user_with_high_points, product, add_to_cart_helper
+        self, authenticate_as, user_with_high_points, product, add_to_cart_helper, shipping_data
     ):
         """전액 포인트 결제"""
         # Arrange
         add_to_cart_helper(user_with_high_points, product, quantity=1)
 
         # 로그인
-        from rest_framework_simplejwt.tokens import AccessToken
-
-        token = AccessToken.for_user(user_with_high_points)
-        authenticated_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        authenticated_client = authenticate_as(user_with_high_points)
 
         url = reverse("order-list")
-        shipping_data = {
-            "shipping_name": "홍길동",
-            "shipping_phone": "010-9999-8888",
-            "shipping_postal_code": "12345",
-            "shipping_address": "서울시 강남구",
-            "shipping_address_detail": "101호",
+        order_data = {
+            **shipping_data,
             "use_points": 13000,  # 상품 10000 + 배송비 3000
         }
 
         # Act
-        response = authenticated_client.post(url, shipping_data, format="json")
+        response = authenticated_client.post(url, order_data, format="json")
 
         # Assert
         assert response.status_code == status.HTTP_201_CREATED
@@ -134,25 +127,18 @@ class TestOrderValidationBoundary:
         order = Order.objects.get(user=user)
         assert order.used_points == 100
 
-    def test_maximum_points_usage(self, authenticated_client, user_with_high_points, product, add_to_cart_helper):
+    def test_maximum_points_usage(self, authenticate_as, user_with_high_points, product, add_to_cart_helper, shipping_data):
         """최대 포인트 사용 (주문 금액 전액)"""
         # Arrange
         add_to_cart_helper(user_with_high_points, product, quantity=1)
 
         # 로그인
-        from rest_framework_simplejwt.tokens import AccessToken
-
-        token = AccessToken.for_user(user_with_high_points)
-        authenticated_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        authenticated_client = authenticate_as(user_with_high_points)
 
         url = reverse("order-list")
         # 상품 10000 + 배송비 3000 = 13000
         order_data = {
-            "shipping_name": "홍길동",
-            "shipping_phone": "010-9999-8888",
-            "shipping_postal_code": "12345",
-            "shipping_address": "서울시 강남구",
-            "shipping_address_detail": "101호",
+            **shipping_data,
             "use_points": 13000,
         }
 
@@ -250,16 +236,13 @@ class TestOrderValidationBoundary:
 class TestOrderValidationException:
     """예외 상황 테스트"""
 
-    def test_unverified_email_user(self, api_client, unverified_user, product, shipping_data, add_to_cart_helper):
+    def test_unverified_email_user(self, authenticate_as, unverified_user, product, shipping_data, add_to_cart_helper):
         """이메일 미인증 사용자 주문 시도"""
         # Arrange
         add_to_cart_helper(unverified_user, product, quantity=1)
 
         # 미인증 사용자로 로그인
-        from rest_framework_simplejwt.tokens import AccessToken
-
-        token = AccessToken.for_user(unverified_user)
-        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        api_client = authenticate_as(unverified_user)
 
         url = reverse("order-list")
 
@@ -349,25 +332,18 @@ class TestOrderValidationException:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "최소 100포인트" in str(response.data)
 
-    def test_points_exceed_order_amount(self, authenticated_client, user_with_high_points, product, add_to_cart_helper):
+    def test_points_exceed_order_amount(self, authenticate_as, user_with_high_points, product, add_to_cart_helper, shipping_data):
         """주문 금액 초과 포인트 사용 시도"""
         # Arrange
         add_to_cart_helper(user_with_high_points, product, quantity=1)
 
         # 로그인
-        from rest_framework_simplejwt.tokens import AccessToken
-
-        token = AccessToken.for_user(user_with_high_points)
-        authenticated_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        authenticated_client = authenticate_as(user_with_high_points)
 
         url = reverse("order-list")
         # 상품 10000 + 배송비 3000 = 13000원인데 15000 포인트 사용 시도
         order_data = {
-            "shipping_name": "홍길동",
-            "shipping_phone": "010-9999-8888",
-            "shipping_postal_code": "12345",
-            "shipping_address": "서울시 강남구",
-            "shipping_address_detail": "101호",
+            **shipping_data,
             "use_points": 15000,
         }
 
@@ -509,26 +485,16 @@ class TestOrderValidationException:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_unverified_email_user_blocks_order_before_other_validations(
-        self, api_client, unverified_user, out_of_stock_product, add_to_cart_helper
+        self, authenticate_as, unverified_user, out_of_stock_product, add_to_cart_helper, shipping_data
     ):
         """복합 검증 오류 (미인증 + 품절 상품)"""
         # Arrange
         add_to_cart_helper(unverified_user, out_of_stock_product, quantity=1)
 
         # 미인증 사용자로 로그인
-        from rest_framework_simplejwt.tokens import AccessToken
-
-        token = AccessToken.for_user(unverified_user)
-        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        api_client = authenticate_as(unverified_user)
 
         url = reverse("order-list")
-        shipping_data = {
-            "shipping_name": "홍길동",
-            "shipping_phone": "010-1234-5678",
-            "shipping_postal_code": "12345",
-            "shipping_address": "서울시 강남구",
-            "shipping_address_detail": "101호",
-        }
 
         # Act
         response = api_client.post(url, shipping_data, format="json")

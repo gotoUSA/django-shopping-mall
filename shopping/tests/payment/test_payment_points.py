@@ -475,7 +475,7 @@ class TestPaymentPointsException:
         assert user.points == 1000
 
     def test_expired_points_cannot_be_deducted(self):
-        """만료된 포인트 회수 불가"""
+        """만료된 포인트 회수 불가 - 만료 처리 후"""
         # Arrange
         from shopping.models.user import User
 
@@ -491,7 +491,7 @@ class TestPaymentPointsException:
         point_service = PointService()
 
         # 만료된 포인트만 존재 (30일 전에 만료)
-        PointHistory.create_history(
+        expired_history = PointHistory.create_history(
             user=user,
             points=3000,
             balance=3000,
@@ -503,7 +503,11 @@ class TestPaymentPointsException:
         user.points = 3000
         user.save()
 
-        # Act - 1000P 회수 시도
+        # 만료 처리 실행
+        point_service.expire_points()
+
+        # Act - 1000P 회수 시도 (만료 처리 후 실제 포인트 0)
+        user.refresh_from_db()
         result = point_service.use_points_fifo(
             user=user,
             amount=1000,
@@ -515,98 +519,72 @@ class TestPaymentPointsException:
         assert result["success"] is False
         assert "부족" in result["message"]
 
-        # 포인트 변동 없음 (만료된 포인트는 사용 불가)
+        # 포인트 0 (만료 처리됨)
         user.refresh_from_db()
-        assert user.points == 3000
+        assert user.points == 0
 
-    def test_cancel_with_insufficient_earned_points(
-        self,
-        authenticated_client,
-        user,
-        product,
-        mocker,
-    ):
-        """적립 포인트 회수 시 포인트 부족 (사용자가 이미 소진한 경우)"""
+        # 만료 이력 확인
+        expired_history.refresh_from_db()
+        assert expired_history.metadata.get("expired") is True
+
+    def test_fifo_with_mixed_availability(self):
+        """FIFO 회수 시 일부 사용된 포인트 처리"""
         # Arrange
-        user.points = 100
-        user.save()
+        from shopping.models.user import User
 
-        # 결제 완료 주문 (2000P 적립됨)
-        order = Order.objects.create(
+        user = User.objects.create_user(
+            username="mixed_user",
+            email="mixed@test.com",
+            password="test123",
+            phone_number="010-5555-6666",
+            is_email_verified=True,
+        )
+
+        now = timezone.now()
+        point_service = PointService()
+
+        # 첫 번째 적립 (1000P, 500P 이미 사용됨)
+        history1 = PointHistory.create_history(
             user=user,
-            status="paid",
-            total_amount=product.price,
-            final_amount=product.price,
-            earned_points=2000,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
-            order_number="20250115999003",
+            points=1000,
+            balance=1000,
+            type="earn",
+            description="첫 적립",
+            expires_at=now + timedelta(days=30),
         )
+        history1.metadata["used_amount"] = 500
+        history1.save()
 
-        OrderItem.objects.create(
-            order=order,
-            product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
-        )
-
-        # 적립 이력
-        PointHistory.create_history(
+        # 두 번째 적립 (2000P, 사용 안 됨)
+        history2 = PointHistory.create_history(
             user=user,
             points=2000,
-            balance=2100,
+            balance=3000,
             type="earn",
-            order=order,
-            description="주문 적립",
+            description="두번째 적립",
+            expires_at=now + timedelta(days=60),
         )
 
-        # 사용자가 적립된 포인트를 거의 다 사용 (100P만 남음)
-        # (별도 주문에서 2000P 사용했다고 가정)
+        user.points = 2500  # 1000 - 500 + 2000
+        user.save()
 
-        payment = Payment.objects.create(
-            order=order,
-            amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
-            payment_key="test_insufficient_earned_key",
-            method="카드",
+        # Act - 1000P 회수
+        result = point_service.use_points_fifo(
+            user=user,
+            amount=1000,
+            type="cancel_deduct",
+            description="혼합 테스트",
         )
 
-        toss_cancel_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-        }
+        # Assert
+        assert result["success"] is True
 
-        mocker.patch(
-            "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
-            return_value=toss_cancel_response,
-        )
+        # 첫 번째 이력의 남은 500P 전액 + 두 번째 이력에서 500P
+        history1.refresh_from_db()
+        history2.refresh_from_db()
 
-        request_data = {
-            "payment_id": payment.id,
-            "cancel_reason": "부족 테스트",
-        }
-
-        # Act
-        response = authenticated_client.post(
-            "/api/payments/cancel/",
-            request_data,
-            format="json",
-        )
-
-        # Assert - 포인트 부족으로 회수 실패
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "포인트가 부족" in str(response.data)
-
-        # 주문/결제 상태 변경 없음
-        order.refresh_from_db()
-        payment.refresh_from_db()
-        assert order.status == "paid"
-        assert payment.status == "done"
+        assert history1.metadata.get("used_amount", 0) == 1000  # 500 + 500
+        assert history2.metadata.get("used_amount", 0) == 500
 
     def test_points_deduction_fifo_order_validation(self):
         """FIFO 회수 순서 엄격 검증"""

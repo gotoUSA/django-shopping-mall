@@ -63,31 +63,6 @@ def django_db_setup(django_db_setup, django_db_blocker):
         pass
 
 
-@pytest.fixture(autouse=True)
-def enable_db_access_for_all_tests(db):
-    """
-    모든 테스트에 DB 접근 허용 및 연결 관리
-
-    - autouse: 모든 테스트에 자동 적용
-    - DB 연결 재사용으로 "too many clients" 에러 방지
-    """
-    pass
-
-
-@pytest.fixture(scope="function", autouse=True)
-def reset_db_connections():
-    """
-    각 테스트 후 DB 연결 정리
-
-    PostgreSQL 연결 풀 고갈 방지
-    """
-    yield
-    from django.db import connections
-
-    for conn in connections.all():
-        conn.close_if_unusable_or_obsolete()
-
-
 # ==========================================
 # 2. API 클라이언트 Fixture
 # ==========================================

@@ -241,6 +241,9 @@ class OrderItem(models.Model):
         저장 시 자동 처리:
         1. product_name이 없으면 현재 상품명으로 설정
         2. price가 없으면 현재 상품 가격으로 설정
+
+        Note: OrderItem은 OrderService를 통해서만 생성되어야 합니다.
+              주문 총액 업데이트 등의 부수 효과(side effect)는 서비스 레이어에서 명시적으로 처리합니다.
         """
         if not self.product_name and self.product:
             self.product_name = self.product.name

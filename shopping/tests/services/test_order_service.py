@@ -207,8 +207,8 @@ class TestOrderServiceCreateOrder:
         """주문 생성 시 로깅 확인"""
         import logging
 
-        # caplog.set_level을 사용하여 로그 캡처
-        caplog.set_level(logging.INFO)
+        # logger 이름을 명시하여 로그 캡처
+        caplog.set_level(logging.INFO, logger="shopping.services.order_service")
 
         # Act
         order = OrderService.create_order_from_cart(
@@ -320,8 +320,8 @@ class TestOrderServiceCancelOrder:
         """주문 취소 시 로깅 확인"""
         import logging
 
-        # caplog.set_level을 사용하여 로그 캡처
-        caplog.set_level(logging.INFO)
+        # logger 이름을 명시하여 로그 캡처
+        caplog.set_level(logging.INFO, logger="shopping.services.order_service")
 
         # Arrange
         cart = Cart.objects.create(user=test_user, is_active=True)

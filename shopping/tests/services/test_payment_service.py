@@ -120,8 +120,8 @@ class TestPaymentServiceCreatePayment:
         """결제 정보 생성 시 로깅 확인"""
         import logging
 
-        # caplog.set_level을 사용하여 로그 캡처
-        caplog.set_level(logging.INFO)
+        # logger 이름을 명시하여 로그 캡처
+        caplog.set_level(logging.INFO, logger="shopping.services.payment_service")
 
         # Act
         payment = PaymentService.create_payment(test_order, "card")
@@ -243,8 +243,8 @@ class TestPaymentServiceConfirmPayment:
         """결제 승인 시 로깅 확인"""
         import logging
 
-        # caplog.set_level을 사용하여 로그 캡처
-        caplog.set_level(logging.INFO)
+        # logger 이름을 명시하여 로그 캡처
+        caplog.set_level(logging.INFO, logger="shopping.services.payment_service")
 
         # Arrange
         payment = PaymentService.create_payment(test_order, "card")
@@ -528,8 +528,8 @@ class TestPaymentServiceCancelPayment:
         """결제 취소 시 로깅 확인"""
         import logging
 
-        # caplog.set_level을 사용하여 로그 캡처
-        caplog.set_level(logging.INFO)
+        # logger 이름을 명시하여 로그 캡처
+        caplog.set_level(logging.INFO, logger="shopping.services.payment_service")
 
         # Arrange
         payment = PaymentService.create_payment(test_order, "card")

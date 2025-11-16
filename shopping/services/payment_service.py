@@ -384,12 +384,21 @@ class PaymentService:
 
                 # 포인트 차감 (FIFO 방식)
                 point_service = PointService()
-                result = point_service.use_points_fifo(user=user, amount=points_deducted)
+                result = point_service.use_points_fifo(
+                    user=user,
+                    amount=points_deducted,
+                    type="cancel_deduct",
+                    order=order,
+                    description=f"주문 #{order.order_number} 취소로 인한 적립 포인트 차감",
+                    metadata={
+                        "order_id": order.id,
+                        "order_number": order.order_number,
+                        "cancel_reason": cancel_reason,
+                    },
+                )
 
                 if not result["success"]:
                     raise ValueError(f"포인트 차감 실패: {result['message']}")
-
-                # TODO: use_points_fifo에 order 정보 및 cancel_deduct 타입 전달 기능 추가 필요
 
                 # 차감 로그
                 PaymentLog.objects.create(

@@ -263,13 +263,25 @@ class PointService:
         return max(0, remaining)
 
     @transaction.atomic
-    def use_points_fifo(self, user: AbstractBaseUser, amount: int) -> dict[str, Any]:
+    def use_points_fifo(
+        self,
+        user: AbstractBaseUser,
+        amount: int,
+        type: str = "use",
+        order: Optional[Order] = None,
+        description: str = "",
+        metadata: Optional[dict] = None,
+    ) -> dict[str, Any]:
         """
         FIFO 방식으로 포인트 사용
 
         Args:
             user: 사용자
             amount: 사용할 포인트
+            type: 포인트 타입 (use, cancel_deduct 등)
+            order: 관련 주문 (선택)
+            description: 설명
+            metadata: 추가 메타데이터 (선택)
 
         Returns:
             {
@@ -354,12 +366,16 @@ class PointService:
         user.refresh_from_db()
 
         # 사용 이력 생성
+        history_metadata = metadata.copy() if metadata else {}
+        history_metadata["used_details"] = used_details
+
         PointHistory.create_history(
             user=user,
             points=-amount,
-            type="use",
-            description="포인트 사용 (FIFO)",
-            metadata={"used_details": used_details},
+            type=type,
+            order=order,
+            description=description or "포인트 사용 (FIFO)",
+            metadata=history_metadata,
         )
 
         return {

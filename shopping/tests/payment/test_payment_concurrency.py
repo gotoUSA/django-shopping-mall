@@ -479,7 +479,7 @@ class TestPaymentConcurrencyHappyPath:
             # 포인트 차감 (FIFO 방식)
             point_service = PointService()
             result = point_service.use_points_fifo(user=user, amount=1000)
-            self.assertTrue(result["success"])
+            assert result["success"]
 
             order = Order.objects.create(
                 user=user,
@@ -746,7 +746,7 @@ class TestPaymentConcurrencyBoundary:
             # 포인트 전액 차감 (FIFO 방식)
             point_service = PointService()
             result = point_service.use_points_fifo(user=user, amount=int(product.price))
-            self.assertTrue(result["success"])
+            assert result["success"]
 
             order = Order.objects.create(
                 user=user,

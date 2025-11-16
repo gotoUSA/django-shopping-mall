@@ -238,12 +238,22 @@ class OrderService:
 
         # 포인트 차감 (FIFO 방식)
         point_service = PointService()
-        result = point_service.use_points_fifo(user=user, amount=use_points)
+        result = point_service.use_points_fifo(
+            user=user,
+            amount=use_points,
+            type="use",
+            order=order,
+            description=f"주문 #{order.order_number} 결제시 사용",
+            metadata={
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "total_amount": str(total_amount),
+                "final_amount": str(final_amount),
+            },
+        )
 
         if not result["success"]:
             raise ValueError(f"포인트 사용 실패: {result['message']}")
-
-        # TODO: use_points_fifo에 order 정보 전달 기능 추가 필요 (리팩토링 예정)
 
         logger.info(
             f"포인트 사용 완료: user_id={user.id}, order_id={order.id}, "

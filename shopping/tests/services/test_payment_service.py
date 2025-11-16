@@ -126,10 +126,11 @@ class TestPaymentServiceCreatePayment:
         # Act
         payment = PaymentService.create_payment(test_order, "card")
 
-        # Assert
-        assert "결제 정보 생성 시작" in caplog.text
-        assert "결제 정보 생성 완료" in caplog.text
-        assert f"payment_id={payment.id}" in caplog.text
+        # Assert - caplog.records를 사용하여 로그 메시지 확인
+        log_messages = [record.message for record in caplog.records]
+        assert any("결제 정보 생성 시작" in msg for msg in log_messages)
+        assert any("결제 정보 생성 완료" in msg for msg in log_messages)
+        assert any(f"payment_id={payment.id}" in msg for msg in log_messages)
 
 
 @pytest.mark.django_db
@@ -268,13 +269,14 @@ class TestPaymentServiceConfirmPayment:
             user=test_user,
         )
 
-        # Assert
-        assert "결제 승인 시작" in caplog.text
-        assert "토스페이먼츠 결제 승인 요청" in caplog.text
-        assert "토스페이먼츠 결제 승인 성공" in caplog.text
-        assert "판매량 증가" in caplog.text
-        assert "포인트 적립" in caplog.text
-        assert "결제 승인 완료" in caplog.text
+        # Assert - caplog.records를 사용하여 로그 메시지 확인
+        log_messages = [record.message for record in caplog.records]
+        assert any("결제 승인 시작" in msg for msg in log_messages)
+        assert any("토스페이먼츠 결제 승인 요청" in msg for msg in log_messages)
+        assert any("토스페이먼츠 결제 승인 성공" in msg for msg in log_messages)
+        assert any("판매량 증가" in msg for msg in log_messages)
+        assert any("포인트 적립" in msg for msg in log_messages)
+        assert any("결제 승인 완료" in msg for msg in log_messages)
 
 
 @pytest.mark.django_db
@@ -565,10 +567,11 @@ class TestPaymentServiceCancelPayment:
             cancel_reason="단순 변심",
         )
 
-        # Assert
-        assert "결제 취소 시작" in caplog.text
-        assert "결제 취소 검증 완료" in caplog.text
-        assert "토스페이먼츠 결제 취소 요청" in caplog.text
-        assert "토스페이먼츠 결제 취소 성공" in caplog.text
-        assert "재고 복구" in caplog.text
-        assert "결제 취소 완료" in caplog.text
+        # Assert - caplog.records를 사용하여 로그 메시지 확인
+        log_messages = [record.message for record in caplog.records]
+        assert any("결제 취소 시작" in msg for msg in log_messages)
+        assert any("결제 취소 검증 완료" in msg for msg in log_messages)
+        assert any("토스페이먼츠 결제 취소 요청" in msg for msg in log_messages)
+        assert any("토스페이먼츠 결제 취소 성공" in msg for msg in log_messages)
+        assert any("재고 복구" in msg for msg in log_messages)
+        assert any("결제 취소 완료" in msg for msg in log_messages)

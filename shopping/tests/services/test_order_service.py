@@ -218,12 +218,13 @@ class TestOrderServiceCreateOrder:
             **shipping_info,
         )
 
-        # Assert
-        assert "주문 생성 시작" in caplog.text
-        assert "주문 생성 완료" in caplog.text
-        assert "재고 차감" in caplog.text
-        assert "주문 생성 프로세스 완료" in caplog.text
-        assert f"order_id={order.id}" in caplog.text
+        # Assert - caplog.records를 사용하여 로그 메시지 확인
+        log_messages = [record.message for record in caplog.records]
+        assert any("주문 생성 시작" in msg for msg in log_messages)
+        assert any("주문 생성 완료" in msg for msg in log_messages)
+        assert any("재고 차감" in msg for msg in log_messages)
+        assert any("주문 생성 프로세스 완료" in msg for msg in log_messages)
+        assert any(f"order_id={order.id}" in msg for msg in log_messages)
 
 
 @pytest.mark.django_db
@@ -337,10 +338,11 @@ class TestOrderServiceCancelOrder:
         # Act
         OrderService.cancel_order(order)
 
-        # Assert
-        assert "주문 취소 시작" in caplog.text
-        assert "재고 복구" in caplog.text
-        assert "주문 취소 완료" in caplog.text
+        # Assert - caplog.records를 사용하여 로그 메시지 확인
+        log_messages = [record.message for record in caplog.records]
+        assert any("주문 취소 시작" in msg for msg in log_messages)
+        assert any("재고 복구" in msg for msg in log_messages)
+        assert any("주문 취소 완료" in msg for msg in log_messages)
 
 
 @pytest.mark.django_db

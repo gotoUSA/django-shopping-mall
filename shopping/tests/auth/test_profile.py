@@ -56,18 +56,13 @@ class TestProfileView:
 class TestProfileUpdate:
     """프로필 수정 테스트"""
 
-    def test_update_profile_patch(self, authenticated_client, user):
+    def test_update_profile_patch(self, authenticated_client, user, profile_update_data):
         """부분 수정 (PATCH)"""
         # Arrange
         url = reverse("user-profile")
-        update_data = {
-            "first_name": "수정된",
-            "last_name": "이름",
-            "phone_number": "010-9999-8888",
-        }
 
         # Act
-        response = authenticated_client.patch(url, update_data, format="json")
+        response = authenticated_client.patch(url, profile_update_data, format="json")
 
         # Assert
         assert response.status_code == status.HTTP_200_OK
@@ -77,9 +72,9 @@ class TestProfileUpdate:
 
         # DB 검증
         user.refresh_from_db()
-        assert user.first_name == "수정된"
-        assert user.last_name == "이름"
-        assert user.phone_number == "010-9999-8888"
+        assert user.first_name == profile_update_data["first_name"]
+        assert user.last_name == profile_update_data["last_name"]
+        assert user.phone_number == profile_update_data["phone_number"]
 
     def test_update_profile_put(self, authenticated_client, user):
         """전체 수정 (PUT)"""
@@ -238,20 +233,13 @@ class TestProfileEmailChange:
         # 이메일 변경 시 인증 상태 초기화됨
         assert user.is_email_verified is False
 
-    def test_email_duplicate_not_allowed(self, authenticated_client, user, db):
+    def test_email_duplicate_not_allowed(self, authenticated_client, user, second_user):
         """이메일 중복 불가"""
         # Arrange
         url = reverse("user-profile")
 
-        # 다른 사용자 생성
-        other_user = User.objects.create_user(
-            username="otheruser",
-            email="other@example.com",
-            password="testpass123",
-        )
-
         # Act - 다른 사용자의 이메일로 변경 시도
-        response = authenticated_client.patch(url, {"email": other_user.email}, format="json")
+        response = authenticated_client.patch(url, {"email": second_user.email}, format="json")
 
         # Assert - 중복 에러
         assert response.status_code == status.HTTP_400_BAD_REQUEST

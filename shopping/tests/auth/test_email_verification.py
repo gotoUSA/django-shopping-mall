@@ -190,17 +190,13 @@ class TestEmailVerificationOnSignup:
     """회원가입 시 자동 발송 - 정상 케이스"""
 
     @patch("shopping.tasks.email_tasks.send_verification_email_task.delay")
-    def test_email_sent_on_signup(self, mock_task, api_client, db):
+    def test_email_sent_on_signup(self, mock_task, api_client, db, registration_data_factory):
         """회원가입 시 자동으로 인증 이메일 발송됨"""
         # Arrange
         url = reverse("auth-register")
-        data = {
-            "username": "newuser",
-            "email": "newuser@example.com",
-            "password": "NewPass123!",
-            "password2": "NewPass123!",
-            "phone_number": "010-9999-9999",
-        }
+        data = registration_data_factory(
+            username="newuser", email="newuser@example.com", password="NewPass123!", phone_number="010-9999-9999"
+        )
 
         # Act - 회원가입
         response = api_client.post(url, data)
@@ -211,17 +207,13 @@ class TestEmailVerificationOnSignup:
         # Assert - Celery 태스크 호출 확인
         assert mock_task.called
 
-    def test_token_created_on_signup(self, api_client, db):
+    def test_token_created_on_signup(self, api_client, db, registration_data_factory):
         """회원가입 시 EmailVerificationToken 자동 생성"""
         # Arrange
         url = reverse("auth-register")
-        data = {
-            "username": "newuser2",
-            "email": "newuser2@example.com",
-            "password": "NewPass123!",
-            "password2": "NewPass123!",
-            "phone_number": "010-8888-8888",
-        }
+        data = registration_data_factory(
+            username="newuser2", email="newuser2@example.com", password="NewPass123!", phone_number="010-8888-8888"
+        )
 
         # Act - 회원가입
         response = api_client.post(url, data)

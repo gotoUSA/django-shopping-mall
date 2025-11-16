@@ -135,16 +135,12 @@ class TestPasswordResetRequestValidation:
 class TestPasswordResetConfirm:
     """비밀번호 재설정 확인 - 정상 케이스"""
 
-    def test_confirm_password_reset_success(self, api_client, user):
+    def test_confirm_password_reset_success(self, api_client, user, password_reset_confirm_data_factory):
         """유효한 토큰으로 비밀번호 재설정 성공"""
         # Arrange
         token = PasswordResetToken.objects.create(user=user)
         url = reverse("password-reset-confirm")
-        data = {
-            "token": str(token.token),
-            "new_password": "NewSecurePass123!",
-            "new_password2": "NewSecurePass123!",
-        }
+        data = password_reset_confirm_data_factory(token=token.token)
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -156,7 +152,7 @@ class TestPasswordResetConfirm:
 
         # Assert - 비밀번호 변경 확인
         user.refresh_from_db()
-        assert user.check_password("NewSecurePass123!")
+        assert user.check_password(data["new_password"])
         assert not user.check_password("testpass123")  # 이전 비밀번호는 안됨
 
         # Assert - 토큰 사용 처리 확인
@@ -164,25 +160,21 @@ class TestPasswordResetConfirm:
         assert token.is_used is True
         assert token.used_at is not None
 
-    def test_login_with_new_password_after_reset(self, api_client, user):
+    def test_login_with_new_password_after_reset(
+        self, api_client, user, password_reset_confirm_data_factory, login_data_factory
+    ):
         """재설정 후 새 비밀번호로 로그인"""
         # Arrange - 비밀번호 재설정
         token = PasswordResetToken.objects.create(user=user)
         confirm_url = reverse("password-reset-confirm")
-        confirm_data = {
-            "token": str(token.token),
-            "new_password": "ResetPassword456!",
-            "new_password2": "ResetPassword456!",
-        }
+        new_password = "ResetPassword456!"
+        confirm_data = password_reset_confirm_data_factory(token=token.token, new_password=new_password)
         confirm_response = api_client.post(confirm_url, confirm_data, format="json")
         assert confirm_response.status_code == status.HTTP_200_OK
 
         # Act - 새 비밀번호로 로그인
         login_url = reverse("auth-login")
-        login_data = {
-            "username": user.username,
-            "password": "ResetPassword456!",
-        }
+        login_data = login_data_factory(username=user.username, password=new_password)
         login_response = api_client.post(login_url, login_data, format="json")
 
         # Assert
@@ -190,25 +182,20 @@ class TestPasswordResetConfirm:
         assert "access" in login_response.data
         assert "refresh" in login_response.data
 
-    def test_old_password_invalid_after_reset(self, api_client, user):
+    def test_old_password_invalid_after_reset(
+        self, api_client, user, password_reset_confirm_data_factory, login_data_factory
+    ):
         """재설정 후 이전 비밀번호는 사용 불가"""
         # Arrange - 비밀번호 재설정
         old_password = "testpass123"  # user fixture의 기본 비밀번호
         token = PasswordResetToken.objects.create(user=user)
         confirm_url = reverse("password-reset-confirm")
-        confirm_data = {
-            "token": str(token.token),
-            "new_password": "NewPassword789!",
-            "new_password2": "NewPassword789!",
-        }
+        confirm_data = password_reset_confirm_data_factory(token=token.token, new_password="NewPassword789!")
         api_client.post(confirm_url, confirm_data, format="json")
 
         # Act - 이전 비밀번호로 로그인 시도
         login_url = reverse("auth-login")
-        login_data = {
-            "username": user.username,
-            "password": old_password,
-        }
+        login_data = login_data_factory(username=user.username, password=old_password)
         login_response = api_client.post(login_url, login_data, format="json")
 
         # Assert - 실패해야 함
@@ -236,7 +223,7 @@ class TestPasswordResetConfirmValidation:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "token" in response.data
 
-    def test_confirm_with_expired_token(self, api_client, user):
+    def test_confirm_with_expired_token(self, api_client, user, password_reset_confirm_data_factory):
         """만료된 토큰으로 재설정 시도"""
         # Arrange - 24시간 이상 경과한 토큰
         token = PasswordResetToken.objects.create(user=user)
@@ -244,11 +231,7 @@ class TestPasswordResetConfirmValidation:
         token.save()
 
         url = reverse("password-reset-confirm")
-        data = {
-            "token": str(token.token),
-            "new_password": "NewPass123!",
-            "new_password2": "NewPass123!",
-        }
+        data = password_reset_confirm_data_factory(token=token.token, new_password="NewPass123!")
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -257,18 +240,14 @@ class TestPasswordResetConfirmValidation:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "만료" in str(response.data)
 
-    def test_confirm_with_used_token(self, api_client, user):
+    def test_confirm_with_used_token(self, api_client, user, password_reset_confirm_data_factory):
         """이미 사용된 토큰으로 재설정 시도 (재사용 방지)"""
         # Arrange
         token = PasswordResetToken.objects.create(user=user)
         token.mark_as_used()  # 사용 처리
 
         url = reverse("password-reset-confirm")
-        data = {
-            "token": str(token.token),
-            "new_password": "NewPass123!",
-            "new_password2": "NewPass123!",
-        }
+        data = password_reset_confirm_data_factory(token=token.token, new_password="NewPass123!")
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -418,7 +397,7 @@ class TestPasswordResetTokenModel:
 class TestPasswordResetBoundary:
     """비밀번호 재설정 경계값 테스트"""
 
-    def test_token_expiry_exactly_24_hours(self, api_client, user):
+    def test_token_expiry_exactly_24_hours(self, api_client, user, password_reset_confirm_data_factory):
         """토큰이 정확히 24시간 후에 만료됨"""
         # Arrange - 정확히 24시간 1초 전 토큰
         token = PasswordResetToken.objects.create(user=user)
@@ -426,11 +405,7 @@ class TestPasswordResetBoundary:
         token.save()
 
         url = reverse("password-reset-confirm")
-        data = {
-            "token": str(token.token),
-            "new_password": "NewPass123!",
-            "new_password2": "NewPass123!",
-        }
+        data = password_reset_confirm_data_factory(token=token.token, new_password="NewPass123!")
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -439,7 +414,7 @@ class TestPasswordResetBoundary:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "만료" in str(response.data)
 
-    def test_token_valid_before_24_hours(self, api_client, user):
+    def test_token_valid_before_24_hours(self, api_client, user, password_reset_confirm_data_factory):
         """24시간 전이면 아직 유효함"""
         # Arrange - 23시간 59분 59초 전 토큰
         token = PasswordResetToken.objects.create(user=user)
@@ -447,11 +422,7 @@ class TestPasswordResetBoundary:
         token.save()
 
         url = reverse("password-reset-confirm")
-        data = {
-            "token": str(token.token),
-            "new_password": "NewPass123!",
-            "new_password2": "NewPass123!",
-        }
+        data = password_reset_confirm_data_factory(token=token.token, new_password="NewPass123!")
 
         # Act
         response = api_client.post(url, data, format="json")

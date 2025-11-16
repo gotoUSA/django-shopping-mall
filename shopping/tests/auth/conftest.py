@@ -919,6 +919,30 @@ def password_change_data_factory():
 
 
 @pytest.fixture
+def password_reset_confirm_data_factory():
+    """
+    비밀번호 재설정 확인 데이터 팩토리
+
+    사용 예시:
+        def test_reset_password(api_client, password_reset_token, password_reset_confirm_data_factory):
+            data = password_reset_confirm_data_factory(
+                token=password_reset_token.token,
+                new_password="NewPass123!"
+            )
+            response = api_client.post("/api/auth/password/reset/confirm/", data)
+    """
+
+    def _create_data(token, new_password="NewSecurePass123!", new_password2=None):
+        return {
+            "token": str(token),
+            "new_password": new_password,
+            "new_password2": new_password2 or new_password,
+        }
+
+    return _create_data
+
+
+@pytest.fixture
 def user_with_points(user):
     """
     특정 포인트를 가진 사용자 (5000 포인트)

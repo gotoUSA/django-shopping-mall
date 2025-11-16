@@ -8,6 +8,8 @@ from rest_framework import status
 from shopping.models.order import Order, OrderItem
 from shopping.models.user import User
 
+from .conftest import TEST_ADMIN_PASSWORD, TEST_USER_PASSWORD
+
 
 @pytest.mark.django_db
 class TestOrderDetailHappyPath:
@@ -296,38 +298,26 @@ class TestOrderDetailException:
         # Assert
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_other_user_order(self, api_client, order, other_user):
+    def test_other_user_order(self, order, other_user, login_helper):
         """다른 사용자의 주문 조회 시도 (403)"""
         # Arrange
-        login_response = api_client.post(
-            reverse("auth-login"),
-            {"username": "otheruser", "password": "testpass123"},
-        )
-        token = login_response.json()["access"]
-        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
-
+        client, _ = login_helper(other_user)
         url = reverse("order-detail", kwargs={"pk": order.id})
 
         # Act
-        response = api_client.get(url)
+        response = client.get(url)
 
         # Assert - 권한 없으면 404 반환
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_admin_access_all_orders(self, api_client, order, admin_user):
+    def test_admin_access_all_orders(self, order, admin_user, login_helper):
         """관리자는 모든 주문 조회 가능 (200)"""
         # Arrange
-        login_response = api_client.post(
-            reverse("auth-login"),
-            {"username": "admin", "password": "admin123"},
-        )
-        token = login_response.json()["access"]
-        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
-
+        client, _ = login_helper(admin_user)
         url = reverse("order-detail", kwargs={"pk": order.id})
 
         # Act
-        response = api_client.get(url)
+        response = client.get(url)
 
         # Assert
         assert response.status_code == status.HTTP_200_OK
@@ -384,7 +374,7 @@ class TestOrderDetailException:
         user = User.objects.create_user(
             username="deleteduser",
             email="deleted@example.com",
-            password="testpass123",
+            password=TEST_USER_PASSWORD,
             is_email_verified=True,
         )
 
@@ -397,7 +387,7 @@ class TestOrderDetailException:
         # 로그인 시도 (실패 예상)
         login_response = api_client.post(
             reverse("auth-login"),
-            {"username": "deleteduser", "password": "testpass123"},
+            {"username": "deleteduser", "password": TEST_USER_PASSWORD},
         )
 
         # Assert - 로그인 실패로 주문 조회 불가

@@ -9,6 +9,8 @@ from shopping.models.cart import Cart, CartItem
 from shopping.models.order import Order, OrderItem
 from shopping.models.user import User
 
+from .conftest import TEST_ADMIN_PASSWORD, TEST_USER_PASSWORD
+
 
 @pytest.mark.django_db
 class TestOrderAuthentication:
@@ -135,13 +137,11 @@ class TestOrderEmailVerification:
         assert response.status_code == status.HTTP_201_CREATED
 
     def test_unverified_user_cannot_create_order(
-        self, api_client: pytest.fixture, unverified_user: User, product: pytest.fixture, shipping_data: dict
+        self, unverified_user: User, product: pytest.fixture, shipping_data: dict, login_helper
     ) -> None:
         """이메일 미인증 사용자는 주문 생성 불가"""
         # Arrange - 이메일 미인증 사용자 생성 및 로그인
-        login_response = api_client.post(reverse("auth-login"), {"username": "unverified", "password": "testpass123"})
-        token = login_response.json()["access"]
-        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        client, _ = login_helper(unverified_user)
 
         cart, _ = Cart.get_or_create_active_cart(unverified_user)
         CartItem.objects.create(cart=cart, product=product, quantity=1)
@@ -149,7 +149,7 @@ class TestOrderEmailVerification:
         url = reverse("order-list")
 
         # Act
-        response = api_client.post(url, shipping_data, format="json")
+        response = client.post(url, shipping_data, format="json")
 
         # Assert
         assert response.status_code == status.HTTP_403_FORBIDDEN
@@ -164,11 +164,11 @@ class TestOrderEmailVerification:
         unverified = User.objects.create_user(
             username="unverified2",
             email="unverified2@example.com",
-            password="testpass123",
+            password=TEST_USER_PASSWORD,
             is_email_verified=False,
         )
 
-        login_response = api_client.post(reverse("auth-login"), {"username": "unverified2", "password": "testpass123"})
+        login_response = api_client.post(reverse("auth-login"), {"username": "unverified2", "password": TEST_USER_PASSWORD})
         token = login_response.json()["access"]
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
@@ -282,7 +282,7 @@ class TestAdminOrderPermissions:
     """관리자 주문 권한 테스트 - 관리자는 모든 주문 접근 가능"""
 
     def test_admin_can_view_all_orders(
-        self, api_client: pytest.fixture, user: User, seller_user: User, product: pytest.fixture, admin_user: User, order_factory: pytest.fixture
+        self, user: User, seller_user: User, product: pytest.fixture, admin_user: User, order_factory: pytest.fixture, login_helper
     ) -> None:
         """관리자는 모든 주문 조회 가능"""
         # Arrange - 관리자 생성
@@ -294,14 +294,11 @@ class TestAdminOrderPermissions:
         order_factory(admin_user, status="pending", total_amount=Decimal("30000"), shipping_name="관리자", shipping_phone="010-3333-3333", shipping_address_detail="303호")
 
         # 관리자 로그인
-        login_response = api_client.post(reverse("auth-login"), {"username": "admin", "password": "admin123"})
-        token = login_response.json()["access"]
-        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
-
+        client, _ = login_helper(admin_user)
         url = reverse("order-list")
 
         # Act
-        response = api_client.get(url)
+        response = client.get(url)
 
         # Assert
         assert response.status_code == status.HTTP_200_OK
@@ -313,7 +310,7 @@ class TestAdminOrderPermissions:
         admin = User.objects.create_user(
             username="admin2",
             email="admin2@example.com",
-            password="admin123",
+            password=TEST_ADMIN_PASSWORD,
             is_staff=True,
             is_superuser=True,
             is_email_verified=True,
@@ -323,7 +320,7 @@ class TestAdminOrderPermissions:
         user_order = order_factory(user, status="pending", total_amount=product.price, shipping_name="일반사용자")
 
         # 관리자 로그인
-        login_response = api_client.post(reverse("auth-login"), {"username": "admin2", "password": "admin123"})
+        login_response = api_client.post(reverse("auth-login"), {"username": "admin2", "password": TEST_ADMIN_PASSWORD})
         token = login_response.json()["access"]
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
@@ -343,7 +340,7 @@ class TestAdminOrderPermissions:
         admin = User.objects.create_user(
             username="admin3",
             email="admin3@example.com",
-            password="admin123",
+            password=TEST_ADMIN_PASSWORD,
             is_staff=True,
             is_superuser=True,
             is_email_verified=True,
@@ -357,7 +354,7 @@ class TestAdminOrderPermissions:
             order_factory(seller_user, status="pending", total_amount=Decimal("20000"), shipping_name=f"주문{i+3}", shipping_phone="010-0000-0000", shipping_address_detail="202호")
 
         # 관리자 로그인
-        login_response = api_client.post(reverse("auth-login"), {"username": "admin3", "password": "admin123"})
+        login_response = api_client.post(reverse("auth-login"), {"username": "admin3", "password": TEST_ADMIN_PASSWORD})
         token = login_response.json()["access"]
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
@@ -376,7 +373,7 @@ class TestAdminOrderPermissions:
         admin = User.objects.create_user(
             username="admin4",
             email="admin4@example.com",
-            password="admin123",
+            password=TEST_ADMIN_PASSWORD,
             is_staff=True,
             is_superuser=True,
             is_email_verified=True,
@@ -388,7 +385,7 @@ class TestAdminOrderPermissions:
         seller_order = order_factory(seller_user, status="pending", total_amount=Decimal("20000"), shipping_name="판매자", shipping_phone="010-2222-2222", shipping_address_detail="202호")
 
         # 관리자 로그인
-        login_response = api_client.post(reverse("auth-login"), {"username": "admin4", "password": "admin123"})
+        login_response = api_client.post(reverse("auth-login"), {"username": "admin4", "password": TEST_ADMIN_PASSWORD})
         token = login_response.json()["access"]
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 

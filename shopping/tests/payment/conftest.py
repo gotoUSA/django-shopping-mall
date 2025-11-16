@@ -325,3 +325,118 @@ def other_user_order(db, other_user, product):
     )
 
     return order
+
+
+# ==========================================
+# 3. 토스페이먼츠 전용 Fixture
+# ==========================================
+
+
+@pytest.fixture
+def toss_client():
+    """
+    토스페이먼츠 클라이언트 인스턴스
+
+    - TossPaymentClient() 생성
+    - settings 값 자동 로드
+    """
+    from shopping.utils.toss_payment import TossPaymentClient
+
+    return TossPaymentClient()
+
+
+@pytest.fixture
+def toss_success_response():
+    """
+    토스 API 성공 응답 템플릿
+
+    - status: DONE
+    - method: 카드
+    - approvedAt 포함
+    """
+    return {
+        "paymentKey": "test_payment_key_123",
+        "orderId": "ORDER_20250115_001",
+        "status": "DONE",
+        "totalAmount": 13000,
+        "method": "카드",
+        "approvedAt": "2025-01-15T10:00:00+09:00",
+        "card": {
+            "company": "신한카드",
+            "number": "1234****",
+            "installmentPlanMonths": 0,
+            "isInterestFree": False,
+        },
+    }
+
+
+@pytest.fixture
+def toss_error_response():
+    """
+    토스 API 에러 응답 생성 함수
+
+    Usage:
+        error = toss_error_response("INVALID_CARD", "카드 정보가 잘못되었습니다")
+    """
+
+    def _make_error(code: str, message: str):
+        return {"code": code, "message": message}
+
+    return _make_error
+
+
+@pytest.fixture
+def toss_cancel_response():
+    """
+    토스 취소 성공 응답 템플릿
+
+    - status: CANCELED
+    - canceledAmount, cancelReason 포함
+    """
+    return {
+        "paymentKey": "test_payment_key_123",
+        "orderId": "ORDER_20250115_001",
+        "status": "CANCELED",
+        "canceledAmount": 13000,
+        "cancelReason": "고객 변심",
+        "canceledAt": "2025-01-15T11:00:00+09:00",
+    }
+
+
+@pytest.fixture
+def toss_webhook_data():
+    """
+    토스 웹훅 요청 데이터 템플릿
+
+    - eventType: PAYMENT.DONE
+    - 서명 검증용 기본 데이터
+    """
+    return {
+        "eventType": "PAYMENT.DONE",
+        "data": {
+            "paymentKey": "test_key_123",
+            "orderId": "ORDER_001",
+            "status": "DONE",
+            "totalAmount": 10000,
+        },
+    }
+
+
+@pytest.fixture
+def mock_requests_response():
+    """
+    requests 라이브러리 Mock 헬퍼
+
+    Usage:
+        mock = mock_requests_response(200, {"status": "DONE"})
+        mocker.patch("requests.post", return_value=mock)
+    """
+    from unittest.mock import Mock
+
+    def _create_mock(status_code: int, json_data: dict):
+        mock = Mock()
+        mock.status_code = status_code
+        mock.json.return_value = json_data
+        return mock
+
+    return _create_mock

@@ -527,6 +527,95 @@ class TestPaymentPointsException:
         expired_history.refresh_from_db()
         assert expired_history.metadata.get("expired") is True
 
+    def test_cancel_with_insufficient_earned_points(
+        self,
+        authenticated_client,
+        user,
+        product,
+        mocker,
+    ):
+        """적립 포인트 회수 시 포인트 부족 - API 통합 테스트"""
+        # Arrange
+        user.points = 100
+        user.save()
+
+        # 결제 완료 주문 (2000P 적립됨)
+        order = Order.objects.create(
+            user=user,
+            status="paid",
+            total_amount=product.price,
+            final_amount=product.price,
+            earned_points=2000,
+            shipping_name="홍길동",
+            shipping_phone="010-1234-5678",
+            shipping_postal_code="12345",
+            shipping_address="서울시 강남구",
+            shipping_address_detail="101동",
+            order_number="20250115999003",
+        )
+
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            product_name=product.name,
+            quantity=1,
+            price=product.price,
+        )
+
+        # 적립 이력
+        PointHistory.create_history(
+            user=user,
+            points=2000,
+            balance=2100,
+            type="earn",
+            order=order,
+            description="주문 적립",
+        )
+
+        # 사용자가 적립된 포인트를 거의 다 사용 (100P만 남음)
+        # (별도 주문에서 2000P 사용했다고 가정)
+
+        payment = Payment.objects.create(
+            order=order,
+            amount=order.total_amount,
+            status="done",
+            toss_order_id=order.order_number,
+            payment_key="test_insufficient_earned_key",
+            method="카드",
+        )
+
+        toss_cancel_response = {
+            "status": "CANCELED",
+            "canceledAt": "2025-01-15T11:00:00+09:00",
+        }
+
+        mocker.patch(
+            "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
+            return_value=toss_cancel_response,
+        )
+
+        request_data = {
+            "payment_id": payment.id,
+            "cancel_reason": "부족 테스트",
+        }
+
+        # Act
+        response = authenticated_client.post(
+            "/api/payments/cancel/",
+            request_data,
+            format="json",
+        )
+
+        # Assert - 포인트 부족으로 취소 실패 (400 에러)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "포인트가 부족" in str(response.data)
+
+        # 주문/결제 상태 변경 없음
+        order.refresh_from_db()
+        payment.refresh_from_db()
+        assert order.status == "paid"
+        assert payment.status == "done"
+
     def test_fifo_with_mixed_availability(self):
         """FIFO 회수 시 일부 사용된 포인트 처리"""
         # Arrange

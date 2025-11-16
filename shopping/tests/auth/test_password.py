@@ -9,18 +9,13 @@ from rest_framework import status
 class TestPasswordChangeSuccess:
     """정상적인 비밀번호 변경 테스트"""
 
-    def test_change_password_success(self, authenticated_client, user):
+    def test_change_password_success(self, authenticated_client, user, password_change_data):
         """정상 비밀번호 변경 테스트"""
         # Arrange
         url = reverse("user-password-change")
-        data = {
-            "old_password": "testpass123",
-            "new_password": "NewSecurePass456!",
-            "new_password2": "NewSecurePass456!",
-        }
 
         # Act
-        response = authenticated_client.post(url, data, format="json")
+        response = authenticated_client.post(url, password_change_data, format="json")
 
         # Assert
         assert response.status_code == status.HTTP_200_OK

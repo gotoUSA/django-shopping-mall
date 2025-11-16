@@ -10,17 +10,13 @@ from rest_framework import status
 class TestLoginSuccess:
     """로그인 성공 시나리오 테스트"""
 
-    def test_login_with_valid_credentials(self, api_client, user):
+    def test_login_with_valid_credentials(self, api_client, user, valid_login_data):
         """정상 로그인"""
         # Arrange
         login_url = reverse("auth-login")
-        login_data = {
-            "username": "testuser",  # conftest.py의 user fixture 참조
-            "password": "testpass123",
-        }
 
         # Act
-        response = api_client.post(login_url, login_data, format="json")
+        response = api_client.post(login_url, valid_login_data, format="json")
 
         # Assert
         assert response.status_code == status.HTTP_200_OK
@@ -37,17 +33,13 @@ class TestLoginSuccess:
         assert "user" in response_data
         assert response_data["user"]["username"] == "testuser"
 
-    def test_login_response_structure(self, api_client, user):
+    def test_login_response_structure(self, api_client, user, valid_login_data):
         """로그인 응답 구조 검증"""
         # Arrange
         login_url = reverse("auth-login")
-        login_data = {
-            "username": "testuser",
-            "password": "testpass123",
-        }
 
         # Act
-        response = api_client.post(login_url, login_data, format="json")
+        response = api_client.post(login_url, valid_login_data, format="json")
 
         # Assert
         assert response.status_code == status.HTTP_200_OK
@@ -71,17 +63,13 @@ class TestLoginSuccess:
         # 민감 정보 제외 확인
         assert "password" not in user_data, "응답에 비밀번호가 포함되어서는 안됩니다"
 
-    def test_login_jwt_tokens_format(self, api_client, user):
+    def test_login_jwt_tokens_format(self, api_client, user, valid_login_data):
         """JWT 토큰 형식 검증"""
         # Arrange
         login_url = reverse("auth-login")
-        login_data = {
-            "username": "testuser",
-            "password": "testpass123",
-        }
 
         # Act
-        response = api_client.post(login_url, login_data, format="json")
+        response = api_client.post(login_url, valid_login_data, format="json")
 
         # Assert
         assert response.status_code == status.HTTP_200_OK

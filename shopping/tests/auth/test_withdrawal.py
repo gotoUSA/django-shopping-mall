@@ -200,22 +200,25 @@ class TestWithdrawalTokenInvalidation:
 class TestWithdrawalDataPreservation:
     """데이터 보존 테스트"""
 
-    def test_points_preserved_after_withdrawal(self, authenticated_client, user):
+    def test_points_preserved_after_withdrawal(self, api_client, user_with_points):
         """탈퇴 후 포인트 보존 확인"""
-        # Arrange - 포인트 설정
-        initial_points = 5000
-        user.points = initial_points
-        user.save()
+        # Arrange - user_with_points fixture 사용 (5000 포인트)
+        initial_points = user_with_points.points
+
+        # 인증 클라이언트 설정
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken.for_user(user_with_points)
+        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(refresh.access_token)}")
 
         url = reverse("user-withdraw")
         data = {"password": "testpass123"}
 
         # Act
-        authenticated_client.post(url, data, format="json")
+        api_client.post(url, data, format="json")
 
         # Assert
-        user.refresh_from_db()
-        assert user.points == initial_points
+        user_with_points.refresh_from_db()
+        assert user_with_points.points == initial_points
 
     def test_orders_preserved_after_withdrawal(self, authenticated_client, paid_order):
         """탈퇴 후 주문 내역 보존 확인"""

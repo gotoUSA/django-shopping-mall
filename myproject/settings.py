@@ -201,8 +201,26 @@ REST_FRAMEWORK = {
     ],
 }
 
-# Rate Limiting (Throttling) 설정 - 테스트 환경에서는 비활성화
-if not TESTING:
+# Rate Limiting (Throttling) 설정
+# 테스트 환경에서는 매우 높은 제한값으로 설정 (동시성 테스트 통과용)
+if TESTING:
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
+        "login": "1000/min",
+        "register": "1000/hour",
+        "token_refresh": "1000/min",
+        "password_reset": "1000/hour",
+        "email_verification": "1000/min",
+        "email_verification_resend": "1000/hour",
+        "payment_request": "1000/min",
+        "payment_confirm": "1000/min",
+        "payment_cancel": "1000/min",
+        "order_create": "1000/min",
+        "order_cancel": "1000/min",
+        "anon_global": "10000/hour",
+        "user_global": "10000/hour",
+        "webhook": "1000/min",
+    }
+else:
     REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = [
         "shopping.throttles.GlobalAnonRateThrottle",  # 비인증 사용자 전역 제한
         "shopping.throttles.GlobalUserRateThrottle",  # 인증 사용자 전역 제한

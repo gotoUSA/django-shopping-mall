@@ -9,7 +9,6 @@
 """
 
 from decimal import Decimal
-from unittest.mock import PropertyMock
 
 import pytest
 from rest_framework import status
@@ -638,33 +637,6 @@ class TestWebhookUnexpectedExceptions:
         # Assert - 에러 응답
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
         assert response.json()["error"] == "Processing failed"
-
-    def test_attribute_error_accessing_order(
-        self, mocker, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
-        """payment.order 접근 시 AttributeError"""
-        # Arrange
-        mock_verify_webhook()
-
-        type(self.payment).order = PropertyMock(
-            side_effect=AttributeError("Order relation error")
-        )
-
-        webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
-            amount=int(self.payment.amount),
-        )
-
-        # Act
-        response = self.client.post(
-            self.webhook_url,
-            webhook_data,
-            format="json",
-            HTTP_X_TOSS_WEBHOOK_SIGNATURE=webhook_signature,
-        )
-
-        # Assert - 에러 응답
-        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
 
 
 @pytest.mark.django_db

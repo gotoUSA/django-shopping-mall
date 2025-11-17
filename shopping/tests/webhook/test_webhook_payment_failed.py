@@ -15,23 +15,42 @@ class TestPaymentFailedWebhook:
     """결제 실패 웹훅 처리"""
 
     @pytest.fixture(autouse=True)
-    def setup(self, api_client, user, product, order, payment, webhook_url):
+    def setup(self, api_client, user, product, webhook_url):
         """테스트 환경 설정"""
+        from shopping.models.order import Order, OrderItem
         from shopping.models.payment import Payment
 
         self.client = api_client
         self.user = user
         self.product = product
-        self.order = order
         self.webhook_url = webhook_url
 
-        # 각 테스트마다 완전히 새로운 payment 생성 (parametrize 격리)
-        payment.delete()
+        # 각 테스트마다 완전히 새로운 order와 payment 생성 (병렬 테스트 격리)
+        self.order = Order.objects.create(
+            user=user,
+            status="pending",
+            total_amount=product.price,
+            final_amount=product.price,
+            shipping_name="홍길동",
+            shipping_phone="010-9999-8888",
+            shipping_postal_code="12345",
+            shipping_address="서울시 강남구 테스트로 123",
+            shipping_address_detail="101동 202호",
+        )
+
+        OrderItem.objects.create(
+            order=self.order,
+            product=product,
+            product_name=product.name,
+            quantity=1,
+            price=product.price,
+        )
+
         self.payment = Payment.objects.create(
-            order=order,
-            amount=order.total_amount,
+            order=self.order,
+            amount=self.order.total_amount,
             status="ready",
-            toss_order_id=order.order_number,
+            toss_order_id=self.order.order_number,
         )
 
     # ==========================================

@@ -14,11 +14,10 @@ import factory
 from django.utils import timezone
 from factory.django import DjangoModelFactory
 
-from shopping.models.category import Category
 from shopping.models.order import Order, OrderItem
 from shopping.models.payment import Payment
 from shopping.models.point import PointHistory
-from shopping.models.product import Product
+from shopping.models.product import Category, Product
 from shopping.models.user import User
 
 

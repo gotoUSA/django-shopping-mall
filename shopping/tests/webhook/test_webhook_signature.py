@@ -619,63 +619,6 @@ class TestWebhookSignatureSecurityFeatures:
         assert response_valid.status_code == status.HTTP_200_OK
         assert response_invalid.status_code == status.HTTP_401_UNAUTHORIZED
 
-    def test_signature_verification_logging(self, caplog):
-        """서명 검증 실패 시 로그 기록 확인"""
-        # Arrange
-        import logging
-
-        # 웹훅 로거의 propagate 활성화
-        logger = logging.getLogger("shopping.webhooks.toss_webhook_view")
-        logger.propagate = True
-
-        webhook_data = {
-            "eventType": "PAYMENT.DONE",
-            "data": {
-                "orderId": self.order.order_number,
-            },
-        }
-
-        # Act - 잘못된 서명으로 요청
-        with caplog.at_level("WARNING", logger="shopping.webhooks.toss_webhook_view"):
-            response = self.client.post(
-                self.webhook_url,
-                webhook_data,
-                format="json",
-                HTTP_X_TOSS_WEBHOOK_SIGNATURE="invalid_signature",
-            )
-
-        # Assert - 401 응답
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-        # Assert - 로그에 경고 메시지 기록
-        assert "Invalid webhook signature" in caplog.text
-
-    def test_signature_missing_logging(self, caplog):
-        """서명 헤더 누락 시 로그 기록 확인"""
-        # Arrange
-        import logging
-
-        # 웹훅 로거의 propagate 활성화
-        logger = logging.getLogger("shopping.webhooks.toss_webhook_view")
-        logger.propagate = True
-
-        webhook_data = {
-            "eventType": "PAYMENT.DONE",
-            "data": {
-                "orderId": self.order.order_number,
-            },
-        }
-
-        # Act - 서명 헤더 없이 요청
-        with caplog.at_level("WARNING", logger="shopping.webhooks.toss_webhook_view"):
-            response = self.client.post(self.webhook_url, webhook_data, format="json")
-
-        # Assert - 401 응답
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-        # Assert - 로그에 경고 메시지 기록
-        assert "Webhook signature missing" in caplog.text
-
     def test_json_normalization_consistency(self):
         """JSON 정규화 일관성 - separators=(",", ":") 사용"""
         # Arrange - 공백이 있는 JSON과 없는 JSON

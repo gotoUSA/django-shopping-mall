@@ -200,11 +200,11 @@ class CompletedPaymentFactory(PaymentFactory):
     완료된 Payment Factory
 
     status='done'이며 approved_at이 설정됩니다.
+    is_paid는 status='done'일 때 자동으로 True가 됩니다.
     """
 
     status = "done"
     approved_at = factory.LazyFunction(timezone.now)
-    is_paid = True
 
 
 class OrderWithItemsFactory(OrderFactory):

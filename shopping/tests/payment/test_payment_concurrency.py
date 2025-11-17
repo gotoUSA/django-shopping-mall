@@ -633,10 +633,11 @@ class TestPaymentConcurrencyBoundary:
                 current_count = call_count[0]
 
             if current_count <= 2:
-                # 고유한 payment_key 생성 (중복 방지)
+                # Factory가 생성한 고유 payment_key 사용
+                payment_key = kwargs.get("payment_key", f"fallback_key_{current_count}")
                 order_id = kwargs.get("order_id", f"ORDER_{current_count}")
                 return TossResponseBuilder.success_response(
-                    payment_key=f"test_payment_key_{current_count}_{order_id}",
+                    payment_key=payment_key,
                     order_id=order_id,
                 )
             else:
@@ -727,7 +728,13 @@ class TestPaymentConcurrencyException:
                 current_count = call_count[0]
 
             if current_count == 1:
-                return TossResponseBuilder.success_response()
+                # Factory가 생성한 고유 payment_key 사용
+                payment_key = kwargs.get("payment_key", f"fallback_key_{current_count}")
+                order_id = kwargs.get("order_id", f"ORDER_{current_count}")
+                return TossResponseBuilder.success_response(
+                    payment_key=payment_key,
+                    order_id=order_id,
+                )
             else:
                 from shopping.utils.toss_payment import TossPaymentError
 

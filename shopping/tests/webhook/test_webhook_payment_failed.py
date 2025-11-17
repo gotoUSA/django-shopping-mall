@@ -4,6 +4,8 @@
 토스페이먼츠 PAYMENT.FAILED 이벤트 처리 및 중복 요청 방지 테스트
 """
 
+import uuid
+
 import pytest
 from rest_framework import status
 
@@ -23,8 +25,13 @@ class TestPaymentFailedWebhook:
         self.product = product
         self.webhook_url = webhook_url
 
-        # Factory 사용으로 고유한 order_number 자동 생성 (병렬 테스트 격리)
-        self.order = OrderFactory(user=user, status="pending")
+        # UUID로 완전히 고유한 order_number 생성 (병렬 테스트 완전 격리)
+        unique_suffix = uuid.uuid4().hex[:8]
+        from django.utils import timezone
+
+        order_number = f"{timezone.now().strftime('%Y%m%d')}{unique_suffix}"
+
+        self.order = OrderFactory(user=user, status="pending", order_number=order_number)
         OrderItemFactory(order=self.order, product=product)
         self.payment = PaymentFactory(order=self.order, status="ready")
 

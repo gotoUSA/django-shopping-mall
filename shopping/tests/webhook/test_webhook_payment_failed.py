@@ -17,17 +17,22 @@ class TestPaymentFailedWebhook:
     @pytest.fixture(autouse=True)
     def setup(self, api_client, user, product, order, payment, webhook_url):
         """테스트 환경 설정"""
+        from shopping.models.payment import Payment
+
         self.client = api_client
         self.user = user
         self.product = product
         self.order = order
-        self.payment = payment
         self.webhook_url = webhook_url
 
-        # 각 테스트 시작 전에 payment 상태 초기화 (parametrize 테스트 격리)
-        self.payment.status = "ready"
-        self.payment.fail_reason = ""
-        self.payment.save()
+        # 각 테스트마다 완전히 새로운 payment 생성 (parametrize 격리)
+        payment.delete()
+        self.payment = Payment.objects.create(
+            order=order,
+            amount=order.total_amount,
+            status="ready",
+            toss_order_id=order.order_number,
+        )
 
     # ==========================================
     # 1단계: 정상 케이스 (Happy Path)

@@ -80,45 +80,6 @@ class TestPaymentFailedWebhook:
         assert "실패" in log.message
         assert "카드 한도 초과" in log.message
 
-    @pytest.mark.parametrize(
-        "fail_reason",
-        [
-            "카드 한도 초과",
-            "카드 인증 실패",
-            "잔액 부족",
-            "유효하지 않은 카드",
-            "카드 정보 불일치",
-            "거래 거절",
-            "결제 시스템 오류",
-        ],
-    )
-    def test_payment_failed_with_various_reasons(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature, fail_reason
-    ):
-        """다양한 실패 사유 처리"""
-        # Arrange
-        mock_verify_webhook()
-        webhook_data = webhook_data_builder(
-            event_type="PAYMENT.FAILED",
-            order_id=self.order.order_number,
-            fail_reason=fail_reason,
-        )
-
-        # Act
-        response = self.client.post(
-            self.webhook_url,
-            webhook_data,
-            format="json",
-            HTTP_X_TOSS_WEBHOOK_SIGNATURE=webhook_signature,
-        )
-
-        # Assert
-        assert response.status_code == status.HTTP_200_OK
-
-        self.payment.refresh_from_db()
-        assert self.payment.status == "aborted"
-        assert self.payment.fail_reason == fail_reason
-
     # ==========================================
     # 2단계: 경계값/중복 케이스 (Boundary)
     # ==========================================
@@ -473,3 +434,65 @@ class TestPaymentFailedWebhook:
         self.payment.refresh_from_db()
         assert self.payment.status == "aborted"
         assert self.payment.fail_reason == unicode_reason
+
+
+@pytest.mark.django_db
+class TestPaymentFailedVariousReasons:
+    """다양한 실패 사유 테스트 (parametrize 격리)"""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, api_client, user, product, webhook_url):
+        """테스트 환경 설정"""
+        self.client = api_client
+        self.user = user
+        self.product = product
+        self.webhook_url = webhook_url
+
+        # UUID로 완전히 고유한 order_number 생성 (병렬 테스트 완전 격리)
+        unique_suffix = uuid.uuid4().hex[:8]
+        from django.utils import timezone
+
+        order_number = f"{timezone.now().strftime('%Y%m%d')}{unique_suffix}"
+
+        self.order = OrderFactory(user=user, status="pending", order_number=order_number)
+        OrderItemFactory(order=self.order, product=product)
+        self.payment = PaymentFactory(order=self.order, status="ready")
+
+    @pytest.mark.parametrize(
+        "fail_reason",
+        [
+            "카드 한도 초과",
+            "카드 인증 실패",
+            "잔액 부족",
+            "유효하지 않은 카드",
+            "카드 정보 불일치",
+            "거래 거절",
+            "결제 시스템 오류",
+        ],
+    )
+    def test_payment_failed_with_various_reasons(
+        self, mock_verify_webhook, webhook_data_builder, webhook_signature, fail_reason
+    ):
+        """다양한 실패 사유 처리"""
+        # Arrange
+        mock_verify_webhook()
+        webhook_data = webhook_data_builder(
+            event_type="PAYMENT.FAILED",
+            order_id=self.order.order_number,
+            fail_reason=fail_reason,
+        )
+
+        # Act
+        response = self.client.post(
+            self.webhook_url,
+            webhook_data,
+            format="json",
+            HTTP_X_TOSS_WEBHOOK_SIGNATURE=webhook_signature,
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+
+        self.payment.refresh_from_db()
+        assert self.payment.status == "aborted"
+        assert self.payment.fail_reason == fail_reason

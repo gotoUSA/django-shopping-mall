@@ -83,15 +83,15 @@ def setup_logging_for_tests():
     """
     import logging
 
-    # shopping.services 로거와 그 하위 로거들의 propagate를 True로 설정
-    # 설정 파일이 아닌 실제 로거 객체를 직접 변경
-    logger = logging.getLogger("shopping.services")
-    logger.propagate = True
-
-    # 하위 로거들도 명시적으로 설정 (필요시)
-    for logger_name in ["shopping.services.order_service", "shopping.services.payment_service"]:
-        child_logger = logging.getLogger(logger_name)
-        child_logger.propagate = True
+    # shopping 앱의 주요 로거들 propagate 설정
+    for logger_name in [
+        "shopping.services",
+        "shopping.services.order_service",
+        "shopping.services.payment_service",
+        "shopping.webhooks",
+    ]:
+        logger = logging.getLogger(logger_name)
+        logger.propagate = True
 
 
 @pytest.fixture(scope="session")

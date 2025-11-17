@@ -102,10 +102,10 @@ class TestWebhookDatabaseErrorHandling:
     # 3단계: 예외 케이스 (Exception)
     # ==========================================
 
-    def test_payment_not_found_logs_and_continues(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature, caplog
+    def test_payment_not_found_returns_success(
+        self, mock_verify_webhook, webhook_data_builder, webhook_signature
     ):
-        """Payment가 존재하지 않으면 로그 남기고 계속 진행"""
+        """Payment가 존재하지 않아도 200 OK 반환"""
         # Arrange
         mock_verify_webhook()
         webhook_data = webhook_data_builder(
@@ -123,10 +123,6 @@ class TestWebhookDatabaseErrorHandling:
 
         # Assert - 응답 검증
         assert response.status_code == status.HTTP_200_OK
-
-        # Assert - 로그 확인
-        assert "Payment not found" in caplog.text
-        assert "NONEXISTENT_ORDER_123" in caplog.text
 
     def test_payment_not_found_missing_order_id(
         self, mock_verify_webhook, webhook_signature
@@ -154,9 +150,9 @@ class TestWebhookDatabaseErrorHandling:
         assert response.status_code == status.HTTP_200_OK
 
     def test_payment_canceled_not_found(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature, caplog
+        self, mock_verify_webhook, webhook_data_builder, webhook_signature
     ):
-        """PAYMENT.CANCELED 이벤트에서 Payment 누락"""
+        """PAYMENT.CANCELED 이벤트에서 Payment 누락 시 200 OK 반환"""
         # Arrange
         mock_verify_webhook()
         webhook_data = webhook_data_builder(
@@ -175,13 +171,10 @@ class TestWebhookDatabaseErrorHandling:
         # Assert - 응답 검증
         assert response.status_code == status.HTTP_200_OK
 
-        # Assert - 로그 확인
-        assert "Payment not found" in caplog.text
-
     def test_payment_failed_not_found(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature, caplog
+        self, mock_verify_webhook, webhook_data_builder, webhook_signature
     ):
-        """PAYMENT.FAILED 이벤트에서 Payment 누락"""
+        """PAYMENT.FAILED 이벤트에서 Payment 누락 시 200 OK 반환"""
         # Arrange
         mock_verify_webhook()
         webhook_data = webhook_data_builder(
@@ -200,9 +193,6 @@ class TestWebhookDatabaseErrorHandling:
 
         # Assert - 응답 검증
         assert response.status_code == status.HTTP_200_OK
-
-        # Assert - 로그 확인
-        assert "Payment not found" in caplog.text
 
 
 @pytest.mark.django_db

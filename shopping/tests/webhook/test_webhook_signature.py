@@ -642,7 +642,7 @@ class TestWebhookSignatureSecurityFeatures:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
         # Assert - 로그에 경고 메시지 기록
-        assert any("Invalid webhook signature" in record.message for record in caplog.records)
+        assert "Invalid webhook signature" in caplog.text
 
     def test_signature_missing_logging(self, caplog):
         """서명 헤더 누락 시 로그 기록 확인"""
@@ -662,7 +662,7 @@ class TestWebhookSignatureSecurityFeatures:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
         # Assert - 로그에 경고 메시지 기록
-        assert any("Webhook signature missing" in record.message for record in caplog.records)
+        assert "Webhook signature missing" in caplog.text
 
     def test_json_normalization_consistency(self):
         """JSON 정규화 일관성 - separators=(",", ":") 사용"""

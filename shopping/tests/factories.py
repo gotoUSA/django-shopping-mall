@@ -81,6 +81,7 @@ class UserFactory(DjangoModelFactory):
     class Meta:
         model = User
         django_get_or_create = ("username",)
+        skip_postgeneration_save = True
 
     username = factory.Sequence(lambda n: f"testuser{n}")
     email = factory.LazyAttribute(lambda obj: f"{obj.username}@test.com")
@@ -541,7 +542,9 @@ class PaymentFactory(DjangoModelFactory):
 
     사용 예시:
         payment = PaymentFactory()  # ready 상태
-        payment = PaymentFactory.done()  # 완료
+        payment = PaymentFactory.done()  # 완료 (일반)
+        payment = PaymentFactory.done_card()  # 카드 결제 완료
+        payment = PaymentFactory.done(method="계좌이체")  # 계좌이체 완료
         payment = PaymentFactory.canceled()  # 취소
     """
 
@@ -569,7 +572,14 @@ class PaymentFactory(DjangoModelFactory):
 
     @classmethod
     def done(cls, **kwargs):
-        """결제 완료 상태"""
+        """결제 완료 상태 (일반)"""
+        kwargs.setdefault("status", "done")
+        kwargs.setdefault("approved_at", timezone.now())
+        return cls(**kwargs)
+
+    @classmethod
+    def done_card(cls, **kwargs):
+        """카드 결제 완료 상태"""
         kwargs.setdefault("status", "done")
         kwargs.setdefault("method", "카드")
         kwargs.setdefault("approved_at", timezone.now())

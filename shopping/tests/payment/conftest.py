@@ -19,6 +19,7 @@ payment 테스트에만 필요한 특화된 fixture를 정의합니다.
 from decimal import Decimal
 
 import pytest
+from django.db.models import F
 
 from shopping.models.order import Order, OrderItem
 from shopping.models.payment import Payment
@@ -546,8 +547,6 @@ def create_order(db, default_shipping_info):
         # 커스텀 배송 정보
         order = create_order(user=user, product=product, shipping_name="박영희")
     """
-    from django.db.models import F
-
     created_orders = []
 
     def _create_order(
@@ -626,9 +625,14 @@ def create_order(db, default_shipping_info):
     yield _create_order
 
     # Cleanup: 생성된 주문들 삭제 (역순으로)
+    # ProtectedError 방지를 위해 try-except 사용
     for order in reversed(created_orders):
-        if Order.objects.filter(pk=order.pk).exists():
-            order.delete()
+        try:
+            if Order.objects.filter(pk=order.pk).exists():
+                order.delete()
+        except Exception:
+            # pytest-django가 트랜잭션을 롤백하므로 cleanup 실패는 무시
+            pass
 
 
 @pytest.fixture

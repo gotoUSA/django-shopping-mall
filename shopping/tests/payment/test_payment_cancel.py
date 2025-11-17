@@ -21,6 +21,7 @@ class TestPaymentCancelNormalCase:
         paid_order,
         paid_payment,
         product,
+        toss_cancel_response_builder,
         mocker,
     ):
         """정상 결제 취소 (전체) - 전체 플로우 검증"""
@@ -90,10 +91,7 @@ class TestPaymentCancelNormalCase:
     ):
         """Payment 상태 변경 (done → canceled)"""
         # Arrange
-        toss_cancel_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-        }
+        toss_cancel_response = toss_cancel_response_builder()
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
@@ -132,10 +130,7 @@ class TestPaymentCancelNormalCase:
     ):
         """Order 상태 변경 (paid → canceled)"""
         # Arrange
-        toss_cancel_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-        }
+        toss_cancel_response = toss_cancel_response_builder()
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
@@ -176,10 +171,7 @@ class TestPaymentCancelNormalCase:
         order_item = order.order_items.first()
         order_quantity = order_item.quantity
 
-        toss_cancel_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-        }
+        toss_cancel_response = toss_cancel_response_builder()
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
@@ -218,10 +210,7 @@ class TestPaymentCancelNormalCase:
         order_item = order.order_items.first()
         order_quantity = order_item.quantity
 
-        toss_cancel_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-        }
+        toss_cancel_response = toss_cancel_response_builder()
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
@@ -251,6 +240,9 @@ class TestPaymentCancelNormalCase:
         authenticated_client,
         user,
         category,
+        sku_generator,
+        adjust_stock,
+        toss_cancel_response_builder,
         mocker,
     ):
         """여러 상품 주문 취소 시 모든 재고 복구"""
@@ -262,7 +254,7 @@ class TestPaymentCancelNormalCase:
                 price=Decimal("10000") * (i + 1),
                 stock=10,
                 sold_count=0,
-                sku=f"TEST-CANCEL-{i+1:03d}",
+                sku=sku_generator("CANCEL"),
                 is_active=True,
             )
             for i in range(3)
@@ -290,11 +282,7 @@ class TestPaymentCancelNormalCase:
                 quantity=2,
                 price=product.price,
             )
-            Product.objects.filter(pk=product.pk).update(
-                stock=product.stock - 2,
-                sold_count=product.sold_count + 2,
-            )
-            product.refresh_from_db()
+            adjust_stock(product, stock_delta=-2, sold_delta=2)
 
         # Payment 생성
         payment = Payment.objects.create(
@@ -310,10 +298,7 @@ class TestPaymentCancelNormalCase:
         initial_stocks = {p.id: p.stock for p in products}
         initial_sold_counts = {p.id: p.sold_count for p in products}
 
-        toss_cancel_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-        }
+        toss_cancel_response = toss_cancel_response_builder()
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
@@ -380,8 +365,7 @@ class TestPaymentCancelNormalCase:
         )
 
         # 재고 차감 시뮬레이션
-        Product.objects.filter(pk=product.pk).update(stock=F("stock") - 1, sold_count=(F("sold_count") + 1))
-        product.refresh_from_db()
+        adjust_stock(product, stock_delta=-1, sold_delta=1)
 
         payment = Payment.objects.create(
             order=order,
@@ -392,10 +376,7 @@ class TestPaymentCancelNormalCase:
             method="카드",
         )
 
-        toss_cancel_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-        }
+        toss_cancel_response = toss_cancel_response_builder()
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
@@ -459,10 +440,7 @@ class TestPaymentCancelNormalCase:
             description="결제 완료 적립",
         )
 
-        toss_cancel_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-        }
+        toss_cancel_response = toss_cancel_response_builder()
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
@@ -535,8 +513,7 @@ class TestPaymentCancelNormalCase:
         )
 
         # 재고 차감 시뮬레이션
-        Product.objects.filter(pk=product.pk).update(stock=F("stock") - 1, sold_count=(F("sold_count") + 1))
-        product.refresh_from_db()
+        adjust_stock(product, stock_delta=-1, sold_delta=1)
         payment = Payment.objects.create(
             order=order,
             amount=order.total_amount,
@@ -546,10 +523,7 @@ class TestPaymentCancelNormalCase:
             method="카드",
         )
 
-        toss_cancel_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-        }
+        toss_cancel_response = toss_cancel_response_builder()
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
@@ -585,10 +559,7 @@ class TestPaymentCancelNormalCase:
     ):
         """취소 로그 기록 확인"""
         # Arrange
-        toss_cancel_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-        }
+        toss_cancel_response = toss_cancel_response_builder()
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",

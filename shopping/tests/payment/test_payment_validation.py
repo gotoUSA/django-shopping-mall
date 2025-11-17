@@ -41,6 +41,8 @@ class TestPaymentValidationNormalCase:
         authenticated_client,
         user,
         category,
+        sku_generator,
+        create_order,
     ):
         """큰 금액 결제 (100,000,000원)"""
         # Arrange - 1억원 상품 주문 생성
@@ -49,29 +51,11 @@ class TestPaymentValidationNormalCase:
             category=category,
             price=Decimal("100000000"),
             stock=10,
-            sku="TEST-LARGE-001",
+            sku=sku_generator("LARGE"),
             is_active=True,
         )
 
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=large_product.price,
-            final_amount=large_product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
-        )
-
-        OrderItem.objects.create(
-            order=order,
-            product=large_product,
-            product_name=large_product.name,
-            quantity=1,
-            price=large_product.price,
-        )
+        order = create_order(user=user, product=large_product, status="pending")
 
         request_data = {"order_id": order.id}
 

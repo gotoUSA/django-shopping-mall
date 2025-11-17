@@ -40,24 +40,12 @@ def login_and_get_token(username, password="testpass123"):
     return client, token, None
 
 
-def create_test_user(username, email, phone_number, points=5000, is_verified=True):
-    """테스트 사용자 생성 헬퍼"""
-    return User.objects.create_user(
-        username=username,
-        email=email,
-        password="testpass123",
-        phone_number=phone_number,
-        points=points,
-        is_email_verified=is_verified,
-    )
-
-
 @pytest.mark.django_db(transaction=True)
 class TestPaymentConcurrencyHappyPath:
     """정상 케이스 - 충분한 재고와 포인트가 있는 상황"""
 
     def test_concurrent_payment_confirm_multiple_users(
-        self, product, category, shipping_data, mocker
+        self, product, user_factory, create_order, toss_response_builder, mocker
     ):
         """여러 사용자가 서로 다른 주문을 동시 결제 승인"""
         # Arrange
@@ -70,32 +58,11 @@ class TestPaymentConcurrencyHappyPath:
 
         for i in range(5):
             # 사용자 생성
-            user = create_test_user(
-                username=f"payment_user{i}",
-                email=f"payment{i}@test.com",
-                phone_number=f"010-1000-000{i}",
-            )
+            user = user_factory(username=f"payment_user{i}")
             users.append(user)
 
             # 주문 생성
-            order = Order.objects.create(
-                user=user,
-                status="pending",
-                total_amount=product.price,
-                final_amount=product.price,
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
-            )
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
-            )
+            order = create_order(user=user, product=product, status="pending")
             orders.append(order)
 
             # Payment 생성
@@ -108,11 +75,7 @@ class TestPaymentConcurrencyHappyPath:
             payments.append(payment)
 
         # Toss API Mock
-        toss_response = {
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "method": "카드",
-        }
+        toss_response = toss_response_builder()
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
             return_value=toss_response,
@@ -177,7 +140,7 @@ class TestPaymentConcurrencyHappyPath:
         assert product.sold_count == 5, f"sold_count는 5 증가해야 함. 실제: {product.sold_count}"
 
     def test_concurrent_payment_with_stock_deduction(
-        self, product, category, shipping_data, mocker
+        self, product, user_factory, create_order, toss_response_builder, mocker
     ):
         """충분한 재고에서 동시 결제 승인 (재고 차감 검증)"""
         # Arrange
@@ -190,31 +153,10 @@ class TestPaymentConcurrencyHappyPath:
         quantity_per_order = 2
 
         for i in range(3):
-            user = create_test_user(
-                username=f"stock_user{i}",
-                email=f"stock{i}@test.com",
-                phone_number=f"010-2000-000{i}",
-            )
+            user = user_factory(username=f"stock_user{i}")
             users.append(user)
 
-            order = Order.objects.create(
-                user=user,
-                status="pending",
-                total_amount=product.price * quantity_per_order,
-                final_amount=product.price * quantity_per_order,
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
-            )
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                product_name=product.name,
-                quantity=quantity_per_order,
-                price=product.price,
-            )
+            order = create_order(user=user, product=product, quantity=quantity_per_order, status="pending")
 
             payment = Payment.objects.create(
                 order=order,
@@ -224,11 +166,7 @@ class TestPaymentConcurrencyHappyPath:
             )
             payments.append(payment)
 
-        toss_response = {
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "method": "카드",
-        }
+        toss_response = toss_response_builder()
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
             return_value=toss_response,
@@ -278,38 +216,20 @@ class TestPaymentConcurrencyHappyPath:
         product.refresh_from_db()
         assert product.sold_count == 6, f"sold_count 6 증가. 실제: {product.sold_count}"
 
-    def test_concurrent_payment_point_earn(self, product, mocker):
+    def test_concurrent_payment_point_earn(self, product, user_factory, create_order, toss_response_builder, mocker):
         """포인트 적립 동시성 (여러 결제가 동시에 완료되어 포인트 적립)"""
         # Arrange
         users = []
         payments = []
 
         for i in range(3):
-            user = create_test_user(
-                username=f"point_earn_user{i}",
-                email=f"pointearn{i}@test.com",
-                phone_number=f"010-3000-000{i}",
-                points=0,
-            )
+            user = user_factory(username=f"point_earn_user{i}", points=0)
             users.append(user)
 
-            order = Order.objects.create(
+            order = create_order(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                final_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
-            )
-            OrderItem.objects.create(
-                order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
+                status="pending"
             )
 
             payment = Payment.objects.create(
@@ -320,11 +240,7 @@ class TestPaymentConcurrencyHappyPath:
             )
             payments.append(payment)
 
-        toss_response = {
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "method": "카드",
-        }
+        toss_response = toss_response_builder()
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
             return_value=toss_response,
@@ -375,33 +291,12 @@ class TestPaymentConcurrencyHappyPath:
             user.refresh_from_db()
             assert user.points == 100, f"{user.username}의 포인트 100P 적립. 실제: {user.points}"
 
-    def test_concurrent_payment_request_retry(self, product, shipping_data):
+    def test_concurrent_payment_request_retry(self, product, user_factory, create_order):
         """동일 주문에 대한 결제 요청 재시도 (기존 Payment 삭제/재생성)"""
         # Arrange
-        user = create_test_user(
-            username="retry_user",
-            email="retry@test.com",
-            phone_number="010-4000-0001",
-        )
+        user = user_factory(username="retry_user")
 
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=product.price,
-            final_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
-        )
-        OrderItem.objects.create(
-            order=order,
-            product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
-        )
+        order = create_order(user=user, product=product, status="pending")
 
         # 기존 Payment 생성
         old_payment = Payment.objects.create(
@@ -458,7 +353,7 @@ class TestPaymentConcurrencyHappyPath:
         # 새 Payment가 생성되었어야 함
         assert Payment.objects.filter(order=order).exists()
 
-    def test_concurrent_payment_with_points_usage(self, product, mocker):
+    def test_concurrent_payment_with_points_usage(self, product, user_factory, create_order, toss_response_builder, mocker):
         """여러 사용자가 포인트 사용하며 동시 결제"""
         # Arrange
         product.price = Decimal("10000")
@@ -468,12 +363,7 @@ class TestPaymentConcurrencyHappyPath:
         payments = []
 
         for i in range(3):
-            user = create_test_user(
-                username=f"point_use_user{i}",
-                email=f"pointuse{i}@test.com",
-                phone_number=f"010-5000-000{i}",
-                points=5000,
-            )
+            user = user_factory(username=f"point_use_user{i}", points=5000)
             users.append(user)
 
             # 포인트 차감 (FIFO 방식)
@@ -481,24 +371,11 @@ class TestPaymentConcurrencyHappyPath:
             result = point_service.use_points_fifo(user=user, amount=1000)
             assert result["success"]
 
-            order = Order.objects.create(
+            order = create_order(
                 user=user,
-                status="pending",
-                total_amount=product.price,
-                used_points=1000,
-                final_amount=product.price - Decimal("1000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
-            )
-            OrderItem.objects.create(
-                order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
+                status="pending",
+                used_points=1000
             )
 
             payment = Payment.objects.create(
@@ -509,11 +386,7 @@ class TestPaymentConcurrencyHappyPath:
             )
             payments.append(payment)
 
-        toss_response = {
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "method": "카드",
-        }
+        toss_response = toss_response_builder()
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
             return_value=toss_response,
@@ -570,7 +443,7 @@ class TestPaymentConcurrencyHappyPath:
 class TestPaymentConcurrencyBoundary:
     """경계값 테스트 - 재고나 포인트가 딱 맞는 경계 상황"""
 
-    def test_concurrent_payment_exact_stock_boundary(self, product, mocker):
+    def test_concurrent_payment_exact_stock_boundary(self, product, user_factory, create_order, toss_response_builder, mocker):
         """재고 딱 맞는 상황에서 동시 결제 (10개 재고, 10명 동시 결제)"""
         # Arrange
         product.stock = 10
@@ -580,31 +453,10 @@ class TestPaymentConcurrencyBoundary:
         payments = []
 
         for i in range(10):
-            user = create_test_user(
-                username=f"exact_stock{i}",
-                email=f"exactstock{i}@test.com",
-                phone_number=f"010-6000-{i:04d}",
-            )
+            user = user_factory(username=f"exact_stock{i}")
             users.append(user)
 
-            order = Order.objects.create(
-                user=user,
-                status="pending",
-                total_amount=product.price,
-                final_amount=product.price,
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
-            )
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
-            )
+            order = create_order(user=user, product=product, status="pending")
 
             payment = Payment.objects.create(
                 order=order,
@@ -614,11 +466,7 @@ class TestPaymentConcurrencyBoundary:
             )
             payments.append(payment)
 
-        toss_response = {
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "method": "카드",
-        }
+        toss_response = toss_response_builder()
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
             return_value=toss_response,

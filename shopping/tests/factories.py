@@ -166,7 +166,7 @@ class EmailVerificationTokenFactory(DjangoModelFactory):
     class Meta:
         model = "shopping.EmailVerificationToken"
 
-    user = factory.SubFactory(UserFactory.unverified)
+    user = factory.SubFactory(UserFactory, is_email_verified=False)
 
     @classmethod
     def valid(cls, **kwargs):
@@ -349,7 +349,7 @@ class ProductFactory(DjangoModelFactory):
 
     name = factory.Sequence(lambda n: f"테스트 상품 {n}")
     category = factory.SubFactory(CategoryFactory)
-    seller = factory.SubFactory(UserFactory.seller)
+    seller = factory.SubFactory(UserFactory, is_seller=True, is_email_verified=True)
     price = TestConstants.DEFAULT_PRODUCT_PRICE
     stock = TestConstants.DEFAULT_STOCK
     sku = factory.Sequence(lambda n: f"TEST-SKU-{n:06d}")
@@ -415,7 +415,7 @@ class OrderFactory(DjangoModelFactory):
     class Meta:
         model = Order
 
-    user = factory.SubFactory(UserFactory.verified)
+    user = factory.SubFactory(UserFactory, is_email_verified=True)
     status = "pending"
     total_amount = TestConstants.DEFAULT_PRODUCT_PRICE
     shipping_fee = TestConstants.DEFAULT_SHIPPING_FEE
@@ -616,7 +616,7 @@ class CartFactory(DjangoModelFactory):
     class Meta:
         model = Cart
 
-    user = factory.SubFactory(UserFactory.verified)
+    user = factory.SubFactory(UserFactory, is_email_verified=True)
     is_active = True
 
     @classmethod

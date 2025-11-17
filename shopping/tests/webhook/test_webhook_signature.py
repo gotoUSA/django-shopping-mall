@@ -622,6 +622,12 @@ class TestWebhookSignatureSecurityFeatures:
     def test_signature_verification_logging(self, caplog):
         """서명 검증 실패 시 로그 기록 확인"""
         # Arrange
+        import logging
+
+        # 웹훅 로거의 propagate 활성화
+        logger = logging.getLogger("shopping.webhooks.toss_webhook_view")
+        logger.propagate = True
+
         webhook_data = {
             "eventType": "PAYMENT.DONE",
             "data": {
@@ -630,7 +636,7 @@ class TestWebhookSignatureSecurityFeatures:
         }
 
         # Act - 잘못된 서명으로 요청
-        with caplog.at_level("WARNING"):
+        with caplog.at_level("WARNING", logger="shopping.webhooks.toss_webhook_view"):
             response = self.client.post(
                 self.webhook_url,
                 webhook_data,
@@ -647,6 +653,12 @@ class TestWebhookSignatureSecurityFeatures:
     def test_signature_missing_logging(self, caplog):
         """서명 헤더 누락 시 로그 기록 확인"""
         # Arrange
+        import logging
+
+        # 웹훅 로거의 propagate 활성화
+        logger = logging.getLogger("shopping.webhooks.toss_webhook_view")
+        logger.propagate = True
+
         webhook_data = {
             "eventType": "PAYMENT.DONE",
             "data": {
@@ -655,7 +667,7 @@ class TestWebhookSignatureSecurityFeatures:
         }
 
         # Act - 서명 헤더 없이 요청
-        with caplog.at_level("WARNING"):
+        with caplog.at_level("WARNING", logger="shopping.webhooks.toss_webhook_view"):
             response = self.client.post(self.webhook_url, webhook_data, format="json")
 
         # Assert - 401 응답

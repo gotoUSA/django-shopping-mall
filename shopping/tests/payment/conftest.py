@@ -579,18 +579,27 @@ def create_order(db, default_shipping_info):
         shipping_data = default_shipping_info.copy()
         shipping_data.update(kwargs)
 
+        # payment_method 기본값 설정 (NOT NULL 제약 대응)
+        if payment_method is None:
+            if status in ["paid", "shipped", "delivered"]:
+                payment_method = "card"
+            else:
+                payment_method = ""  # pending, canceled 등의 경우 빈 문자열
+
         # Order 생성
-        order = Order.objects.create(
-            user=user,
-            status=status,
-            total_amount=total_amount,
-            used_points=used_points,
-            earned_points=earned_points,
-            final_amount=final_amount,
-            payment_method=payment_method,
-            order_number=order_number,
-            **shipping_data
-        )
+        order_data = {
+            "user": user,
+            "status": status,
+            "total_amount": total_amount,
+            "used_points": used_points,
+            "earned_points": earned_points,
+            "final_amount": final_amount,
+            "order_number": order_number,
+            "payment_method": payment_method,
+        }
+
+        order_data.update(shipping_data)
+        order = Order.objects.create(**order_data)
 
         # OrderItem 생성
         if products:

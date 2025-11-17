@@ -512,33 +512,16 @@ class TestPaymentConcurrencyBoundary:
         success_count = sum(1 for r in results if r.get("success", False))
         assert success_count == 10, f"10명 모두 성공. 성공: {success_count}"
 
-    def test_concurrent_duplicate_payment_request(self, product):
+    def test_concurrent_duplicate_payment_request(self, product, user_factory, create_order):
         """동일 주문 중복 결제 요청 (동시 호출)"""
         # Arrange
-        user = create_test_user(
+        user = user_factory(
             username="dup_req_user",
             email="dupreq@test.com",
             phone_number="010-7000-0001",
         )
 
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=product.price,
-            final_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
-        )
-        OrderItem.objects.create(
-            order=order,
-            product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
-        )
+        order = create_order(user=user, product=product, status="pending")
 
         results = []
         lock = threading.Lock()
@@ -576,14 +559,14 @@ class TestPaymentConcurrencyBoundary:
         # Payment는 1개만 존재
         assert Payment.objects.filter(order=order).count() == 1
 
-    def test_concurrent_full_point_payment(self, product, mocker):
+    def test_concurrent_full_point_payment(self, product, user_factory, create_order, mocker):
         """포인트 전액 사용 동시 결제"""
         # Arrange
         users = []
         payments = []
 
         for i in range(2):
-            user = create_test_user(
+            user = user_factory(
                 username=f"full_point{i}",
                 email=f"fullpoint{i}@test.com",
                 phone_number=f"010-8000-000{i}",
@@ -596,24 +579,11 @@ class TestPaymentConcurrencyBoundary:
             result = point_service.use_points_fifo(user=user, amount=int(product.price))
             assert result["success"]
 
-            order = Order.objects.create(
+            order = create_order(
                 user=user,
-                status="pending",
-                total_amount=product.price,
-                used_points=int(product.price),
-                final_amount=Decimal("0"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
-            )
-            OrderItem.objects.create(
-                order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
+                status="pending",
+                used_points=int(product.price)
             )
 
             payment = Payment.objects.create(
@@ -679,7 +649,7 @@ class TestPaymentConcurrencyBoundary:
             user.refresh_from_db()
             assert user.points == 0, f"포인트 0P. 실제: {user.points}"
 
-    def test_concurrent_stock_boundary_partial_success(self, product, mocker):
+    def test_concurrent_stock_boundary_partial_success(self, product, user_factory, create_order, mocker):
         """재고 경계값 (5개 재고, 3명이 2개씩 주문 → 2명만 성공)"""
         # Arrange
         product.stock = 5
@@ -689,30 +659,18 @@ class TestPaymentConcurrencyBoundary:
         payments = []
 
         for i in range(3):
-            user = create_test_user(
+            user = user_factory(
                 username=f"partial_user{i}",
                 email=f"partial{i}@test.com",
                 phone_number=f"010-9000-000{i}",
             )
             users.append(user)
 
-            order = Order.objects.create(
+            order = create_order(
                 user=user,
-                status="pending",
-                total_amount=product.price * 2,
-                final_amount=product.price * 2,
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
-            )
-            OrderItem.objects.create(
-                order=order,
                 product=product,
-                product_name=product.name,
                 quantity=2,
-                price=product.price,
+                status="pending"
             )
 
             payment = Payment.objects.create(
@@ -798,7 +756,7 @@ class TestPaymentConcurrencyBoundary:
 class TestPaymentConcurrencyException:
     """예외 케이스 - 재고 부족, 중복 처리 등"""
 
-    def test_concurrent_insufficient_stock(self, product, mocker):
+    def test_concurrent_insufficient_stock(self, product, user_factory, create_order, mocker):
         """재고 부족 시 동시 결제 (1개 재고, 5명 시도 → 1명만 성공)"""
         # Arrange
         product.stock = 1
@@ -808,31 +766,14 @@ class TestPaymentConcurrencyException:
         payments = []
 
         for i in range(5):
-            user = create_test_user(
+            user = user_factory(
                 username=f"insuf_user{i}",
                 email=f"insuf{i}@test.com",
                 phone_number=f"010-1100-000{i}",
             )
             users.append(user)
 
-            order = Order.objects.create(
-                user=user,
-                status="pending",
-                total_amount=product.price,
-                final_amount=product.price,
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
-            )
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
-            )
+            order = create_order(user=user, product=product, status="pending")
 
             payment = Payment.objects.create(
                 order=order,
@@ -907,33 +848,16 @@ class TestPaymentConcurrencyException:
         success_count = sum(1 for r in results if r.get("success", False))
         assert success_count == 1, f"1명만 성공. 성공: {success_count}"
 
-    def test_concurrent_duplicate_payment_confirm(self, product, mocker):
+    def test_concurrent_duplicate_payment_confirm(self, product, user_factory, create_order, mocker):
         """동일 결제 중복 승인 시도 (1개만 성공, 나머지 실패)"""
         # Arrange
-        user = create_test_user(
+        user = user_factory(
             username="dup_confirm_user",
             email="dupconfirm@test.com",
             phone_number="010-1200-0001",
         )
 
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=product.price,
-            final_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
-        )
-        OrderItem.objects.create(
-            order=order,
-            product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
-        )
+        order = create_order(user=user, product=product, status="pending")
 
         payment = Payment.objects.create(
             order=order,
@@ -998,32 +922,20 @@ class TestPaymentConcurrencyException:
         payment.refresh_from_db()
         assert payment.status == "done"
 
-    def test_concurrent_duplicate_payment_cancel(self, product, mocker):
+    def test_concurrent_duplicate_payment_cancel(self, product, user_factory, create_order, mocker):
         """동일 결제를 여러 번 동시 취소 시도 (1개만 성공)"""
         # Arrange
-        user = create_test_user(
+        user = user_factory(
             username="dup_cancel_user",
             email="dupcancel@test.com",
             phone_number="010-1300-0001",
         )
 
-        order = Order.objects.create(
+        order = create_order(
             user=user,
-            status="paid",
-            total_amount=product.price,
-            payment_method="card",
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
-        )
-        OrderItem.objects.create(
-            order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
+            status="paid",
+            payment_method="card"
         )
 
         from django.utils import timezone
@@ -1095,33 +1007,16 @@ class TestPaymentConcurrencyException:
         payment.refresh_from_db()
         assert payment.status == "canceled"
 
-    def test_concurrent_webhook_and_confirm(self, product, mocker):
+    def test_concurrent_webhook_and_confirm(self, product, user_factory, create_order, mocker):
         """웹훅과 confirm API 동시 호출 (race condition)"""
         # Arrange
-        user = create_test_user(
+        user = user_factory(
             username="webhook_user",
             email="webhook@test.com",
             phone_number="010-1400-0001",
         )
 
-        order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=product.price,
-            final_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
-        )
-        OrderItem.objects.create(
-            order=order,
-            product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
-        )
+        order = create_order(user=user, product=product, status="pending")
 
         payment = Payment.objects.create(
             order=order,
@@ -1233,10 +1128,10 @@ class TestPaymentConcurrencyException:
         order.refresh_from_db()
         assert order.status == "paid"
 
-    def test_concurrent_same_user_multiple_payments(self, product, mocker):
+    def test_concurrent_same_user_multiple_payments(self, product, user_factory, create_order, mocker):
         """동일 사용자가 여러 주문 동시 결제 시도"""
         # Arrange
-        user = create_test_user(
+        user = user_factory(
             username="multi_pay_user",
             email="multipay@test.com",
             phone_number="010-1500-0001",
@@ -1246,24 +1141,7 @@ class TestPaymentConcurrencyException:
         payments = []
 
         for i in range(3):
-            order = Order.objects.create(
-                user=user,
-                status="pending",
-                total_amount=product.price,
-                final_amount=product.price,
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
-            )
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
-            )
+            order = create_order(user=user, product=product, status="pending")
             orders.append(order)
 
             payment = Payment.objects.create(

@@ -87,6 +87,7 @@ class TestPaymentCancelNormalCase:
         self,
         authenticated_client,
         paid_payment,
+        toss_cancel_response_builder,
         mocker,
     ):
         """Payment 상태 변경 (done → canceled)"""
@@ -126,6 +127,7 @@ class TestPaymentCancelNormalCase:
         authenticated_client,
         paid_order,
         paid_payment,
+        toss_cancel_response_builder,
         mocker,
     ):
         """Order 상태 변경 (paid → canceled)"""
@@ -162,6 +164,7 @@ class TestPaymentCancelNormalCase:
         authenticated_client,
         paid_payment,
         product,
+        toss_cancel_response_builder,
         mocker,
     ):
         """재고 복구 확인"""
@@ -201,6 +204,7 @@ class TestPaymentCancelNormalCase:
         authenticated_client,
         paid_payment,
         product,
+        toss_cancel_response_builder,
         mocker,
     ):
         """sold_count 감소 확인"""
@@ -334,6 +338,8 @@ class TestPaymentCancelNormalCase:
         user,
         product,
         category,
+        adjust_stock,
+        toss_cancel_response_builder,
         mocker,
     ):
         """사용한 포인트 환불 확인"""
@@ -418,6 +424,7 @@ class TestPaymentCancelNormalCase:
         user,
         paid_order,
         paid_payment,
+        toss_cancel_response_builder,
         mocker,
     ):
         """적립된 포인트 회수 확인"""
@@ -481,6 +488,8 @@ class TestPaymentCancelNormalCase:
         authenticated_client,
         user,
         product,
+        adjust_stock,
+        toss_cancel_response_builder,
         mocker,
     ):
         """포인트 사용/적립 없는 주문 취소 (안전성 확인)"""
@@ -555,6 +564,7 @@ class TestPaymentCancelNormalCase:
         self,
         authenticated_client,
         paid_payment,
+        toss_cancel_response_builder,
         mocker,
     ):
         """취소 로그 기록 확인"""

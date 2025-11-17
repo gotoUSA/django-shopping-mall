@@ -97,7 +97,7 @@ class TestPaymentConcurrencyHappyPath:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
                     "order_id": payment_obj.order.order_number,
-                    "payment_key": "test_key",
+                    "payment_key": f"test_key_{payment_obj.id}",
                     "amount": int(payment_obj.amount),
                 }
                 response = client.post("/api/payments/confirm/", request_data, format="json")
@@ -187,7 +187,7 @@ class TestPaymentConcurrencyHappyPath:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
                     "order_id": payment_obj.order.order_number,
-                    "payment_key": "test_key",
+                    "payment_key": f"test_key_{payment_obj.id}",
                     "amount": int(payment_obj.amount),
                 }
                 response = client.post("/api/payments/confirm/", request_data, format="json")
@@ -261,7 +261,7 @@ class TestPaymentConcurrencyHappyPath:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
                     "order_id": payment_obj.order.order_number,
-                    "payment_key": "test_key",
+                    "payment_key": f"test_key_{payment_obj.id}",
                     "amount": int(payment_obj.amount),
                 }
                 response = client.post("/api/payments/confirm/", request_data, format="json")
@@ -407,7 +407,7 @@ class TestPaymentConcurrencyHappyPath:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
                     "order_id": payment_obj.order.order_number,
-                    "payment_key": "test_key",
+                    "payment_key": f"test_key_{payment_obj.id}",
                     "amount": int(payment_obj.amount),
                 }
                 response = client.post("/api/payments/confirm/", request_data, format="json")
@@ -487,7 +487,7 @@ class TestPaymentConcurrencyBoundary:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
                     "order_id": payment_obj.order.order_number,
-                    "payment_key": "test_key",
+                    "payment_key": f"test_key_{payment_obj.id}",
                     "amount": int(payment_obj.amount),
                 }
                 response = client.post("/api/payments/confirm/", request_data, format="json")
@@ -619,7 +619,7 @@ class TestPaymentConcurrencyBoundary:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
                     "order_id": payment_obj.order.order_number,
-                    "payment_key": "test_key",
+                    "payment_key": f"test_key_{payment_obj.id}",
                     "amount": 0,
                 }
                 response = client.post("/api/payments/confirm/", request_data, format="json")
@@ -721,7 +721,7 @@ class TestPaymentConcurrencyBoundary:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
                     "order_id": payment_obj.order.order_number,
-                    "payment_key": "test_key",
+                    "payment_key": f"test_key_{payment_obj.id}",
                     "amount": int(payment_obj.amount),
                 }
                 response = client.post("/api/payments/confirm/", request_data, format="json")
@@ -823,7 +823,7 @@ class TestPaymentConcurrencyException:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
                     "order_id": payment_obj.order.order_number,
-                    "payment_key": "test_key",
+                    "payment_key": f"test_key_{payment_obj.id}",
                     "amount": int(payment_obj.amount),
                 }
                 response = client.post("/api/payments/confirm/", request_data, format="json")
@@ -1177,7 +1177,7 @@ class TestPaymentConcurrencyException:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
                     "order_id": payment_obj.order.order_number,
-                    "payment_key": "test_key",
+                    "payment_key": f"test_key_{payment_obj.id}",
                     "amount": int(payment_obj.amount),
                 }
                 response = client.post("/api/payments/confirm/", request_data, format="json")

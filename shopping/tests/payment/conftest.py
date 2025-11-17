@@ -693,12 +693,12 @@ def toss_response_builder():
     Toss API 응답 빌더
 
     커스터마이징 가능한 Toss 결제 승인 응답 생성
-    - 기본값 제공
+    - 기본값 제공 (payment_key는 UUID로 자동 생성)
     - 부분 오버라이드 가능
     - 카드 정보 자동 생성
 
     Usage:
-        # 기본 응답
+        # 기본 응답 (고유 payment_key 자동 생성)
         response = toss_response_builder()
 
         # 금액 커스터마이징
@@ -715,9 +715,11 @@ def toss_response_builder():
             card_company="국민카드"
         )
     """
+    import uuid
+
     def _build(
         status="DONE",
-        payment_key="test_payment_key",
+        payment_key=None,
         order_id="ORDER_001",
         amount=10000,
         method="카드",
@@ -725,6 +727,10 @@ def toss_response_builder():
         approved_at="2025-01-15T10:00:00+09:00",
         **kwargs
     ):
+        # payment_key가 지정되지 않으면 고유한 UUID 생성
+        if payment_key is None:
+            payment_key = f"test_key_{uuid.uuid4().hex[:16]}"
+
         base_response = {
             "status": status,
             "paymentKey": payment_key,
@@ -758,7 +764,7 @@ def toss_cancel_response_builder():
     커스터마이징 가능한 Toss 결제 취소 응답 생성
 
     Usage:
-        # 전체 취소
+        # 전체 취소 (고유 payment_key 자동 생성)
         response = toss_cancel_response_builder()
 
         # 부분 취소
@@ -770,14 +776,20 @@ def toss_cancel_response_builder():
             cancel_reason="상품 품절"
         )
     """
+    import uuid
+
     def _build(
-        payment_key="test_payment_key",
+        payment_key=None,
         order_id="ORDER_001",
         canceled_amount=None,
         cancel_reason="고객 변심",
         canceled_at="2025-01-15T11:00:00+09:00",
         **kwargs
     ):
+        # payment_key가 지정되지 않으면 고유한 UUID 생성
+        if payment_key is None:
+            payment_key = f"test_key_{uuid.uuid4().hex[:16]}"
+
         response = {
             "status": "CANCELED",
             "paymentKey": payment_key,

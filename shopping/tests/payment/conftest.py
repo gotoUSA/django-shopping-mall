@@ -805,3 +805,46 @@ def toss_cancel_response_builder():
         return response
 
     return _build
+
+
+@pytest.fixture
+def build_payment_key():
+    """
+    테스트용 고유 payment_key 생성 헬퍼
+
+    동시성 테스트에서 각 payment마다 고유한 키 생성
+
+    Usage:
+        payment_key = build_payment_key(payment_obj)
+    """
+    def _build(payment_obj):
+        return f"test_key_{payment_obj.id}"
+
+    return _build
+
+
+@pytest.fixture
+def build_confirm_request():
+    """
+    결제 승인 요청 데이터 빌더
+
+    API 스펙에 맞는 request_data 구조 생성
+
+    Usage:
+        # payment_obj와 payment_key 사용
+        request_data = build_confirm_request(payment_obj, payment_key)
+
+        # payment_obj만 사용 (자동 키 생성)
+        request_data = build_confirm_request(payment_obj)
+    """
+    def _build(payment_obj, payment_key=None):
+        if payment_key is None:
+            payment_key = f"test_key_{payment_obj.id}"
+
+        return {
+            "order_id": payment_obj.order.order_number,
+            "payment_key": payment_key,
+            "amount": int(payment_obj.amount),
+        }
+
+    return _build

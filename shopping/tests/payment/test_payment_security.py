@@ -9,6 +9,13 @@ from rest_framework import status
 from shopping.models.order import Order, OrderItem
 from shopping.models.payment import Payment
 from shopping.models.product import Product
+from shopping.tests.factories import (
+    OrderFactory,
+    OrderItemFactory,
+    PaymentFactory,
+    CompletedPaymentFactory,
+    ProductFactory,
+)
 
 
 @pytest.mark.django_db
@@ -73,28 +80,16 @@ class TestPaymentSecurityBoundary:
     ):
         """사용자 간 권한 경계 확인 (본인은 허용, 타인은 거부)"""
         # Arrange - user의 주문/결제
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
-            status="pending",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = PaymentFactory(
             order=order,
-            amount=order.final_amount,
-            status="ready",
-            toss_order_id=order.order_number,
         )
 
         # Act - user로 접근 (본인)
@@ -204,11 +199,8 @@ class TestPaymentSecurityException:
     ):
         """다른 사용자의 주문 결제 승인 시도 거부"""
         # Arrange - other_user의 결제
-        payment = Payment.objects.create(
+        payment = PaymentFactory(
             order=other_user_order,
-            amount=other_user_order.final_amount,
-            status="ready",
-            toss_order_id=other_user_order.order_number,
         )
 
         # user로 인증 (주문 소유자가 아님)
@@ -324,29 +316,19 @@ class TestPaymentSecurityException:
     ):
         """취소된 결제로 재승인 시도 거부"""
         # Arrange - 취소된 결제 생성
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="canceled",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = PaymentFactory(
             order=order,
-            amount=order.final_amount,
             status="canceled",
             is_canceled=True,
-            toss_order_id=order.order_number,
         )
 
         request_data = {
@@ -398,22 +380,15 @@ class TestPaymentSecurityException:
     ):
         """이메일 미인증 사용자의 결제 요청 거부"""
         # Arrange - 미인증 사용자의 주문
-        order = Order.objects.create(
+        order = OrderFactory(
             user=unverified_user,
-            status="pending",
             total_amount=product.price,
             shipping_name="미인증",
             shipping_phone="010-9999-9999",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
 
         api_client.force_authenticate(user=unverified_user)
@@ -479,31 +454,19 @@ class TestPaymentSecurityException:
         )
         product.refresh_from_db()
 
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
 
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
-            amount=order.final_amount,
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_xss_key",
-            method="카드",
         )
 
         # Toss API 모킹
@@ -614,52 +577,28 @@ class TestPaymentSecurityException:
     ):
         """다른 주문의 payment_key 사용 시도 거부"""
         # Arrange - 두 개의 서로 다른 주문/결제 생성
-        order1 = Order.objects.create(
+        order1 = OrderFactory(
             user=user,
-            status="pending",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order1,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment1 = Payment.objects.create(
+        payment1 = PaymentFactory(
             order=order1,
-            amount=order1.final_amount,
-            status="ready",
-            toss_order_id=order1.order_number,
         )
 
-        order2 = Order.objects.create(
+        order2 = OrderFactory(
             user=user,
-            status="pending",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order2,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment2 = Payment.objects.create(
+        payment2 = PaymentFactory(
             order=order2,
-            amount=order2.final_amount,
-            status="ready",
-            toss_order_id=order2.order_number,
         )
 
         # Toss API 에러 모킹

@@ -9,6 +9,13 @@ from rest_framework import status
 
 from shopping.models.order import Order, OrderItem
 from shopping.models.payment import Payment
+from shopping.tests.factories import (
+    OrderFactory,
+    OrderItemFactory,
+    PaymentFactory,
+    CompletedPaymentFactory,
+    ProductFactory,
+)
 
 
 @pytest.mark.django_db
@@ -23,32 +30,20 @@ class TestPaymentDetailNormalCase:
     ) -> None:
         """정상 결제 상세 조회"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
         order.refresh_from_db()  # order_number 자동 생성 반영
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_payment_key",
-            method="카드",
-            approved_at=timezone.now(),
         )
 
         # Act
@@ -66,31 +61,19 @@ class TestPaymentDetailNormalCase:
     ) -> None:
         """응답 데이터 구조 검증"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_payment_key_2",
-            method="카드",
-            approved_at=timezone.now(),
         )
 
         # Act
@@ -128,31 +111,19 @@ class TestPaymentDetailNormalCase:
     ) -> None:
         """결제 정보 확인 (method, amount, status)"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=Decimal("50000"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=Decimal("50000"),
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_payment_key_3",
-            method="카드",
-            approved_at=timezone.now(),
         )
 
         # Act
@@ -175,31 +146,19 @@ class TestPaymentDetailNormalCase:
     ) -> None:
         """주문 정보 포함 확인"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_payment_key_4",
-            method="카드",
-            approved_at=timezone.now(),
         )
 
         # Act
@@ -220,33 +179,21 @@ class TestPaymentDetailNormalCase:
     ) -> None:
         """카드 정보 마스킹 확인"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_payment_key_5",
-            method="카드",
             card_company="신한카드",
             card_number="1234****5678",
-            approved_at=timezone.now(),
         )
 
         # Act
@@ -269,30 +216,19 @@ class TestPaymentDetailNormalCase:
         """승인 시간 포함"""
         # Arrange
         approved_time = timezone.now()
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_payment_key_6",
-            method="카드",
             approved_at=approved_time,
         )
 
@@ -314,34 +250,22 @@ class TestPaymentDetailNormalCase:
     ) -> None:
         """포인트 정보 확인 (used_points, earned_points)"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=Decimal("50000"),
             used_points=5000,
             earned_points=500,
             final_amount=Decimal("45000"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.final_amount,
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_payment_key_7",
-            method="카드",
-            approved_at=timezone.now(),
         )
 
         # Act
@@ -362,31 +286,19 @@ class TestPaymentDetailNormalCase:
     ) -> None:
         """완료된 결제 조회"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_payment_key_8",
-            method="카드",
-            approved_at=timezone.now(),
         )
 
         # Act
@@ -406,31 +318,21 @@ class TestPaymentDetailNormalCase:
         """취소된 결제 조회"""
         # Arrange
         canceled_time = timezone.now()
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="canceled",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = PaymentFactory(
             order=order,
             amount=order.total_amount,
             status="canceled",
             is_canceled=True,
-            toss_order_id=order.order_number,
             payment_key="test_payment_key_9",
-            method="카드",
             canceled_amount=order.total_amount,
             cancel_reason="사용자 요청",
             canceled_at=canceled_time,
@@ -457,28 +359,17 @@ class TestPaymentDetailNormalCase:
     ) -> None:
         """준비 상태 결제 조회"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
-            status="pending",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = PaymentFactory(
             order=order,
             amount=order.total_amount,
-            status="ready",
-            toss_order_id=order.order_number,
         )
 
         # Act
@@ -497,28 +388,18 @@ class TestPaymentDetailNormalCase:
     ) -> None:
         """실패 결제 조회"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
-            status="pending",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = PaymentFactory(
             order=order,
             amount=order.total_amount,
             status="aborted",
-            toss_order_id=order.order_number,
             fail_reason="[USER_CANCEL] 사용자가 결제를 취소했습니다",
         )
 
@@ -543,31 +424,20 @@ class TestPaymentDetailBoundary:
     ) -> None:
         """카드 정보 없는 결제 (계좌이체 등)"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_payment_key_12",
             method="계좌이체",
-            approved_at=timezone.now(),
         )
 
         # Act
@@ -590,34 +460,22 @@ class TestPaymentDetailBoundary:
     ) -> None:
         """할부 결제"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=Decimal("100000"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=Decimal("100000"),
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_payment_key_13",
-            method="카드",
             card_company="KB국민카드",
             card_number="9876****1234",
             installment_plan_months=3,
-            approved_at=timezone.now(),
         )
 
         # Act
@@ -637,34 +495,21 @@ class TestPaymentDetailBoundary:
     ) -> None:
         """포인트 미사용 결제"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
-            used_points=0,
             earned_points=100,
             final_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.final_amount,
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_payment_key_14",
-            method="카드",
-            approved_at=timezone.now(),
         )
 
         # Act
@@ -685,34 +530,22 @@ class TestPaymentDetailBoundary:
     ) -> None:
         """포인트 전액 사용 결제"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=Decimal("10000"),
             used_points=10000,
-            earned_points=0,
             final_amount=Decimal("0"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=Decimal("0"),
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_payment_key_15",
             method="포인트",
-            approved_at=timezone.now(),
         )
 
         # Act
@@ -754,7 +587,7 @@ class TestPaymentDetailException:
     ) -> None:
         """다른 사용자의 결제 조회 불가"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=other_user,
             status="paid",
             total_amount=product.price,
@@ -764,21 +597,14 @@ class TestPaymentDetailException:
             shipping_address="부산시 해운대구",
             shipping_address_detail="202동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_payment_key_16",
-            method="카드",
-            approved_at=timezone.now(),
         )
 
         # Act
@@ -796,31 +622,19 @@ class TestPaymentDetailException:
     ) -> None:
         """인증되지 않은 사용자"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_payment_key_17",
-            method="카드",
-            approved_at=timezone.now(),
         )
 
         # Act

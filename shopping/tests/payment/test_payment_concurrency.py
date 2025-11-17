@@ -17,6 +17,13 @@ from shopping.models.payment import Payment
 from shopping.models.product import Product
 from shopping.models.user import User
 from shopping.services.point_service import PointService
+from shopping.tests.factories import (
+    OrderFactory,
+    OrderItemFactory,
+    PaymentFactory,
+    ProductFactory,
+    TossResponseBuilder,
+)
 
 
 def login_and_get_token(username, password="testpass123"):
@@ -66,12 +73,7 @@ class TestPaymentConcurrencyHappyPath:
             orders.append(order)
 
             # Payment 생성
-            payment = Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            payment = PaymentFactory(order=order)
             payments.append(payment)
 
         # Toss API Mock - side_effect로 매번 새로운 paymentKey 생성
@@ -153,12 +155,7 @@ class TestPaymentConcurrencyHappyPath:
 
             order = create_order(user=user, product=product, quantity=quantity_per_order, status="pending")
 
-            payment = Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            payment = PaymentFactory(order=order)
             payments.append(payment)
 
         # Toss API Mock - side_effect로 매번 새로운 paymentKey 생성
@@ -223,12 +220,7 @@ class TestPaymentConcurrencyHappyPath:
                 status="pending"
             )
 
-            payment = Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            payment = PaymentFactory(order=order)
             payments.append(payment)
 
         # Toss API Mock - side_effect로 매번 새로운 paymentKey 생성
@@ -286,12 +278,7 @@ class TestPaymentConcurrencyHappyPath:
         order = create_order(user=user, product=product, status="pending")
 
         # 기존 Payment 생성
-        old_payment = Payment.objects.create(
-            order=order,
-            amount=order.total_amount,
-            status="ready",
-            toss_order_id=order.order_number,
-        )
+        old_payment = PaymentFactory(order=order)
         old_payment_id = old_payment.id
 
         results = []
@@ -365,12 +352,7 @@ class TestPaymentConcurrencyHappyPath:
                 used_points=1000
             )
 
-            payment = Payment.objects.create(
-                order=order,
-                amount=order.final_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            payment = PaymentFactory(order=order)
             payments.append(payment)
 
         # Toss API Mock - side_effect로 매번 새로운 paymentKey 생성
@@ -441,12 +423,7 @@ class TestPaymentConcurrencyBoundary:
 
             order = create_order(user=user, product=product, status="pending")
 
-            payment = Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            payment = PaymentFactory(order=order)
             payments.append(payment)
 
         # Toss API Mock - side_effect로 매번 새로운 paymentKey 생성
@@ -565,12 +542,7 @@ class TestPaymentConcurrencyBoundary:
                 used_points=int(product.price)
             )
 
-            payment = Payment.objects.create(
-                order=order,
-                amount=Decimal("0"),
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            payment = PaymentFactory(order=order, amount=Decimal("0"))
             payments.append(payment)
 
         # Toss API Mock - side_effect로 매번 새로운 paymentKey 생성
@@ -648,12 +620,7 @@ class TestPaymentConcurrencyBoundary:
                 status="pending"
             )
 
-            payment = Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            payment = PaymentFactory(order=order)
             payments.append(payment)
 
         # Toss API Mock - 일부만 성공하도록 (thread-safe)
@@ -666,11 +633,7 @@ class TestPaymentConcurrencyBoundary:
                 current_count = call_count[0]
 
             if current_count <= 2:
-                return {
-                    "status": "DONE",
-                    "approvedAt": "2025-01-15T10:00:00+09:00",
-                    "method": "카드",
-                }
+                return TossResponseBuilder.success_response()
             else:
                 from shopping.utils.toss_payment import TossPaymentError
 
@@ -746,12 +709,7 @@ class TestPaymentConcurrencyException:
 
             order = create_order(user=user, product=product, status="pending")
 
-            payment = Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            payment = PaymentFactory(order=order)
             payments.append(payment)
 
         # Mock - 첫 번째만 성공 (thread-safe)
@@ -764,11 +722,7 @@ class TestPaymentConcurrencyException:
                 current_count = call_count[0]
 
             if current_count == 1:
-                return {
-                    "status": "DONE",
-                    "approvedAt": "2025-01-15T10:00:00+09:00",
-                    "method": "카드",
-                }
+                return TossResponseBuilder.success_response()
             else:
                 from shopping.utils.toss_payment import TossPaymentError
 
@@ -826,20 +780,10 @@ class TestPaymentConcurrencyException:
 
         order = create_order(user=user, product=product, status="pending")
 
-        payment = Payment.objects.create(
-            order=order,
-            amount=order.total_amount,
-            status="ready",
-            toss_order_id=order.order_number,
-        )
+        payment = PaymentFactory(order=order)
 
         # 중복 승인 테스트 - 모든 호출이 같은 응답을 받아야 함
-        toss_response = {
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "method": "카드",
-            "paymentKey": "test_duplicate_key",
-        }
+        toss_response = TossResponseBuilder.success_response(payment_key="test_duplicate_key")
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
             return_value=toss_response,
@@ -909,22 +853,15 @@ class TestPaymentConcurrencyException:
 
         from django.utils import timezone
 
-        payment = Payment.objects.create(
+        payment = PaymentFactory(
             order=order,
-            amount=order.total_amount,
             status="done",
-            toss_order_id=order.order_number,
             payment_key="test_cancel_key",
-            method="카드",
             approved_at=timezone.now(),
         )
 
         # 중복 취소 테스트 - 모든 호출이 같은 응답을 받아야 함
-        toss_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-            "paymentKey": "test_cancel_key",
-        }
+        toss_response = TossResponseBuilder.cancel_response(payment_key="test_cancel_key")
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
             return_value=toss_response,
@@ -989,21 +926,13 @@ class TestPaymentConcurrencyException:
 
         order = create_order(user=user, product=product, status="pending")
 
-        payment = Payment.objects.create(
-            order=order,
-            amount=order.total_amount,
-            status="ready",
-            toss_order_id=order.order_number,
-        )
+        payment = PaymentFactory(order=order)
 
-        toss_response = {
-            "paymentKey": "test_webhook_key",
-            "orderId": order.order_number,
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "method": "카드",
-            "totalAmount": int(payment.amount),
-        }
+        toss_response = TossResponseBuilder.success_response(
+            payment_key="test_webhook_key",
+            order_id=order.order_number,
+            amount=int(payment.amount)
+        )
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
@@ -1115,12 +1044,7 @@ class TestPaymentConcurrencyException:
             order = create_order(user=user, product=product, status="pending")
             orders.append(order)
 
-            payment = Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            payment = PaymentFactory(order=order)
             payments.append(payment)
 
         # Toss API Mock - side_effect로 매번 새로운 paymentKey 생성

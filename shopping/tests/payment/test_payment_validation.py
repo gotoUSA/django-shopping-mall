@@ -8,6 +8,14 @@ from rest_framework import status
 from shopping.models.order import Order, OrderItem
 from shopping.models.payment import Payment
 from shopping.models.product import Product
+from shopping.tests.factories import (
+    OrderFactory,
+    OrderItemFactory,
+    PaymentFactory,
+    CompletedPaymentFactory,
+    ProductFactory,
+    TossResponseBuilder,
+)
 
 
 @pytest.mark.django_db
@@ -46,13 +54,10 @@ class TestPaymentValidationNormalCase:
     ):
         """큰 금액 결제 (100,000,000원)"""
         # Arrange - 1억원 상품 주문 생성
-        large_product = Product.objects.create(
-            name="고가 상품",
+        large_product = ProductFactory(
             category=category,
             price=Decimal("100000000"),
-            stock=10,
             sku=sku_generator("LARGE"),
-            is_active=True,
         )
 
         order = create_order(user=user, product=large_product, status="pending")
@@ -115,11 +120,10 @@ class TestPaymentValidationNormalCase:
         assert payment.amount == Decimal("0")
 
         # Confirm 테스트
-        toss_response = {
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "totalAmount": 0,
-        }
+        toss_response = TossResponseBuilder.success_response(
+            order_id=order.order_number,
+            amount=0,
+        )
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
@@ -228,33 +232,20 @@ class TestPaymentValidationBoundary:
     ):
         """최소 유효 금액 (1원)"""
         # Arrange - 1원 상품
-        min_product = Product.objects.create(
-            name="1원 상품",
+        min_product = ProductFactory(
             category=category,
             price=Decimal("1"),
-            stock=10,
-            sku="TEST-MIN-001",
-            is_active=True,
         )
 
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
-            status="pending",
             total_amount=min_product.price,
             final_amount=min_product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=min_product,
-            product_name=min_product.name,
-            quantity=1,
-            price=min_product.price,
         )
 
         request_data = {"order_id": order.id}
@@ -281,33 +272,20 @@ class TestPaymentValidationBoundary:
         # Arrange - max_digits=10 한계 금액
         max_amount = Decimal("9999999999")
 
-        max_product = Product.objects.create(
-            name="최대 금액 상품",
+        max_product = ProductFactory(
             category=category,
             price=max_amount,
-            stock=1,
-            sku="TEST-MAX-001",
-            is_active=True,
         )
 
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
-            status="pending",
             total_amount=max_product.price,
             final_amount=max_product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=max_product,
-            product_name=max_product.name,
-            quantity=1,
-            price=max_product.price,
         )
 
         request_data = {"order_id": order.id}
@@ -335,33 +313,20 @@ class TestPaymentValidationBoundary:
         # Arrange
         near_max = Decimal("9999999998")
 
-        product = Product.objects.create(
-            name="최대 근처 상품",
+        product = ProductFactory(
             category=category,
             price=near_max,
-            stock=1,
-            sku="TEST-NEAR-MAX-001",
-            is_active=True,
         )
 
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
-            status="pending",
             total_amount=product.price,
             final_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
 
         request_data = {"order_id": order.id}
@@ -437,33 +402,20 @@ class TestPaymentValidationException:
     ):
         """음수 금액 거부"""
         # Arrange - 음수 금액 상품 (DB 레벨에서는 생성 가능)
-        negative_product = Product.objects.create(
-            name="음수 상품",
+        negative_product = ProductFactory(
             category=category,
             price=Decimal("-1000"),
-            stock=10,
-            sku="TEST-NEG-001",
-            is_active=True,
         )
 
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
-            status="pending",
             total_amount=negative_product.price,
             final_amount=negative_product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=negative_product,
-            product_name=negative_product.name,
-            quantity=1,
-            price=negative_product.price,
         )
 
         request_data = {"order_id": order.id}
@@ -487,31 +439,20 @@ class TestPaymentValidationException:
     ):
         """total_amount 0원 거부"""
         # Arrange - 0원 상품
-        zero_product = Product.objects.create(
-            name="무료 상품",
+        zero_product = ProductFactory(
             category=category,
             price=Decimal("0"),
-            stock=10,
-            sku="TEST-ZERO-002",
-            is_active=True,
         )
 
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
-            status="pending",
             total_amount=Decimal("0"),
             final_amount=Decimal("0"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=zero_product,
-            product_name=zero_product.name,
             quantity=1,
             price=Decimal("0"),
         )
@@ -537,33 +478,20 @@ class TestPaymentValidationException:
     ):
         """total_amount 음수 거부"""
         # Arrange
-        product = Product.objects.create(
-            name="음수 테스트 상품",
+        product = ProductFactory(
             category=category,
             price=Decimal("-5000"),
-            stock=10,
-            sku="TEST-NEG-TOTAL-001",
-            is_active=True,
         )
 
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
-            status="pending",
             total_amount=Decimal("-5000"),
             final_amount=Decimal("-5000"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
 
         request_data = {"order_id": order.id}
@@ -664,14 +592,11 @@ class TestPaymentValidationException:
     ):
         """float 타입 처리 (자동 Decimal 변환)"""
         # Arrange
-        toss_response = {
-            "paymentKey": "test_payment_key_float",
-            "orderId": order.order_number,
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "totalAmount": int(payment.amount),
-            "method": "카드",
-        }
+        toss_response = TossResponseBuilder.success_response(
+            payment_key="test_payment_key_float",
+            order_id=order.order_number,
+            amount=int(payment.amount),
+        )
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
@@ -731,40 +656,24 @@ class TestPaymentValidationException:
         """매우 작은 소수 금액 거부 (0.01원)"""
         # Arrange - 소수점 금액은 DB 제약으로 저장 불가
         # 대신 API에서 소수점 금액 전송 시도
-        product = Product.objects.create(
-            name="정수 상품",
+        product = ProductFactory(
             category=category,
             price=Decimal("1"),
-            stock=10,
-            sku="TEST-SMALL-001",
-            is_active=True,
         )
 
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
-            status="pending",
             total_amount=Decimal("1"),
             final_amount=Decimal("1"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
 
-        payment = Payment.objects.create(
+        payment = PaymentFactory(
             order=order,
-            amount=order.final_amount,
-            status="ready",
-            toss_order_id=order.order_number,
         )
 
         # confirm에서 소수점 금액 전송
@@ -793,33 +702,20 @@ class TestPaymentValidationException:
         """자릿수 초과 거부 (11자리)"""
         # Arrange - 10자리 초과 금액
         try:
-            exceed_product = Product.objects.create(
-                name="초과 상품",
+            exceed_product = ProductFactory(
                 category=category,
                 price=Decimal("10000000000"),  # 11자리
-                stock=1,
-                sku="TEST-EXCEED-001",
-                is_active=True,
             )
 
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
                 total_amount=exceed_product.price,
                 final_amount=exceed_product.price,
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
             )
 
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=exceed_product,
-                product_name=exceed_product.name,
-                quantity=1,
-                price=exceed_product.price,
             )
 
             request_data = {"order_id": order.id}
@@ -930,32 +826,21 @@ class TestPaymentValidationException:
     ):
         """주문 금액과 Payment 금액 불일치"""
         # Arrange - 주문 생성
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
-            status="pending",
             total_amount=Decimal("10000"),
             final_amount=Decimal("10000"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
 
         # 잘못된 금액으로 Payment 직접 생성
-        wrong_payment = Payment.objects.create(
+        wrong_payment = PaymentFactory(
             order=order,
             amount=Decimal("5000"),  # order.final_amount와 다름
-            status="ready",
-            toss_order_id=order.order_number,
         )
 
         # Act - confirm 시도

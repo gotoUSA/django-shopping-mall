@@ -137,7 +137,9 @@ DATABASES = {
         "PASSWORD": os.getenv("DATABASE_PASSWORD", ""),
         "HOST": os.getenv("DATABASE_HOST", ""),
         "PORT": os.getenv("DATABASE_PORT", ""),
-        # Connection pooling: 테스트에서는 즉시 닫기, 프로덕션에서는 재사용
+        # Connection pooling: 테스트에서는 즉시 닫기 (0초), 프로덕션에서는 재사용 (600초)
+        # 이유: 동시성 테스트에서 PostgreSQL "too many clients" 방지
+        # 참고: 테스트에서 간헐적 타이밍 이슈 발생 가능 (정상 동작)
         "CONN_MAX_AGE": 0 if TESTING else 600,
         # Health checks: 테스트에서는 비활성화하여 연결 절약
         "CONN_HEALTH_CHECKS": not TESTING,
@@ -381,15 +383,21 @@ if os.environ.get("DATABASE_ENGINE"):
             "PASSWORD": os.environ.get("DATABASE_PASSWORD", ""),
             "HOST": os.environ.get("DATABASE_HOST", ""),
             "PORT": os.environ.get("DATABASE_PORT", ""),
-            # Connection pooling: 테스트에서는 즉시 닫기, 프로덕션에서는 재사용
+            # Connection pooling: 테스트에서는 즉시 닫기 (0초), 프로덕션에서는 재사용 (600초)
+            # 이유: 동시성 테스트에서 PostgreSQL "too many clients" 방지
+            # 참고: 테스트에서 간헐적 타이밍 이슈 발생 가능 (정상 동작)
             "CONN_MAX_AGE": 0 if TESTING else 600,
             # Health checks: 테스트에서는 비활성화하여 연결 절약
             "CONN_HEALTH_CHECKS": not TESTING,
             # PostgreSQL-specific options for better connection management
-            "OPTIONS": {
-                "connect_timeout": 10,
-                "options": "-c statement_timeout=30000",  # 30 second query timeout
-            } if os.environ.get("DATABASE_ENGINE") == "django.db.backends.postgresql" else {},
+            "OPTIONS": (
+                {
+                    "connect_timeout": 10,
+                    "options": "-c statement_timeout=30000",  # 30 second query timeout
+                }
+                if os.environ.get("DATABASE_ENGINE") == "django.db.backends.postgresql"
+                else {}
+            ),
         }
     }
 

@@ -74,11 +74,10 @@ class TestPaymentConcurrencyHappyPath:
             )
             payments.append(payment)
 
-        # Toss API Mock
-        toss_response = toss_response_builder()
+        # Toss API Mock - side_effect로 매번 새로운 paymentKey 생성
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
-            return_value=toss_response,
+            side_effect=lambda *args, **kwargs: toss_response_builder(),
         )
 
         results = []
@@ -166,10 +165,10 @@ class TestPaymentConcurrencyHappyPath:
             )
             payments.append(payment)
 
-        toss_response = toss_response_builder()
+        # Toss API Mock - side_effect로 매번 새로운 paymentKey 생성
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
-            return_value=toss_response,
+            side_effect=lambda *args, **kwargs: toss_response_builder(),
         )
 
         results = []
@@ -240,10 +239,10 @@ class TestPaymentConcurrencyHappyPath:
             )
             payments.append(payment)
 
-        toss_response = toss_response_builder()
+        # Toss API Mock - side_effect로 매번 새로운 paymentKey 생성
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
-            return_value=toss_response,
+            side_effect=lambda *args, **kwargs: toss_response_builder(),
         )
 
         results = []
@@ -386,10 +385,10 @@ class TestPaymentConcurrencyHappyPath:
             )
             payments.append(payment)
 
-        toss_response = toss_response_builder()
+        # Toss API Mock - side_effect로 매번 새로운 paymentKey 생성
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
-            return_value=toss_response,
+            side_effect=lambda *args, **kwargs: toss_response_builder(),
         )
 
         results = []
@@ -466,10 +465,10 @@ class TestPaymentConcurrencyBoundary:
             )
             payments.append(payment)
 
-        toss_response = toss_response_builder()
+        # Toss API Mock - side_effect로 매번 새로운 paymentKey 생성
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
-            return_value=toss_response,
+            side_effect=lambda *args, **kwargs: toss_response_builder(),
         )
 
         results = []
@@ -594,14 +593,19 @@ class TestPaymentConcurrencyBoundary:
             )
             payments.append(payment)
 
-        toss_response = {
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "totalAmount": 0,
-        }
+        # Toss API Mock - side_effect로 매번 새로운 paymentKey 생성
+        def mock_toss_response(*args, **kwargs):
+            import uuid
+            return {
+                "status": "DONE",
+                "approvedAt": "2025-01-15T10:00:00+09:00",
+                "totalAmount": 0,
+                "paymentKey": f"test_key_{uuid.uuid4().hex[:16]}",
+            }
+
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
-            return_value=toss_response,
+            side_effect=mock_toss_response,
         )
 
         results = []
@@ -866,10 +870,12 @@ class TestPaymentConcurrencyException:
             toss_order_id=order.order_number,
         )
 
+        # 중복 승인 테스트 - 모든 호출이 같은 응답을 받아야 함
         toss_response = {
             "status": "DONE",
             "approvedAt": "2025-01-15T10:00:00+09:00",
             "method": "카드",
+            "paymentKey": "test_duplicate_key",
         }
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
@@ -950,9 +956,11 @@ class TestPaymentConcurrencyException:
             approved_at=timezone.now(),
         )
 
+        # 중복 취소 테스트 - 모든 호출이 같은 응답을 받아야 함
         toss_response = {
             "status": "CANCELED",
             "canceledAt": "2025-01-15T11:00:00+09:00",
+            "paymentKey": "test_cancel_key",
         }
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
@@ -1152,14 +1160,19 @@ class TestPaymentConcurrencyException:
             )
             payments.append(payment)
 
-        toss_response = {
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "method": "카드",
-        }
+        # Toss API Mock - side_effect로 매번 새로운 paymentKey 생성
+        def mock_toss_response(*args, **kwargs):
+            import uuid
+            return {
+                "status": "DONE",
+                "approvedAt": "2025-01-15T10:00:00+09:00",
+                "method": "카드",
+                "paymentKey": f"test_key_{uuid.uuid4().hex[:16]}",
+            }
+
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
-            return_value=toss_response,
+            side_effect=mock_toss_response,
         )
 
         results = []

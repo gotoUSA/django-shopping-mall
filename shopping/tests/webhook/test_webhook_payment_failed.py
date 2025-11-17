@@ -8,6 +8,7 @@ import pytest
 from rest_framework import status
 
 from shopping.models.payment import PaymentLog
+from shopping.tests.factories import OrderFactory, OrderItemFactory, PaymentFactory
 
 
 @pytest.mark.django_db
@@ -17,41 +18,15 @@ class TestPaymentFailedWebhook:
     @pytest.fixture(autouse=True)
     def setup(self, api_client, user, product, webhook_url):
         """테스트 환경 설정"""
-        from shopping.models.order import Order, OrderItem
-        from shopping.models.payment import Payment
-
         self.client = api_client
         self.user = user
         self.product = product
         self.webhook_url = webhook_url
 
-        # 각 테스트마다 완전히 새로운 order와 payment 생성 (병렬 테스트 격리)
-        self.order = Order.objects.create(
-            user=user,
-            status="pending",
-            total_amount=product.price,
-            final_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-9999-8888",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구 테스트로 123",
-            shipping_address_detail="101동 202호",
-        )
-
-        OrderItem.objects.create(
-            order=self.order,
-            product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
-        )
-
-        self.payment = Payment.objects.create(
-            order=self.order,
-            amount=self.order.total_amount,
-            status="ready",
-            toss_order_id=self.order.order_number,
-        )
+        # Factory 사용으로 고유한 order_number 자동 생성 (병렬 테스트 격리)
+        self.order = OrderFactory(user=user, status="pending")
+        OrderItemFactory(order=self.order, product=product)
+        self.payment = PaymentFactory(order=self.order, status="ready")
 
     # ==========================================
     # 1단계: 정상 케이스 (Happy Path)

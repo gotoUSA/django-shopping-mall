@@ -131,6 +131,11 @@ def handle_payment_done(event_data: dict[str, Any]) -> None:
         logger.info(f"Payment already processed: {order_id}")
         return
 
+    # 최종 상태 보호 - 취소/실패된 결제는 재승인 불가
+    if payment.status in ["canceled", "aborted"]:
+        logger.info(f"Payment in final state {payment.status}, ignoring DONE event: {order_id}")
+        return
+
     # Payment 정보 업데이트
     payment.mark_as_paid(event_data)
 
@@ -203,6 +208,11 @@ def handle_payment_canceled(event_data: dict[str, Any]) -> None:
         logger.info(f"Payment already canceled: {order_id}")
         return
 
+    # 최종 상태 보호 - 실패한 결제는 취소 불필요
+    if payment.status in ["aborted"]:
+        logger.info(f"Payment already failed (aborted), ignoring CANCELED event: {order_id}")
+        return
+
     # Payment 정보 업데이트
     payment.mark_as_canceled(event_data)
 
@@ -267,6 +277,11 @@ def handle_payment_failed(event_data: dict[str, Any]) -> None:
     # 이미 실패 처리된 경우 스킵
     if payment.status in ["aborted", "failed"]:
         logger.info(f"Payment already failed: {order_id}")
+        return
+
+    # 최종 상태 보호 - 완료/취소된 결제는 실패 처리 불가
+    if payment.status in ["done", "canceled"]:
+        logger.info(f"Payment in final state {payment.status}, ignoring FAILED event: {order_id}")
         return
 
     # Payment 실패 처리

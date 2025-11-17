@@ -10,6 +10,23 @@ from rest_framework.test import APIClient
 from shopping.models.cart import Cart, CartItem
 from shopping.models.product import Category, Product
 from shopping.models.user import User
+from shopping.services.order_service import OrderService
+from shopping.services.shipping_service import ShippingService
+
+# ==========================================
+# 0. 테스트 상수 (Business Policy Constants)
+# ==========================================
+
+# 비즈니스 정책 상수 (서비스에서 import)
+FREE_SHIPPING_THRESHOLD = ShippingService.FREE_SHIPPING_THRESHOLD
+DEFAULT_SHIPPING_FEE = ShippingService.DEFAULT_SHIPPING_FEE
+REMOTE_AREA_FEE = ShippingService.REMOTE_AREA_FEE
+MIN_POINTS = OrderService.MIN_POINTS
+
+# Fixture 기본값 상수
+DEFAULT_USER_POINTS = 5000
+DEFAULT_PRODUCT_PRICE = Decimal("10000")
+DEFAULT_PRODUCT_STOCK = 10
 
 # ==========================================
 # 1. 전역 설정 (Session Scope)
@@ -117,7 +134,7 @@ def user(db):
     기본 일반 사용자 (이메일 인증 완료)
 
     - username: testuser
-    - 포인트: 5000
+    - 포인트: DEFAULT_USER_POINTS (5000)
     - 이메일 인증: 완료
     """
     # 기존 user가 있다면 삭제 (중복 방지)
@@ -128,7 +145,7 @@ def user(db):
         email="test@example.com",
         password="testpass123",
         phone_number="010-1234-5678",
-        points=5000,
+        points=DEFAULT_USER_POINTS,
         is_email_verified=True,
     )
 
@@ -240,7 +257,7 @@ def user_factory(db):
             "email": "test@example.com",
             "password": "testpass123",
             "phone_number": "010-1234-5678",
-            "points": 5000,
+            "points": DEFAULT_USER_POINTS,
             "is_email_verified": True,
         }
         # kwargs로 받은 값으로 defaults 덮어쓰기
@@ -334,8 +351,8 @@ def product(db, category, seller_user):
     """
     기본 테스트 상품 (재고 있음)
 
-    - 가격: 10,000원
-    - 재고: 10개
+    - 가격: DEFAULT_PRODUCT_PRICE (10,000원)
+    - 재고: DEFAULT_PRODUCT_STOCK (10개)
     - 판매중
     """
     return Product.objects.create(
@@ -343,8 +360,8 @@ def product(db, category, seller_user):
         slug="test-product",
         category=category,
         seller=seller_user,
-        price=Decimal("10000"),
-        stock=10,
+        price=DEFAULT_PRODUCT_PRICE,
+        stock=DEFAULT_PRODUCT_STOCK,
         sku="TEST-001",
         description="테스트 상품 설명",
         is_active=True,
@@ -406,8 +423,8 @@ def product_factory(db, category, seller_user):
             "slug": "test-product",
             "category": category,
             "seller": seller_user,
-            "price": Decimal("10000"),
-            "stock": 10,
+            "price": DEFAULT_PRODUCT_PRICE,
+            "stock": DEFAULT_PRODUCT_STOCK,
             "sku": "TEST-001",
             "description": "테스트 상품 설명",
             "is_active": True,
@@ -492,6 +509,33 @@ def shipping_data():
         "shipping_address_detail": "101동 202호",
         "order_memo": "부재시 경비실에 맡겨주세요",
     }
+
+
+@pytest.fixture
+def invalid_shipping_field_factory():
+    """
+    배송지 필드별 검증 테스트용 데이터 팩토리
+
+    특정 필드만 빈 값으로 설정하여 유효성 검증 테스트에 사용
+
+    사용 예시:
+        invalid_data = invalid_shipping_field_factory("shipping_name")
+        # {"shipping_name": "", "shipping_phone": "010-1234-5678", ...}
+    """
+
+    def _create_invalid_data(empty_field: str):
+        base_data = {
+            "shipping_name": "홍길동",
+            "shipping_phone": "010-1234-5678",
+            "shipping_postal_code": "12345",
+            "shipping_address": "서울시 강남구",
+            "shipping_address_detail": "101호",
+        }
+        # 특정 필드만 빈 값으로 설정
+        base_data[empty_field] = ""
+        return base_data
+
+    return _create_invalid_data
 
 
 # ==========================================

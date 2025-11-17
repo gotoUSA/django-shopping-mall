@@ -25,6 +25,9 @@ class OrderServiceError(Exception):
 class OrderService:
     """주문 관련 비즈니스 로직을 처리하는 서비스"""
 
+    # 포인트 사용 정책
+    MIN_POINTS = 100  # 최소 포인트 사용 금액
+
     @staticmethod
     def _validate_point_usage(user, use_points: int, total_payment_amount: Decimal) -> None:
         """
@@ -41,9 +44,9 @@ class OrderService:
         if use_points <= 0:
             return
 
-        # 1. 최소 사용 포인트 체크 (100포인트)
-        if use_points < 100:
-            raise OrderServiceError("포인트는 최소 100포인트 이상 사용 가능합니다.")
+        # 1. 최소 사용 포인트 체크
+        if use_points < OrderService.MIN_POINTS:
+            raise OrderServiceError(f"포인트는 최소 {OrderService.MIN_POINTS}포인트 이상 사용 가능합니다.")
 
         # 2. 보유 포인트 체크
         if use_points > user.points:

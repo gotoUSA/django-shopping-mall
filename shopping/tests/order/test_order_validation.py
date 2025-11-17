@@ -6,6 +6,15 @@ import pytest
 from rest_framework import status
 
 from shopping.models.order import Order
+from shopping.tests.conftest import (
+    DEFAULT_PRODUCT_PRICE,
+    DEFAULT_PRODUCT_STOCK,
+    DEFAULT_SHIPPING_FEE,
+    DEFAULT_USER_POINTS,
+    FREE_SHIPPING_THRESHOLD,
+    MIN_POINTS,
+    REMOTE_AREA_FEE,
+)
 
 
 @pytest.mark.django_db
@@ -52,7 +61,8 @@ class TestOrderValidationHappyPath:
         # Arrange
         add_to_cart_helper(user, product, quantity=1)
         url = reverse("order-list")
-        order_data = {**shipping_data, "use_points": 2000}
+        use_points = 2000
+        order_data = {**shipping_data, "use_points": use_points}
 
         # Act
         response = authenticated_client.post(url, order_data, format="json")
@@ -60,10 +70,10 @@ class TestOrderValidationHappyPath:
         # Assert
         assert response.status_code == status.HTTP_201_CREATED
         order = Order.objects.get(user=user)
-        assert order.used_points == 2000
-        assert order.final_amount == order.total_amount + order.shipping_fee - 2000
+        assert order.used_points == use_points
+        assert order.final_amount == order.total_amount + order.shipping_fee - use_points
         user.refresh_from_db()
-        assert user.points == 3000  # 5000 - 2000
+        assert user.points == DEFAULT_USER_POINTS - use_points
 
     def test_create_order_with_full_points_payment(
         self, authenticate_as, user_with_high_points, product, add_to_cart_helper, shipping_data
@@ -76,9 +86,10 @@ class TestOrderValidationHappyPath:
         authenticated_client = authenticate_as(user_with_high_points)
 
         url = reverse("order-list")
+        total_payment = DEFAULT_PRODUCT_PRICE + DEFAULT_SHIPPING_FEE
         order_data = {
             **shipping_data,
-            "use_points": 13000,  # 상품 10000 + 배송비 3000
+            "use_points": total_payment,
         }
 
         # Act
@@ -87,7 +98,7 @@ class TestOrderValidationHappyPath:
         # Assert
         assert response.status_code == status.HTTP_201_CREATED
         order = Order.objects.get(user=user_with_high_points)
-        assert order.used_points == 13000
+        assert order.used_points == total_payment
         assert order.final_amount == Decimal("0")
 
     def test_create_order_with_multiple_quantities(
@@ -113,11 +124,11 @@ class TestOrderValidationBoundary:
     """경계값 테스트"""
 
     def test_minimum_points_usage(self, authenticated_client, user, product, shipping_data, add_to_cart_helper):
-        """최소 포인트 사용 (100포인트)"""
+        """최소 포인트 사용"""
         # Arrange
         add_to_cart_helper(user, product, quantity=1)
         url = reverse("order-list")
-        order_data = {**shipping_data, "use_points": 100}
+        order_data = {**shipping_data, "use_points": MIN_POINTS}
 
         # Act
         response = authenticated_client.post(url, order_data, format="json")
@@ -125,7 +136,7 @@ class TestOrderValidationBoundary:
         # Assert
         assert response.status_code == status.HTTP_201_CREATED
         order = Order.objects.get(user=user)
-        assert order.used_points == 100
+        assert order.used_points == MIN_POINTS
 
     def test_maximum_points_usage(self, authenticate_as, user_with_high_points, product, add_to_cart_helper, shipping_data):
         """최대 포인트 사용 (주문 금액 전액)"""
@@ -136,10 +147,10 @@ class TestOrderValidationBoundary:
         authenticated_client = authenticate_as(user_with_high_points)
 
         url = reverse("order-list")
-        # 상품 10000 + 배송비 3000 = 13000
+        total_payment = DEFAULT_PRODUCT_PRICE + DEFAULT_SHIPPING_FEE
         order_data = {
             **shipping_data,
-            "use_points": 13000,
+            "use_points": total_payment,
         }
 
         # Act
@@ -148,13 +159,13 @@ class TestOrderValidationBoundary:
         # Assert
         assert response.status_code == status.HTTP_201_CREATED
         order = Order.objects.get(user=user_with_high_points)
-        assert order.used_points == 13000
+        assert order.used_points == total_payment
         assert order.final_amount == Decimal("0")
 
     def test_free_shipping_threshold(self, authenticated_client, user, product_factory, shipping_data, add_to_cart_helper):
-        """무료 배송 기준 금액 (30,000원)"""
+        """무료 배송 기준 금액"""
         # Arrange
-        expensive_product = product_factory(price=Decimal("30000"))
+        expensive_product = product_factory(price=FREE_SHIPPING_THRESHOLD)
         add_to_cart_helper(user, expensive_product, quantity=1)
         url = reverse("order-list")
 
@@ -168,9 +179,9 @@ class TestOrderValidationBoundary:
         assert order.is_free_shipping is True
 
     def test_just_below_free_shipping(self, authenticated_client, user, product_factory, shipping_data, add_to_cart_helper):
-        """무료 배송 기준 직전 (29,999원)"""
+        """무료 배송 기준 직전"""
         # Arrange
-        product = product_factory(price=Decimal("29999"))
+        product = product_factory(price=FREE_SHIPPING_THRESHOLD - 1)
         add_to_cart_helper(user, product, quantity=1)
         url = reverse("order-list")
 
@@ -180,7 +191,7 @@ class TestOrderValidationBoundary:
         # Assert
         assert response.status_code == status.HTTP_201_CREATED
         order = Order.objects.get(user=user)
-        assert order.shipping_fee == Decimal("3000")
+        assert order.shipping_fee == DEFAULT_SHIPPING_FEE
         assert order.is_free_shipping is False
 
     def test_remote_area_shipping(self, authenticated_client, user, product, remote_shipping_data, add_to_cart_helper):
@@ -195,14 +206,14 @@ class TestOrderValidationBoundary:
         # Assert
         assert response.status_code == status.HTTP_201_CREATED
         order = Order.objects.get(user=user)
-        assert order.additional_shipping_fee == Decimal("3000")
+        assert order.additional_shipping_fee == REMOTE_AREA_FEE
 
     def test_remote_area_with_free_shipping(
         self, authenticated_client, user, product_factory, remote_shipping_data, add_to_cart_helper
     ):
-        """도서산간 + 무료배송 (30,000원 이상)"""
+        """도서산간 + 무료배송"""
         # Arrange
-        expensive_product = product_factory(price=Decimal("35000"))
+        expensive_product = product_factory(price=FREE_SHIPPING_THRESHOLD + 5000)
         add_to_cart_helper(user, expensive_product, quantity=1)
         url = reverse("order-list")
 
@@ -213,7 +224,7 @@ class TestOrderValidationBoundary:
         assert response.status_code == status.HTTP_201_CREATED
         order = Order.objects.get(user=user)
         assert order.shipping_fee == Decimal("0")  # 무료배송
-        assert order.additional_shipping_fee == Decimal("3000")  # 도서산간비는 별도
+        assert order.additional_shipping_fee == REMOTE_AREA_FEE  # 도서산간비는 별도
         assert order.is_free_shipping is True
 
     def test_zero_points_usage(self, authenticated_client, user, product, shipping_data, add_to_cart_helper):
@@ -293,8 +304,8 @@ class TestOrderValidationException:
 
     def test_insufficient_stock(self, authenticated_client, user, product, shipping_data, add_to_cart_helper):
         """재고 부족 상품 주문 시도"""
-        # Arrange - 재고(10개)보다 많이 주문
-        add_to_cart_helper(user, product, quantity=15)
+        # Arrange - 재고보다 많이 주문
+        add_to_cart_helper(user, product, quantity=DEFAULT_PRODUCT_STOCK + 5)
         url = reverse("order-list")
 
         # Act
@@ -306,10 +317,10 @@ class TestOrderValidationException:
 
     def test_insufficient_points(self, authenticated_client, user, product, shipping_data, add_to_cart_helper):
         """보유 포인트 초과 사용 시도"""
-        # Arrange - user는 5000 포인트 보유
+        # Arrange
         add_to_cart_helper(user, product, quantity=1)
         url = reverse("order-list")
-        order_data = {**shipping_data, "use_points": 10000}
+        order_data = {**shipping_data, "use_points": DEFAULT_USER_POINTS * 2}
 
         # Act
         response = authenticated_client.post(url, order_data, format="json")
@@ -319,18 +330,18 @@ class TestOrderValidationException:
         assert "보유 포인트가 부족" in str(response.data)
 
     def test_points_below_minimum(self, authenticated_client, user, product, shipping_data, add_to_cart_helper):
-        """최소 포인트 미달 (100포인트 미만)"""
+        """최소 포인트 미달"""
         # Arrange
         add_to_cart_helper(user, product, quantity=1)
         url = reverse("order-list")
-        order_data = {**shipping_data, "use_points": 50}
+        order_data = {**shipping_data, "use_points": MIN_POINTS - 50}
 
         # Act
         response = authenticated_client.post(url, order_data, format="json")
 
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "최소 100포인트" in str(response.data)
+        assert f"최소 {MIN_POINTS}포인트" in str(response.data)
 
     def test_points_exceed_order_amount(self, authenticate_as, user_with_high_points, product, add_to_cart_helper, shipping_data):
         """주문 금액 초과 포인트 사용 시도"""
@@ -341,10 +352,10 @@ class TestOrderValidationException:
         authenticated_client = authenticate_as(user_with_high_points)
 
         url = reverse("order-list")
-        # 상품 10000 + 배송비 3000 = 13000원인데 15000 포인트 사용 시도
+        total_payment = DEFAULT_PRODUCT_PRICE + DEFAULT_SHIPPING_FEE
         order_data = {
             **shipping_data,
-            "use_points": 15000,
+            "use_points": total_payment + 2000,  # 주문 금액 초과
         }
 
         # Act
@@ -354,18 +365,12 @@ class TestOrderValidationException:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "주문 금액보다 많은 포인트" in str(response.data)
 
-    def test_missing_shipping_name(self, authenticated_client, user, product, add_to_cart_helper):
+    def test_missing_shipping_name(self, authenticated_client, user, product, add_to_cart_helper, invalid_shipping_field_factory):
         """배송자 이름 누락"""
         # Arrange
         add_to_cart_helper(user, product, quantity=1)
         url = reverse("order-list")
-        invalid_data = {
-            "shipping_name": "",  # 빈 값
-            "shipping_phone": "010-1234-5678",
-            "shipping_postal_code": "12345",
-            "shipping_address": "서울시 강남구",
-            "shipping_address_detail": "101호",
-        }
+        invalid_data = invalid_shipping_field_factory("shipping_name")
 
         # Act
         response = authenticated_client.post(url, invalid_data, format="json")
@@ -374,18 +379,12 @@ class TestOrderValidationException:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "shipping_name" in response.data
 
-    def test_missing_shipping_phone(self, authenticated_client, user, product, add_to_cart_helper):
+    def test_missing_shipping_phone(self, authenticated_client, user, product, add_to_cart_helper, invalid_shipping_field_factory):
         """배송자 연락처 누락"""
         # Arrange
         add_to_cart_helper(user, product, quantity=1)
         url = reverse("order-list")
-        invalid_data = {
-            "shipping_name": "홍길동",
-            "shipping_phone": "",  # 빈 값
-            "shipping_postal_code": "12345",
-            "shipping_address": "서울시 강남구",
-            "shipping_address_detail": "101호",
-        }
+        invalid_data = invalid_shipping_field_factory("shipping_phone")
 
         # Act
         response = authenticated_client.post(url, invalid_data, format="json")
@@ -394,18 +393,12 @@ class TestOrderValidationException:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "shipping_phone" in response.data
 
-    def test_missing_shipping_postal_code(self, authenticated_client, user, product, add_to_cart_helper):
+    def test_missing_shipping_postal_code(self, authenticated_client, user, product, add_to_cart_helper, invalid_shipping_field_factory):
         """우편번호 누락"""
         # Arrange
         add_to_cart_helper(user, product, quantity=1)
         url = reverse("order-list")
-        invalid_data = {
-            "shipping_name": "홍길동",
-            "shipping_phone": "010-1234-5678",
-            "shipping_postal_code": "",  # 빈 값
-            "shipping_address": "서울시 강남구",
-            "shipping_address_detail": "101호",
-        }
+        invalid_data = invalid_shipping_field_factory("shipping_postal_code")
 
         # Act
         response = authenticated_client.post(url, invalid_data, format="json")
@@ -414,18 +407,12 @@ class TestOrderValidationException:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "shipping_postal_code" in response.data
 
-    def test_missing_shipping_address(self, authenticated_client, user, product, add_to_cart_helper):
+    def test_missing_shipping_address(self, authenticated_client, user, product, add_to_cart_helper, invalid_shipping_field_factory):
         """배송 주소 누락"""
         # Arrange
         add_to_cart_helper(user, product, quantity=1)
         url = reverse("order-list")
-        invalid_data = {
-            "shipping_name": "홍길동",
-            "shipping_phone": "010-1234-5678",
-            "shipping_postal_code": "12345",
-            "shipping_address": "",  # 빈 값
-            "shipping_address_detail": "101호",
-        }
+        invalid_data = invalid_shipping_field_factory("shipping_address")
 
         # Act
         response = authenticated_client.post(url, invalid_data, format="json")
@@ -434,18 +421,12 @@ class TestOrderValidationException:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "shipping_address" in response.data
 
-    def test_missing_shipping_address_detail(self, authenticated_client, user, product, add_to_cart_helper):
+    def test_missing_shipping_address_detail(self, authenticated_client, user, product, add_to_cart_helper, invalid_shipping_field_factory):
         """상세 주소 누락"""
         # Arrange
         add_to_cart_helper(user, product, quantity=1)
         url = reverse("order-list")
-        invalid_data = {
-            "shipping_name": "홍길동",
-            "shipping_phone": "010-1234-5678",
-            "shipping_postal_code": "12345",
-            "shipping_address": "서울시 강남구",
-            "shipping_address_detail": "",  # 빈 값
-        }
+        invalid_data = invalid_shipping_field_factory("shipping_address_detail")
 
         # Act
         response = authenticated_client.post(url, invalid_data, format="json")

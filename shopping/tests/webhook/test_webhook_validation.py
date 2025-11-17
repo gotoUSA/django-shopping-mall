@@ -269,7 +269,7 @@ class TestWebhookEventTypeValidation:
     def test_empty_event_type(
         self, mock_verify_webhook, webhook_signature
     ):
-        """빈 문자열 eventType"""
+        """빈 문자열 eventType - serializer에서 거부"""
         # Arrange
         mock_verify_webhook()
         webhook_data = {
@@ -286,8 +286,8 @@ class TestWebhookEventTypeValidation:
         )
 
         # Assert
-        assert response.status_code == status.HTTP_200_OK
-        assert response.json()["message"] == "Event ignored"
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "eventType" in response.json()
 
     def test_malformed_event_type(
         self, mock_verify_webhook, webhook_signature

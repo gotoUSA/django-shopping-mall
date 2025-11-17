@@ -9,6 +9,13 @@ from shopping.models.order import Order
 from shopping.models.payment import Payment, PaymentLog
 from shopping.models.point import PointHistory
 from shopping.models.product import Product
+from shopping.tests.factories import (
+    OrderFactory,
+    OrderItemFactory,
+    PaymentFactory,
+    ProductFactory,
+    TossResponseBuilder,
+)
 from shopping.utils.toss_payment import TossPaymentError
 
 
@@ -33,19 +40,11 @@ class TestPaymentConfirm:
         # 장바구니 활성화 (비활성화 테스트용)
         cart = Cart.objects.create(user=user, is_active=True)
 
-        toss_response = {
-            "paymentKey": "test_payment_key_123",
-            "orderId": order.order_number,
-            "status": "DONE",
-            "totalAmount": int(payment.amount),
-            "method": "카드",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "card": {
-                "company": "신한카드",
-                "number": "1234****",
-                "installmentPlanMonths": 0,
-            },
-        }
+        toss_response = TossResponseBuilder.success_response(
+            payment_key="test_payment_key_123",
+            order_id=order.order_number,
+            amount=int(payment.amount),
+        )
 
         mock_confirm = mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
@@ -157,11 +156,11 @@ class TestPaymentConfirm:
 
         payment = Payment.objects.get(order=order)
 
-        toss_response = {
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "totalAmount": int(payment.amount),
-        }
+        toss_response = TossResponseBuilder.success_response(
+            payment_key=payment.payment_key,
+            order_id=order.order_number,
+            amount=int(payment.amount),
+        )
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
@@ -202,51 +201,37 @@ class TestPaymentConfirm:
         """여러 상품 주문 시 sold_count 증가"""
         # Arrange
         products = [
-            Product.objects.create(
+            ProductFactory(
                 name=f"상품 {i}",
                 category=category,
                 price=Decimal("10000"),
-                stock=10,
-                sku=f"TEST-MULTI-{i:03d}",
-                is_active=True,
             )
             for i in range(3)
         ]
 
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="pending",
             total_amount=sum(p.price for p in products),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
         )
-
-        from shopping.models.order import OrderItem
 
         for product in products:
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
                 quantity=2,
-                price=product.price,
             )
 
-        payment = Payment.objects.create(
+        payment = PaymentFactory(
             order=order,
             amount=order.final_amount,
-            status="ready",
-            toss_order_id=order.order_number,
         )
 
-        toss_response = {
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "totalAmount": int(payment.amount),
-        }
+        toss_response = TossResponseBuilder.success_response(
+            payment_key=payment.payment_key,
+            order_id=order.order_number,
+            amount=int(payment.amount),
+        )
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
@@ -319,11 +304,11 @@ class TestPaymentConfirmBoundary:
 
         payment = Payment.objects.get(order=order)
 
-        toss_response = {
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "totalAmount": 0,
-        }
+        toss_response = TossResponseBuilder.success_response(
+            payment_key=payment.payment_key,
+            order_id=order.order_number,
+            amount=0,
+        )
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
@@ -409,11 +394,11 @@ class TestPaymentConfirmBoundary:
 
             payment = Payment.objects.get(order=order)
 
-            toss_response = {
-                "status": "DONE",
-                "approvedAt": "2025-01-15T10:00:00+09:00",
-                "totalAmount": int(payment.amount),
-            }
+            toss_response = TossResponseBuilder.success_response(
+                payment_key=payment.payment_key,
+                order_id=order.order_number,
+                amount=int(payment.amount),
+            )
 
             mocker.patch(
                 "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",

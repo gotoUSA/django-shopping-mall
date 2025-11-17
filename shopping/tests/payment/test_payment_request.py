@@ -7,6 +7,7 @@ import pytest
 from rest_framework import status
 
 from shopping.models.payment import Payment, PaymentLog
+from shopping.tests.factories import OrderFactory, OrderItemFactory, ProductFactory
 
 
 @pytest.mark.django_db
@@ -357,36 +358,23 @@ class TestPaymentRequestException:
         """주문 금액 0원 이하"""
         # Arrange - total_amount가 0원인 주문 생성
         from shopping.models.order import Order, OrderItem
-        from shopping.models.product import Product
-
-        # 0원 상품 생성 (고유한 SKU 필요)
-        zero_product = Product.objects.create(
+        # 0원 상품 생성
+        zero_product = ProductFactory(
             name="무료 상품",
             category=category,
             price=Decimal("0"),
-            stock=10,
-            sku="TEST-ZERO-001",
-            is_active=True,
         )
 
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="pending",
             total_amount=Decimal("0"),  # 0원
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구 테스트로 123",
-            shipping_address_detail="101동 202호",
-            order_number="20250115999999",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=zero_product,
-            product_name=zero_product.name,
             quantity=1,
-            price=Decimal("0"),
         )
 
         request_data = {"order_id": order.id}

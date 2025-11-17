@@ -4,10 +4,19 @@ from unittest.mock import Mock
 import pytest
 from rest_framework import status
 from django.db.models import F
-from shopping.models.order import Order, OrderItem
-from shopping.models.payment import Payment, PaymentLog
+from shopping.models.order import OrderItem
+from shopping.models.payment import PaymentLog
 from shopping.models.point import PointHistory
 from shopping.models.product import Product
+from shopping.tests.factories import (
+    CompletedPaymentFactory,
+    OrderFactory,
+    OrderItemFactory,
+    PaymentFactory,
+    PointHistoryFactory,
+    ProductFactory,
+    TossResponseBuilder,
+)
 
 
 @pytest.mark.django_db
@@ -32,11 +41,10 @@ class TestPaymentCancelNormalCase:
         order_item = paid_order.order_items.first()
         order_quantity = order_item.quantity
 
-        toss_cancel_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-            "cancelAmount": int(paid_payment.amount),
-        }
+        toss_cancel_response = TossResponseBuilder.cancel_response(
+            payment_key=paid_payment.payment_key,
+            cancel_reason="단순 변심",
+        )
 
         mock_cancel = mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
@@ -252,50 +260,37 @@ class TestPaymentCancelNormalCase:
         """여러 상품 주문 취소 시 모든 재고 복구"""
         # Arrange - 여러 상품 생성
         products = [
-            Product.objects.create(
+            ProductFactory(
                 name=f"테스트 상품 {i+1}",
                 category=category,
                 price=Decimal("10000") * (i + 1),
                 stock=10,
                 sold_count=0,
                 sku=sku_generator("CANCEL"),
-                is_active=True,
             )
             for i in range(3)
         ]
 
         # 주문 생성
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=sum(p.price * 2 for p in products),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구 테스트로 123",
-            shipping_address_detail="101동 202호",
-            order_number="20250115000100",
         )
 
         # 각 상품 2개씩 주문 (재고 차감 및 sold_count 증가 시뮬레이션)
         for product in products:
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
                 quantity=2,
-                price=product.price,
             )
             adjust_stock(product, stock_delta=-2, sold_delta=2)
 
         # Payment 생성
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
-            payment_key="test_multi_product_key",
-            method="카드",
         )
 
         # 초기 재고 및 sold_count 저장
@@ -348,38 +343,26 @@ class TestPaymentCancelNormalCase:
         user.save()
         initial_points = user.points
 
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
             used_points=2000,
             final_amount=product.price - Decimal("2000"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구 테스트로 123",
-            shipping_address_detail="101동 202호",
-            order_number="20250115000101",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
             quantity=1,
-            price=product.price,
         )
 
         # 재고 차감 시뮬레이션
         adjust_stock(product, stock_delta=-1, sold_delta=1)
 
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.final_amount,
-            status="done",
-            toss_order_id=order.order_number,
-            payment_key="test_points_refund_key",
-            method="카드",
         )
 
         toss_cancel_response = toss_cancel_response_builder()
@@ -438,7 +421,7 @@ class TestPaymentCancelNormalCase:
         paid_order.save()
 
         # 적립 이력 생성
-        PointHistory.create_history(
+        PointHistoryFactory(
             user=user,
             points=earned_points,
             balance=user.points,
@@ -498,38 +481,26 @@ class TestPaymentCancelNormalCase:
         user.save()
         initial_points = user.points
 
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
             used_points=0,
             earned_points=0,
             final_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구 테스트로 123",
-            shipping_address_detail="101동 202호",
-            order_number="20250115000102",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
             quantity=1,
-            price=product.price,
         )
 
         # 재고 차감 시뮬레이션
         adjust_stock(product, stock_delta=-1, sold_delta=1)
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
-            payment_key="test_zero_points_key",
-            method="카드",
         )
 
         toss_cancel_response = toss_cancel_response_builder()
@@ -639,33 +610,23 @@ class TestPaymentCancelException:
     ):
         """이미 취소된 결제"""
         # Arrange - 이미 취소된 결제 생성
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="canceled",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구 테스트로 123",
-            shipping_address_detail="101동 202호",
-            order_number="20250115000103",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
             quantity=1,
-            price=product.price,
         )
 
-        payment = Payment.objects.create(
+        payment = PaymentFactory(
             order=order,
             amount=order.total_amount,
             status="canceled",
             is_canceled=True,
-            toss_order_id=order.order_number,
-            payment_key="test_already_canceled_key",
             cancel_reason="이미 취소됨",
         )
 

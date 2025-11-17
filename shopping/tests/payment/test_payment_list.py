@@ -9,6 +9,13 @@ from rest_framework import status
 
 from shopping.models.order import Order, OrderItem
 from shopping.models.payment import Payment
+from shopping.tests.factories import (
+    OrderFactory,
+    OrderItemFactory,
+    PaymentFactory,
+    CompletedPaymentFactory,
+    ProductFactory,
+)
 
 
 @pytest.mark.django_db
@@ -25,30 +32,15 @@ class TestPaymentListNormalCase:
         """정상 결제 목록 조회"""
         # Arrange - 결제 3건 생성
         for i in range(3):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"2025011500{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            PaymentFactory(order=order)
 
         # Act
         response = authenticated_client.get("/api/payments/")
@@ -69,31 +61,18 @@ class TestPaymentListNormalCase:
     ) -> None:
         """응답 데이터 구조 검증"""
         # Arrange
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
-            status="pending",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
             order_number="20250115000001",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        Payment.objects.create(
+        CompletedPaymentFactory(
             order=order,
-            amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
             payment_key="test_key",
-            approved_at=timezone.now(),
         )
 
         # Act
@@ -140,30 +119,15 @@ class TestPaymentListNormalCase:
         # Arrange - 시간 순서대로 3건 생성
         payments_created = []
         for i in range(3):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"2025011500{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            payment = Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            payment = PaymentFactory(order=order)
             payments_created.append(payment)
 
         # Act
@@ -189,30 +153,15 @@ class TestPaymentListNormalCase:
         """기본 페이지네이션 (1페이지)"""
         # Arrange - 15건 생성
         for i in range(15):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"2025011500{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            PaymentFactory(order=order)
 
         # Act
         response = authenticated_client.get("/api/payments/?page=1&page_size=10")
@@ -235,30 +184,15 @@ class TestPaymentListNormalCase:
         """2페이지 조회"""
         # Arrange - 15건 생성
         for i in range(15):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"2025011500{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            PaymentFactory(order=order)
 
         # Act
         response = authenticated_client.get("/api/payments/?page=2&page_size=10")
@@ -282,29 +216,17 @@ class TestPaymentListNormalCase:
         # Arrange - 다양한 상태의 결제 생성
         statuses = ["ready", "done", "done", "canceled", "aborted"]
         for i, payment_status in enumerate(statuses):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"2025011500{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
+            PaymentFactory(
                 order=order,
-                amount=order.total_amount,
                 status=payment_status,
-                toss_order_id=order.order_number,
             )
 
         # Act
@@ -331,29 +253,17 @@ class TestPaymentListNormalCase:
         # Arrange
         statuses = ["ready", "ready", "ready", "done", "canceled"]
         for i, payment_status in enumerate(statuses):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"2025011500{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
+            PaymentFactory(
                 order=order,
-                amount=order.total_amount,
                 status=payment_status,
-                toss_order_id=order.order_number,
             )
 
         # Act
@@ -379,29 +289,17 @@ class TestPaymentListNormalCase:
         # Arrange
         statuses = ["done", "canceled", "ready"]
         for i, payment_status in enumerate(statuses):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"2025011500{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
+            PaymentFactory(
                 order=order,
-                amount=order.total_amount,
                 status=payment_status,
-                toss_order_id=order.order_number,
             )
 
         # Act
@@ -425,29 +323,17 @@ class TestPaymentListNormalCase:
         # Arrange
         statuses = ["ready", "aborted", "aborted", "done"]
         for i, payment_status in enumerate(statuses):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"2025011500{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
+            PaymentFactory(
                 order=order,
-                amount=order.total_amount,
                 status=payment_status,
-                toss_order_id=order.order_number,
             )
 
         # Act
@@ -473,57 +359,27 @@ class TestPaymentListNormalCase:
         """내 결제만 조회 (다른 사용자 결제 안보임)"""
         # Arrange - 내 결제 2건
         for i in range(2):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"2025011500{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            PaymentFactory(order=order)
 
         # Arrange - 다른 사용자 결제 3건
         for i in range(3):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=other_user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="김철수",
-                shipping_phone="010-9999-9999",
-                shipping_postal_code="54321",
-                shipping_address="부산시 해운대구",
-                shipping_address_detail="202동",
                 order_number=f"2025011510{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            PaymentFactory(order=order)
 
         # Act
         response = authenticated_client.get("/api/payments/")
@@ -544,30 +400,15 @@ class TestPaymentListNormalCase:
         """기본값 (page=1, page_size=10)"""
         # Arrange - 5건 생성
         for i in range(5):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"2025011500{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            PaymentFactory(order=order)
 
         # Act - 파라미터 없이 호출
         response = authenticated_client.get("/api/payments/")
@@ -614,30 +455,15 @@ class TestPaymentListBoundary:
         """대량 데이터 조회 (200건) - 성능 및 페이지네이션 검증"""
         # Arrange - 200건 생성
         for i in range(200):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"202501{i:06d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            PaymentFactory(order=order)
 
         # Act - 중간 페이지 조회
         response = authenticated_client.get("/api/payments/?page=10&page_size=10")
@@ -669,30 +495,15 @@ class TestPaymentListBoundary:
         """마지막 페이지 (일부만 채워진 페이지)"""
         # Arrange - 25건 생성
         for i in range(25):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"2025011500{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            PaymentFactory(order=order)
 
         # Act - 3페이지 (5건만 있음)
         response = authenticated_client.get("/api/payments/?page=3&page_size=10")
@@ -714,30 +525,15 @@ class TestPaymentListBoundary:
         """페이지 번호가 전체 페이지 초과 (빈 결과)"""
         # Arrange - 5건만 생성
         for i in range(5):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"2025011500{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            PaymentFactory(order=order)
 
         # Act - 10페이지 요청 (실제로는 1페이지만 있음)
         response = authenticated_client.get("/api/payments/?page=10&page_size=10")
@@ -759,30 +555,15 @@ class TestPaymentListBoundary:
         """커스텀 page_size (20, 50)"""
         # Arrange - 30건 생성
         for i in range(30):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"2025011500{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            PaymentFactory(order=order)
 
         # Act - page_size=20
         response = authenticated_client.get("/api/payments/?page=1&page_size=20")
@@ -812,30 +593,15 @@ class TestPaymentListBoundary:
         """매우 큰 page_size 제한 (1000) - DoS 방지"""
         # Arrange - 10건만 생성
         for i in range(10):
-            order = Order.objects.create(
+            order = OrderFactory(
                 user=user,
-                status="pending",
-                total_amount=Decimal("10000"),
-                shipping_name="홍길동",
-                shipping_phone="010-1234-5678",
-                shipping_postal_code="12345",
-                shipping_address="서울시 강남구",
-                shipping_address_detail="101동",
                 order_number=f"2025011500{i:03d}",
             )
-            OrderItem.objects.create(
+            OrderItemFactory(
                 order=order,
                 product=product,
-                product_name=product.name,
-                quantity=1,
-                price=product.price,
             )
-            Payment.objects.create(
-                order=order,
-                amount=order.total_amount,
-                status="ready",
-                toss_order_id=order.order_number,
-            )
+            PaymentFactory(order=order)
 
         # Act - page_size=1000 요청
         response = authenticated_client.get("/api/payments/?page=1&page_size=1000")
@@ -852,30 +618,15 @@ class TestPaymentListBoundary:
     ) -> None:
         """결제 1건만 있을 때"""
         # Arrange - 1건만 생성
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
-            status="pending",
-            total_amount=Decimal("10000"),
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
             order_number="20250115000001",
         )
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
-        Payment.objects.create(
-            order=order,
-            amount=order.total_amount,
-            status="ready",
-            toss_order_id=order.order_number,
-        )
+        PaymentFactory(order=order)
 
         # Act
         response = authenticated_client.get("/api/payments/")

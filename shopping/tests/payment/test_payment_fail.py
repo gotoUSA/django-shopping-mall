@@ -4,6 +4,13 @@ import pytest
 from rest_framework import status
 
 from shopping.models.payment import Payment, PaymentLog
+from shopping.tests.factories import (
+    OrderFactory,
+    OrderItemFactory,
+    PaymentFactory,
+    ProductFactory,
+    TossResponseBuilder,
+)
 
 
 @pytest.mark.django_db
@@ -407,34 +414,20 @@ class TestPaymentFailException:
         # Arrange - 완료된 결제 생성
         from django.utils import timezone
 
-        from shopping.models.order import Order, OrderItem
-
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구 테스트로 123",
-            shipping_address_detail="101동 202호",
-            order_number="20250115999001",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
 
-        payment = Payment.objects.create(
+        payment = PaymentFactory(
             order=order,
-            amount=order.total_amount,
             status="done",  # 이미 완료된 상태
-            toss_order_id=order.order_number,
-            payment_key="test_done_payment_key",
             approved_at=timezone.now(),
         )
 
@@ -460,35 +453,21 @@ class TestPaymentFailException:
         # Arrange - 취소된 결제 생성
         from django.utils import timezone
 
-        from shopping.models.order import Order, OrderItem
-
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="canceled",
             total_amount=product.price,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구 테스트로 123",
-            shipping_address_detail="101동 202호",
-            order_number="20250115999002",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
-            quantity=1,
-            price=product.price,
         )
 
-        payment = Payment.objects.create(
+        payment = PaymentFactory(
             order=order,
-            amount=order.total_amount,
             status="canceled",  # 이미 취소된 상태
             is_canceled=True,
-            toss_order_id=order.order_number,
-            payment_key="test_canceled_payment_key",
             canceled_at=timezone.now(),
         )
 

@@ -6,10 +6,16 @@ import pytest
 from django.utils import timezone
 from rest_framework import status
 
-from shopping.models.order import Order, OrderItem
-from shopping.models.payment import Payment
+from shopping.models.order import OrderItem
 from shopping.models.point import PointHistory
 from shopping.services.point_service import PointService
+from shopping.tests.factories import (
+    CompletedPaymentFactory,
+    OrderFactory,
+    OrderItemFactory,
+    PointHistoryFactory,
+    TossResponseBuilder,
+)
 
 
 @pytest.mark.django_db
@@ -29,11 +35,11 @@ class TestPaymentPointsEarnNormalCase:
         user.membership_level = "gold"
         user.save()
 
-        toss_response = {
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "totalAmount": int(payment.amount),
-        }
+        toss_response = TossResponseBuilder.success_response(
+            payment_key=payment.payment_key,
+            order_id=order.order_number,
+            amount=int(payment.amount),
+        )
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
@@ -79,11 +85,11 @@ class TestPaymentPointsEarnNormalCase:
     ):
         """포인트 이력 description 정확성 검증"""
         # Arrange
-        toss_response = {
-            "status": "DONE",
-            "approvedAt": "2025-01-15T10:00:00+09:00",
-            "totalAmount": int(payment.amount),
-        }
+        toss_response = TossResponseBuilder.success_response(
+            payment_key=payment.payment_key,
+            order_id=order.order_number,
+            amount=int(payment.amount),
+        )
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
@@ -132,7 +138,7 @@ class TestPaymentPointsCancelNormalCase:
         now = timezone.now()
 
         # 가장 먼저 만료될 포인트 (30일 후)
-        history1 = PointHistory.create_history(
+        history1 = PointHistoryFactory(
             user=user,
             points=1000,
             balance=6000,
@@ -142,7 +148,7 @@ class TestPaymentPointsCancelNormalCase:
         )
 
         # 두번째로 만료될 포인트 (60일 후)
-        history2 = PointHistory.create_history(
+        history2 = PointHistoryFactory(
             user=user,
             points=2000,
             balance=8000,
@@ -152,7 +158,7 @@ class TestPaymentPointsCancelNormalCase:
         )
 
         # 가장 나중에 만료될 포인트 (90일 후)
-        history3 = PointHistory.create_history(
+        history3 = PointHistoryFactory(
             user=user,
             points=3000,
             balance=11000,
@@ -165,39 +171,27 @@ class TestPaymentPointsCancelNormalCase:
         user.save()
 
         # 결제 완료된 주문 생성 (2500P 적립)
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
             final_amount=product.price,
             earned_points=2500,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
-            order_number="20250115999001",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
             quantity=1,
-            price=product.price,
         )
 
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
-            payment_key="test_fifo_key",
-            method="카드",
         )
 
         # 적립 이력 생성
-        PointHistory.create_history(
+        PointHistoryFactory(
             user=user,
             points=2500,
             balance=13500,
@@ -210,10 +204,10 @@ class TestPaymentPointsCancelNormalCase:
         user.points = 13500
         user.save()
 
-        toss_cancel_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-        }
+        toss_cancel_response = TossResponseBuilder.cancel_response(
+            payment_key=payment.payment_key,
+            cancel_reason="FIFO 테스트",
+        )
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
@@ -261,31 +255,23 @@ class TestPaymentPointsCancelNormalCase:
         user.points = 10000
         user.save()
 
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
             used_points=3000,
             final_amount=product.price - Decimal("3000"),
             earned_points=100,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
-            order_number="20250115999002",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
             quantity=1,
-            price=product.price,
         )
 
         # 포인트 사용 이력
-        PointHistory.create_history(
+        PointHistoryFactory(
             user=user,
             points=-3000,
             balance=7000,
@@ -295,7 +281,7 @@ class TestPaymentPointsCancelNormalCase:
         )
 
         # 포인트 적립 이력
-        PointHistory.create_history(
+        PointHistoryFactory(
             user=user,
             points=100,
             balance=7100,
@@ -307,19 +293,15 @@ class TestPaymentPointsCancelNormalCase:
         user.points = 7100
         user.save()
 
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.final_amount,
-            status="done",
-            toss_order_id=order.order_number,
-            payment_key="test_metadata_key",
-            method="카드",
         )
 
-        toss_cancel_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-        }
+        toss_cancel_response = TossResponseBuilder.cancel_response(
+            payment_key=payment.payment_key,
+            cancel_reason="메타데이터 테스트",
+        )
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
@@ -377,7 +359,7 @@ class TestPaymentPointsBoundary:
         point_service = PointService()
 
         # 만료된 포인트 (500P) - 30일 전에 만료
-        expired_history = PointHistory.create_history(
+        expired_history = PointHistoryFactory(
             user=user,
             points=500,
             balance=500,
@@ -387,7 +369,7 @@ class TestPaymentPointsBoundary:
         )
 
         # 유효한 포인트 (2000P) - 30일 후 만료
-        valid_history = PointHistory.create_history(
+        valid_history = PointHistoryFactory(
             user=user,
             points=2000,
             balance=2500,
@@ -438,7 +420,7 @@ class TestPaymentPointsException:
         point_service = PointService()
 
         # 유효한 포인트 1000P만 존재
-        PointHistory.create_history(
+        PointHistoryFactory(
             user=user,
             points=1000,
             balance=1000,
@@ -479,7 +461,7 @@ class TestPaymentPointsException:
         point_service = PointService()
 
         # 만료된 포인트만 존재 (30일 전에 만료)
-        expired_history = PointHistory.create_history(
+        expired_history = PointHistoryFactory(
             user=user,
             points=3000,
             balance=3000,
@@ -528,30 +510,22 @@ class TestPaymentPointsException:
         user.save()
 
         # 결제 완료 주문 (2000P 적립됨)
-        order = Order.objects.create(
+        order = OrderFactory(
             user=user,
             status="paid",
             total_amount=product.price,
             final_amount=product.price,
             earned_points=2000,
-            shipping_name="홍길동",
-            shipping_phone="010-1234-5678",
-            shipping_postal_code="12345",
-            shipping_address="서울시 강남구",
-            shipping_address_detail="101동",
-            order_number="20250115999003",
         )
 
-        OrderItem.objects.create(
+        OrderItemFactory(
             order=order,
             product=product,
-            product_name=product.name,
             quantity=1,
-            price=product.price,
         )
 
         # 적립 이력
-        PointHistory.create_history(
+        PointHistoryFactory(
             user=user,
             points=2000,
             balance=2100,
@@ -563,19 +537,15 @@ class TestPaymentPointsException:
         # 사용자가 적립된 포인트를 거의 다 사용 (100P만 남음)
         # (별도 주문에서 2000P 사용했다고 가정)
 
-        payment = Payment.objects.create(
+        payment = CompletedPaymentFactory(
             order=order,
             amount=order.total_amount,
-            status="done",
-            toss_order_id=order.order_number,
-            payment_key="test_insufficient_earned_key",
-            method="카드",
         )
 
-        toss_cancel_response = {
-            "status": "CANCELED",
-            "canceledAt": "2025-01-15T11:00:00+09:00",
-        }
+        toss_cancel_response = TossResponseBuilder.cancel_response(
+            payment_key=payment.payment_key,
+            cancel_reason="부족 테스트",
+        )
 
         mocker.patch(
             "shopping.utils.toss_payment.TossPaymentClient.cancel_payment",
@@ -617,7 +587,7 @@ class TestPaymentPointsException:
         point_service = PointService()
 
         # 첫 번째 적립 (1000P, 500P 이미 사용됨)
-        history1 = PointHistory.create_history(
+        history1 = PointHistoryFactory(
             user=user,
             points=1000,
             balance=1000,
@@ -629,7 +599,7 @@ class TestPaymentPointsException:
         history1.save()
 
         # 두 번째 적립 (2000P, 사용 안 됨)
-        history2 = PointHistory.create_history(
+        history2 = PointHistoryFactory(
             user=user,
             points=2000,
             balance=3000,
@@ -674,7 +644,7 @@ class TestPaymentPointsException:
         # 5개의 적립 이력 (만료일 역순으로 생성)
         histories = []
         for i in range(5):
-            history = PointHistory.create_history(
+            history = PointHistoryFactory(
                 user=user,
                 points=1000,
                 balance=(i + 1) * 1000,

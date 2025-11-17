@@ -438,6 +438,8 @@ class TestPaymentDetailBoundary:
             amount=order.total_amount,
             payment_key="test_payment_key_12",
             method="계좌이체",
+            card_company="",
+            card_number="",
         )
 
         # Act

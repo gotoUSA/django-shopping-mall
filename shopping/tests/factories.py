@@ -725,28 +725,28 @@ class PaidOrderFactory(OrderFactory):
 
 class CompletedPaymentFactory(PaymentFactory):
     """
-    완료된 Payment Factory
+    완료된 Payment Factory (카드 결제)
 
-    status='done'이며 approved_at이 설정됩니다.
-    method와 카드 정보는 필요 시 명시적으로 전달해야 합니다.
+    status='done'이며 카드 결제 정보가 기본 설정됩니다.
+    비카드 결제는 명시적으로 전달해야 합니다.
 
     사용 예시:
-        # 일반 완료
+        # 카드 결제 완료 (기본)
         payment = CompletedPaymentFactory()
 
-        # 카드 결제 완료
+        # 계좌이체 완료 (카드 정보 제거)
         payment = CompletedPaymentFactory(
-            method="카드",
-            card_company="신한카드",
-            card_number="1234****"
+            method="계좌이체",
+            card_company="",
+            card_number=""
         )
-
-        # 계좌이체 완료
-        payment = CompletedPaymentFactory(method="계좌이체")
     """
 
     status = "done"
+    method = "카드"
     approved_at = factory.LazyFunction(timezone.now)
+    card_company = "신한카드"
+    card_number = "1234****"
 
 
 class OrderWithItemsFactory(OrderFactory):

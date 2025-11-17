@@ -19,12 +19,15 @@ class Cart(models.Model):
     주문 완료 시 새로운 장바구니가 생성됩니다.
     """
 
-    # 사용자 참조
+    # 사용자 참조 (비회원 지원을 위해 선택적)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="carts",
         verbose_name="사용자",
+        null=True,
+        blank=True,
+        help_text="회원 장바구니의 경우 사용자 정보",
     )
 
     # 세션 키 (비회원 장바구니를 위함)
@@ -32,6 +35,7 @@ class Cart(models.Model):
         max_length=255,
         null=True,
         blank=True,
+        db_index=True,
         verbose_name="세션 키",
         help_text="비회원 장바구니를 위한 세션 키",
     )
@@ -39,6 +43,7 @@ class Cart(models.Model):
     # 상태
     is_active = models.BooleanField(
         default=True,
+        db_index=True,
         verbose_name="활성 상태",
         help_text="현재 사용중인 장바구니인지 여부",
     )
@@ -53,20 +58,49 @@ class Cart(models.Model):
         verbose_name = "장바구니"
         verbose_name_plural = "장바구니 목록"
         ordering = ["-updated_at"]
-        # 사용자당 활성 장바구니는 한개만
+        # 인덱스 설정 (성능 최적화)
+        indexes = [
+            models.Index(fields=["-updated_at"]),
+        ]
+        # 활성 장바구니 유니크 제약
         constraints = [
+            # 회원: 사용자당 활성 장바구니 1개
             models.UniqueConstraint(
                 fields=["user"],
-                condition=models.Q(is_active=True),
+                condition=models.Q(is_active=True, user__isnull=False),
                 name="unique_active_cart_per_user",
-            )
+            ),
+            # 비회원: 세션당 활성 장바구니 1개
+            models.UniqueConstraint(
+                fields=["session_key"],
+                condition=models.Q(is_active=True, session_key__isnull=False),
+                name="unique_active_cart_per_session",
+            ),
         ]
 
     def __str__(self) -> str:
-        return f'{self.user.username}의 장바구니 ({"활성" if self.is_active else "비활성"})'
+        owner = self.user.username if self.user else f"세션:{self.session_key[:8]}" if self.session_key else "알 수 없음"
+        return f'{owner}의 장바구니 ({"활성" if self.is_active else "비활성"})'
 
-    @property
-    def total_amount(self) -> Decimal:
+    def clean(self) -> None:
+        """유효성 검사"""
+        from django.core.exceptions import ValidationError
+
+        # user와 session_key 중 최소 하나는 필수
+        if not self.user and not self.session_key:
+            raise ValidationError("회원 또는 세션 키 중 하나는 필수입니다.")
+
+        # 둘 다 있는 경우 회원을 우선시 (병합 시나리오)
+        if self.user and self.session_key:
+            # 경고는 하지 않고 허용 (로그인 시 병합 과정에서 발생 가능)
+            pass
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        """저장 전 유효성 검사"""
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def get_total_amount(self) -> Decimal:
         """장바구니 총 금액 계산 (DB에서 집계)"""
         from django.db.models import DecimalField, F, Sum
         from django.db.models.functions import Coalesce
@@ -79,10 +113,13 @@ class Cart(models.Model):
         )
         return result["total"]
 
-    @property
-    def total_quantity(self) -> int:
-        """장바구니 총 수량"""
-        return sum(item.quantity for item in self.items.all())
+    def get_total_quantity(self) -> int:
+        """장바구니 총 수량 (DB에서 집계)"""
+        from django.db.models import Sum
+        from django.db.models.functions import Coalesce
+
+        result = self.items.aggregate(total=Coalesce(Sum("quantity"), 0))
+        return result["total"]
 
     def clear(self) -> None:
         """장바구니 비우기"""
@@ -94,10 +131,55 @@ class Cart(models.Model):
         self.save(update_fields=["is_active"])
 
     @classmethod
-    def get_or_create_active_cart(cls, user: User) -> tuple[Cart, bool]:
-        """사용자의 활성 장바구니 가져오기 또는 생성"""
-        cart, created = cls.objects.get_or_create(user=user, is_active=True, defaults={"user": user})
+    def get_or_create_active_cart(
+        cls, user: User | None = None, session_key: str | None = None
+    ) -> tuple[Cart, bool]:
+        """회원/비회원 활성 장바구니 가져오기 또는 생성"""
+        if user and user.is_authenticated:
+            # 회원 장바구니
+            cart, created = cls.objects.get_or_create(user=user, is_active=True, defaults={"user": user})
+        elif session_key:
+            # 비회원 장바구니
+            cart, created = cls.objects.get_or_create(
+                session_key=session_key, is_active=True, defaults={"session_key": session_key}
+            )
+        else:
+            raise ValueError("user 또는 session_key 중 하나는 필수입니다.")
+
         return cart, created
+
+    @classmethod
+    def merge_anonymous_cart(cls, user: User, session_key: str) -> Cart:
+        """비회원 장바구니를 회원 장바구니로 병합 (로그인 시)"""
+        from django.db import transaction
+        from django.db.models import F
+
+        with transaction.atomic():
+            # 회원 장바구니 가져오기/생성
+            user_cart, _ = cls.get_or_create_active_cart(user=user)
+
+            # 비회원 장바구니 가져오기
+            try:
+                anon_cart = cls.objects.get(session_key=session_key, is_active=True)
+            except cls.DoesNotExist:
+                return user_cart
+
+            # 아이템 병합 (수량 합산 방식)
+            for anon_item in anon_cart.items.select_related("product"):
+                user_item, created = user_cart.items.get_or_create(
+                    product=anon_item.product, defaults={"quantity": anon_item.quantity}
+                )
+
+                if not created:
+                    # 이미 있으면 수량 합산
+                    user_item.quantity = F("quantity") + anon_item.quantity
+                    user_item.save(update_fields=["quantity"])
+                    user_item.refresh_from_db()
+
+            # 비회원 장바구니 삭제
+            anon_cart.delete()
+
+        return user_cart
 
 
 class CartItem(models.Model):
@@ -110,7 +192,9 @@ class CartItem(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name="items", verbose_name="장바구니")
 
     # 상품 참조
-    product = models.ForeignKey("Product", on_delete=models.CASCADE, verbose_name="상품")
+    product = models.ForeignKey(
+        "Product", on_delete=models.CASCADE, related_name="cart_items", verbose_name="상품"
+    )
 
     # 수량
     quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)], verbose_name="수량")
@@ -124,6 +208,10 @@ class CartItem(models.Model):
         verbose_name = "장바구니 아이템"
         verbose_name_plural = "장바구니 아이템 목록"
         ordering = ["-added_at"]
+        # 인덱스 설정 (성능 최적화)
+        indexes = [
+            models.Index(fields=["-added_at"]),
+        ]
         # 같은 장바구니에 같은 상품은 하나만
         unique_together = ["cart", "product"]
 

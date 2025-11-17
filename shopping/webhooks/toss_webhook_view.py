@@ -6,6 +6,7 @@ from typing import Any
 
 from django.db import transaction
 from django.db.models import F
+from django.db.models.functions import Greatest
 from django.views.decorators.csrf import csrf_exempt
 
 from rest_framework import status
@@ -18,6 +19,7 @@ from ..models.cart import Cart
 from ..models.payment import Payment, PaymentLog
 from ..models.product import Product
 from ..serializers.payment_serializers import PaymentWebhookSerializer
+from ..services.point_service import PointService
 from ..utils.toss_payment import TossPaymentClient
 
 # 로거 설정
@@ -142,11 +144,12 @@ def handle_payment_done(event_data: dict[str, Any]) -> None:
 
     # 재고 차감 및 sold_count 증가 (결제 완료 시점)
     if order.status != "paid":
-        for order_item in order.order_item.select_for_update():
+        for order_item in order.order_items.select_for_update():
             if order_item.product:
                 # 재고 차감 및 sold_count 증가 (F 객체로 안전하게)
+                # Greatest를 사용하여 재고가 음수가 되지 않도록 방지
                 Product.objects.filter(pk=order_item.product.pk).update(
-                    stock=F("stock") - order_item.quantity,
+                    stock=Greatest(F("stock") - order_item.quantity, 0),
                     sold_count=F("sold_count") + order_item.quantity,
                 )
 
@@ -162,7 +165,13 @@ def handle_payment_done(event_data: dict[str, Any]) -> None:
     if order.user:
         points_to_add = int(payment.amount * Decimal(0.01))
         if points_to_add > 0:
-            order.user.add_points(points_to_add)
+            PointService.add_points(
+                user=order.user,
+                amount=points_to_add,
+                type="earn",
+                order=order,
+                description=f"주문 결제 완료 적립 ({order.order_number})",
+            )
 
     # 웹훅 로그
     PaymentLog.objects.create(
@@ -209,16 +218,23 @@ def handle_payment_canceled(event_data: dict[str, Any]) -> None:
     if order.status in ["paid", "preparing"]:
         for order_item in order.order_items.all():
             if order_item.product:
+                # Greatest를 사용하여 sold_count가 음수가 되지 않도록 방지
                 Product.objects.filter(pk=order_item.product.pk).update(
                     stock=F("stock") + order_item.quantity,
-                    sold_count=F("sold_count") - order_item.quantity,
+                    sold_count=Greatest(F("sold_count") - order_item.quantity, 0),
                 )
 
     # 포인트 회수 (상태 변경 전)
     if order.user and order.status in ["paid", "preparing"]:
         points_to_deduct = int(payment.amount * Decimal(0.01))
         if points_to_deduct > 0:
-            order.user.use_points(points_to_deduct)
+            PointService.use_points(
+                user=order.user,
+                amount=points_to_deduct,
+                type="cancel_deduct",
+                order=order,
+                description=f"주문 취소로 인한 적립 포인트 회수 ({order.order_number})",
+            )
 
     # 주문 상태 변경
     order.status = "canceled"

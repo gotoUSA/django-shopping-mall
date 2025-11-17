@@ -24,6 +24,11 @@ class TestPaymentFailedWebhook:
         self.payment = payment
         self.webhook_url = webhook_url
 
+        # 각 테스트 시작 전에 payment 상태 초기화 (parametrize 테스트 격리)
+        self.payment.status = "ready"
+        self.payment.fail_reason = ""
+        self.payment.save()
+
     # ==========================================
     # 1단계: 정상 케이스 (Happy Path)
     # ==========================================

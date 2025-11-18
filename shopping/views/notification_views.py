@@ -8,7 +8,11 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from ..models.notification import Notification
-from ..serializers.notification_serializers import NotificationMarkReadSerializer, NotificationSerializer
+from ..serializers.notification_serializers import (
+    NotificationListSerializer,
+    NotificationMarkReadSerializer,
+    NotificationSerializer,
+)
 
 
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -31,6 +35,17 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self) -> Any:
         """현재 사용자의 알림만 조회"""
         return Notification.objects.filter(user=self.request.user)
+
+    def get_serializer_class(self) -> type[NotificationListSerializer] | type[NotificationSerializer]:
+        """
+        액션에 따라 적절한 Serializer 선택
+
+        - list, unread: 경량 ListSerializer (message 제외)
+        - retrieve: 전체 정보 포함 Serializer
+        """
+        if self.action in ["list", "unread"]:
+            return NotificationListSerializer
+        return NotificationSerializer
 
     def retrieve(self, request: Request, pk: int | None = None) -> Response:
         """
@@ -113,8 +128,8 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
             "count": 10
         }
         """
-        read_notifiactions = self.get_queryset().filter(is_read=True)
-        count = read_notifiactions.count()
-        read_notifiactions.delete()
+        read_notifications = self.get_queryset().filter(is_read=True)
+        count = read_notifications.count()
+        read_notifications.delete()
 
         return Response({"message": f"{count}개의 알림을 삭제했습니다.", "count": count})

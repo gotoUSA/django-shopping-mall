@@ -9,11 +9,66 @@ from rest_framework import serializers
 from ..models.notification import Notification
 
 
+class NotificationListSerializer(serializers.ModelSerializer):
+    """
+    알림 목록 조회용 경량 Serializer
+
+    리스트 뷰에서 사용되며, 불필요한 message 필드를 제외하여
+    네트워크 트래픽과 응답 시간을 최적화합니다.
+    """
+
+    # 알림 타입을 한글로 표시
+    notification_type_display = serializers.CharField(source="get_notification_type_display", read_only=True)
+
+    # 생성된 시간을 상대적으로 표시
+    created_at_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Notification
+        fields = [
+            "id",
+            "notification_type",
+            "notification_type_display",
+            "title",
+            "link",
+            "is_read",
+            "created_at",
+            "created_at_display",
+        ]
+        read_only_fields = ["created_at"]
+
+    def get_created_at_display(self, obj: Notification) -> str:
+        """
+        생성 시간을 상대적으로 표시
+
+        예: "방금 전", "5분 전", "1시간 전", "3일 전"
+        """
+        now = timezone.now()
+        diff = now - obj.created_at
+
+        seconds = diff.total_seconds()
+
+        if seconds < 60:
+            return "방금 전"
+        elif seconds < 3600:  # 1시간
+            minutes = int(seconds / 60)
+            return f"{minutes}분 전"
+        elif seconds < 86400:  # 1일
+            hours = int(seconds / 3600)
+            return f"{hours}시간 전"
+        elif seconds < 604800:  # 7일
+            days = int(seconds / 86400)
+            return f"{days}일 전"
+        else:
+            # 7일 이상이면 날짜로 표시
+            return obj.created_at.strftime("%Y-%m-%d")
+
+
 class NotificationSerializer(serializers.ModelSerializer):
     """
-    알림 기본 Serializer
+    알림 상세 조회용 Serializer
 
-    알림 목록 조회 및 상세 정보 표시에 사용됩니다.
+    알림 상세 정보 표시에 사용되며, message 필드를 포함합니다.
     """
 
     # 알림 타입을 한글로 표시
@@ -37,6 +92,25 @@ class NotificationSerializer(serializers.ModelSerializer):
             "created_at_display",
         ]
         read_only_fields = ["created_at", "read_at"]
+
+    def validate_notification_type(self, value: str) -> str:
+        """
+        알림 타입 명시적 검증
+
+        유효한 타입 목록:
+        - qa_answer: 상품 문의 답변
+        - order_status: 주문 상태 변경
+        - point_earned: 포인트 적립
+        - point_expiring: 포인트 만료 예정
+        - review_reply: 리뷰 답글
+        - return: 교환/환불
+        """
+        valid_types = [choice[0] for choice in Notification.TYPE_CHOICES]
+        if value not in valid_types:
+            raise serializers.ValidationError(
+                f"유효하지 않은 알림 타입입니다. 사용 가능한 타입: {', '.join(valid_types)}"
+            )
+        return value
 
     def get_created_at_display(self, obj: Notification) -> str:
         """

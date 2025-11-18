@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 
 from rest_framework import permissions, status, viewsets
@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from rest_framework.serializers import BaseSerializer
 
 from ..models.product import Product
-from ..models.product_qa import ProductQuestion
+from ..models.product_qa import ProductAnswer, ProductQuestion
 from ..serializers.product_qa_serializers import (
     ProductAnswerCreateSerializer,
     ProductAnswerSerializer,
@@ -54,11 +54,16 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         """
         product_id = self.kwargs.get("product_pk")
 
-        # 기본 쿼리셋
+        # 기본 쿼리셋 with N+1 쿼리 최적화
         queryset = (
             ProductQuestion.objects.filter(product_id=product_id)
             .select_related("user", "product", "product__seller")
-            .prefetch_related("answer")
+            .prefetch_related(
+                Prefetch(
+                    "answer",
+                    queryset=ProductAnswer.objects.select_related("seller")
+                )
+            )
             .order_by("-created_at")
         )
 
@@ -261,10 +266,15 @@ class MyQuestionViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = ProductQuestionPagination
 
     def get_queryset(self) -> Any:
-        """현재 사용자가 작성한 문의만 조회"""
+        """현재 사용자가 작성한 문의만 조회 with N+1 쿼리 최적화"""
         return (
             ProductQuestion.objects.filter(user=self.request.user)
             .select_related("product", "product__seller", "user")
-            .prefetch_related("answer")
+            .prefetch_related(
+                Prefetch(
+                    "answer",
+                    queryset=ProductAnswer.objects.select_related("seller")
+                )
+            )
             .order_by("-created_at")
         )

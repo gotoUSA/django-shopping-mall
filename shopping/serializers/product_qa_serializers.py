@@ -11,6 +11,30 @@ from ..models.product_qa import ProductAnswer, ProductQuestion
 User = get_user_model()
 
 
+class ProductQuestionBaseSerializer(serializers.ModelSerializer):
+    """
+    문의 작성/수정용 Base Serializer
+
+    공통 validation 로직을 제공합니다.
+    """
+
+    def validate_title(self, value: str) -> str:
+        """제목 유효성 검증"""
+        if len(value.strip()) < 2:
+            raise serializers.ValidationError("제목은 최소 2자 이상이어야 합니다.")
+        return value.strip()
+
+    def validate_content(self, value: str) -> str:
+        """내용 유효성 검증"""
+        if len(value.strip()) < 5:
+            raise serializers.ValidationError("내용은 최소 5자 이상이어야 합니다.")
+        return value.strip()
+
+    class Meta:
+        model = ProductQuestion
+        abstract = True
+
+
 class ProductAnswerSerializer(serializers.ModelSerializer):
     """문의 답변 Serializer"""
 
@@ -132,7 +156,7 @@ class ProductQuestionDetailSerializer(serializers.ModelSerializer):
         return obj.product.seller == request.user or request.user.is_staff
 
 
-class ProductQuestionCreateSerializer(serializers.ModelSerializer):
+class ProductQuestionCreateSerializer(ProductQuestionBaseSerializer):
     """문의 작성용 Serializer"""
 
     class Meta:
@@ -144,37 +168,13 @@ class ProductQuestionCreateSerializer(serializers.ModelSerializer):
             "is_secret",
         ]
 
-    def validate_title(self, value: str) -> str:
-        """제목 유효성 검증"""
-        if len(value.strip()) < 2:
-            raise serializers.ValidationError("제목은 최소 2자 이상이어야 합니다.")
-        return value.strip()
 
-    def validate_content(self, value: str) -> str:
-        """내용 유효성 검증"""
-        if len(value.strip()) < 5:
-            raise serializers.ValidationError("내용은 최소 5자 이상이어야 합니다.")
-        return value.strip()
-
-
-class ProductQuestionUpdateSerializer(serializers.ModelSerializer):
+class ProductQuestionUpdateSerializer(ProductQuestionBaseSerializer):
     """문의 수정용 Serializer"""
 
     class Meta:
         model = ProductQuestion
         fields = ["title", "content", "is_secret"]
-
-    def validate_title(self, value: str) -> str:
-        """제목 유효성 검증"""
-        if len(value.strip()) < 2:
-            raise serializers.ValidationError("제목은 최소 2자 이상이어야 합니다.")
-        return value.strip()
-
-    def validate_content(self, value: str) -> str:
-        """내용 유효성 검증"""
-        if len(value.strip()) < 5:
-            raise serializers.ValidationError("내용은 최소 5자 이상이어야 합니다.")
-        return value.strip()
 
 
 class ProductAnswerCreateSerializer(serializers.ModelSerializer):

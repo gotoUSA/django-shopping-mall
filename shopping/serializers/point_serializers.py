@@ -31,6 +31,36 @@ class PointHistorySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["balance", "created_at"]
 
+    def validate_points(self, value: int) -> int:
+        """포인트 변동량 검증"""
+        if value == 0:
+            raise serializers.ValidationError("포인트 변동량은 0이 될 수 없습니다.")
+        return value
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """포인트 이력 데이터 검증 - Model의 clean() 로직 반영"""
+        points = attrs.get("points")
+        point_type = attrs.get("type")
+        balance = attrs.get("balance")
+
+        # type별 points 부호 검증
+        positive_types = {"earn", "cancel_refund", "admin_add", "event"}
+        negative_types = {"use", "cancel_deduct", "admin_deduct", "expire"}
+
+        if point_type in positive_types and points is not None and points <= 0:
+            type_display = dict(PointHistory.TYPE_CHOICES).get(point_type, point_type)
+            raise serializers.ValidationError({"points": f"{type_display}는 양수 포인트여야 합니다."})
+
+        if point_type in negative_types and points is not None and points >= 0:
+            type_display = dict(PointHistory.TYPE_CHOICES).get(point_type, point_type)
+            raise serializers.ValidationError({"points": f"{type_display}는 음수 포인트여야 합니다."})
+
+        # 잔액 검증 (balance가 제공된 경우)
+        if balance is not None and balance < 0:
+            raise serializers.ValidationError({"balance": "잔액은 음수가 될 수 없습니다."})
+
+        return attrs
+
 
 class UserPointSerializer(serializers.ModelSerializer):
     """사용자 포인트 정보 조회용 시리얼라이저"""
@@ -52,29 +82,22 @@ class UserPointSerializer(serializers.ModelSerializer):
         read_only_fields = ["points"]
 
     def get_total_earned(self, obj: User) -> int:
-        """총 적립 포인트"""
-        histories = obj.point_histories.filter(points__gt=0)
-        return sum(h.points for h in histories)
+        """총 적립 포인트 - DB aggregate 사용"""
+        from ..models.point import PointHistory
+
+        return PointHistory.objects.get_total_earned(obj)
 
     def get_total_used(self, obj: User) -> int:
-        """총 사용 포인트"""
-        histories = obj.point_histories.filter(points__lt=0)
-        return abs(sum(h.points for h in histories))
+        """총 사용 포인트 - DB aggregate 사용"""
+        from ..models.point import PointHistory
+
+        return PointHistory.objects.get_total_used(obj)
 
     def get_expiring_soon(self, obj: User) -> int:
-        """30일 내 만료 예정 포인트"""
-        from datetime import timedelta
+        """30일 내 만료 예정 포인트 - DB aggregate 사용"""
+        from ..models.point import PointHistory
 
-        from django.utils import timezone
-
-        expire_date = timezone.now() + timedelta(days=30)
-        histories = obj.point_histories.filter(
-            type="earn",
-            points__gt=0,
-            expires_at__lte=expire_date,
-            expires_at__gt=timezone.now(),
-        )
-        return sum(h.points for h in histories)
+        return PointHistory.objects.get_expiring_soon(obj, days=30)
 
 
 class PointUseSerializer(serializers.Serializer):

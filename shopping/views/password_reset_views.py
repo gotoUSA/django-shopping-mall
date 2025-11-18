@@ -47,6 +47,7 @@ class PasswordResetRequestView(APIView):
         보안 고려사항:
         - 존재하지 않는 이메일이어도 같은 메시지 반환 (계정 존재 여부 노출 방지)
         - 실제 이메일은 존재하는 계정에만 발송
+        - Model의 generate_token() 사용으로 이전 토큰 자동 무효화
         """
         serializer = PasswordResetRequestSerializer(data=request.data)
 
@@ -55,12 +56,15 @@ class PasswordResetRequestView(APIView):
 
             # 사용자가 존재하는 경우에만 이메일 발송
             if user:
-                # 토큰 생성
-                token = PasswordResetToken.objects.create(user=user)
+                # Model의 generate_token() 사용
+                # - 원본 토큰(UUID) 반환
+                # - 해시값만 DB에 저장
+                # - 이전 미사용 토큰 자동 무효화
+                raw_token = PasswordResetToken.generate_token(user, invalidate_previous=True)
 
-                # 재설정 링크 생성
+                # 재설정 링크 생성 (원본 토큰 사용)
                 frontend_url = settings.FRONTEND_URL
-                reset_link = f"{frontend_url}/password-reset?token={token.token}"
+                reset_link = f"{frontend_url}/password-reset?token={raw_token}&email={user.email}"
 
                 # 이메일 발송 (비동기)
                 send_email_task.delay(
@@ -113,6 +117,7 @@ class PasswordResetConfirmView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetRateThrottle]  # 토큰 brute force 방지
 
     def post(self, request: Request) -> Response:
         """
@@ -120,6 +125,7 @@ class PasswordResetConfirmView(APIView):
 
         요청:
         {
+            "email": "user@example.com",
             "token": "uuid-token-here",
             "new_password": "newpass123!",
             "new_password2": "newpass123!"
@@ -129,11 +135,16 @@ class PasswordResetConfirmView(APIView):
         {
             "message": "비밀번호가 성공적으로 변경되었습니다. 새 비밀번호로 로그인해주세요."
         }
+
+        보안 고려사항:
+        - 이메일과 토큰을 함께 검증하여 타이밍 공격 방지
+        - throttle로 토큰 brute force 공격 방지
+        - Model의 verify_token() 사용으로 해시 기반 검증
         """
         serializer = PasswordResetConfirmSerializer(data=request.data)
 
         if serializer.is_valid():
-            # 비밀번호 변경
+            # 비밀번호 변경 (트랜잭션 보장)
             user = serializer.save()
 
             return Response(

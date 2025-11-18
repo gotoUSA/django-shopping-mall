@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
 if TYPE_CHECKING:
@@ -86,10 +87,39 @@ class PointHistory(models.Model):
             models.Index(fields=["user", "-created_at"]),
             models.Index(fields=["type"]),
             models.Index(fields=["order"]),
+            models.Index(fields=["expires_at"]),  # 만료 포인트 배치 조회용
         ]
 
     def __str__(self) -> str:
         return f"{self.user.username} - {self.get_type_display()} {self.points:+d}P"
+
+    def clean(self) -> None:
+        """
+        포인트 이력 데이터 검증
+        """
+        super().clean()
+
+        # 포인트 변동량은 0이 될 수 없음
+        if self.points == 0:
+            raise ValidationError({"points": "포인트 변동량은 0이 될 수 없습니다."})
+
+        # type별 points 부호 검증
+        positive_types = {"earn", "cancel_refund", "admin_add", "event"}
+        negative_types = {"use", "cancel_deduct", "admin_deduct", "expire"}
+
+        if self.type in positive_types and self.points <= 0:
+            raise ValidationError(
+                {"points": f"{self.get_type_display()}는 양수 포인트여야 합니다."}
+            )
+
+        if self.type in negative_types and self.points >= 0:
+            raise ValidationError(
+                {"points": f"{self.get_type_display()}는 음수 포인트여야 합니다."}
+            )
+
+        # 잔액은 항상 0 이상이어야 함
+        if self.balance < 0:
+            raise ValidationError({"balance": "잔액은 음수가 될 수 없습니다."})
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """
@@ -155,3 +185,70 @@ class PointHistory(models.Model):
             expires_at=expires_at,
             **kwargs,
         )
+
+    @classmethod
+    def get_user_balance(cls, user: User) -> int:
+        """
+        사용자의 현재 포인트 잔액을 계산합니다.
+
+        가장 최근 이력의 balance를 반환하며, 이력이 없는 경우 0을 반환합니다.
+        이는 최적화된 방법으로, 모든 이력을 합산하는 것보다 효율적입니다.
+
+        Args:
+            user: 포인트 잔액을 조회할 사용자
+
+        Returns:
+            int: 현재 포인트 잔액
+        """
+        latest_history = (
+            cls.objects.filter(user=user).order_by("-created_at").only("balance").first()
+        )
+        return latest_history.balance if latest_history else 0
+
+    @classmethod
+    def get_expiring_points(cls, user: User, days: int = 30) -> dict[str, Any]:
+        """
+        사용자의 만료 예정 포인트를 조회합니다.
+
+        Args:
+            user: 조회할 사용자
+            days: 앞으로 며칠 이내 만료 포인트를 조회할지 (기본: 30일)
+
+        Returns:
+            dict: {
+                'total_expiring_points': 만료 예정 총 포인트,
+                'expiring_histories': 만료 예정 이력 QuerySet,
+                'earliest_expire_date': 가장 빠른 만료일
+            }
+        """
+        from datetime import timedelta
+
+        from django.db.models import Sum
+        from django.utils import timezone
+
+        now = timezone.now()
+        expire_threshold = now + timedelta(days=days)
+
+        # 만료 예정이면서 아직 사용되지 않은 적립 포인트만 조회
+        # (음수 포인트로 상쇄되지 않은 것)
+        expiring_histories = cls.objects.filter(
+            user=user,
+            type="earn",
+            expires_at__isnull=False,
+            expires_at__lte=expire_threshold,
+            expires_at__gte=now,
+        ).order_by("expires_at")
+
+        # 만료 예정 포인트 총합
+        total_expiring = expiring_histories.aggregate(total=Sum("points"))["total"] or 0
+
+        # 가장 빠른 만료일
+        earliest_expire = (
+            expiring_histories.values_list("expires_at", flat=True).first()
+        )
+
+        return {
+            "total_expiring_points": total_expiring,
+            "expiring_histories": expiring_histories,
+            "earliest_expire_date": earliest_expire,
+        }

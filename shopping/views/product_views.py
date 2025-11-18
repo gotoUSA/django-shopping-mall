@@ -127,7 +127,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         queryset = (
             Product.objects.filter(is_active=True)
             .select_related("seller", "category")
-            .prefetch_related("images", "reviews")
+            .prefetch_related("images", "reviews", "wished_by_users")
             .annotate(
                 # 평균 평점과 리뷰 수를 미리 계산
                 avg_rating=Avg("reviews__rating"),
@@ -459,7 +459,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         products = (
             Product.objects.filter(category__in=categories, is_active=True)
             .select_related("seller", "category")
-            .prefetch_related("images")
+            .prefetch_related("images", "reviews", "wished_by_users")
         )
 
         # ProductViewSet의 필터링 로직 재사용

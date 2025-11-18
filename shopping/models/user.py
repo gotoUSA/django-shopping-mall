@@ -62,6 +62,7 @@ class User(AbstractUser):
         max_length=10,
         choices=MEMBERSHIP_CHOICES,
         default="bronze",
+        db_index=True,  # 등급별 조회 최적화
         verbose_name="회원등급",
     )
 
@@ -70,6 +71,7 @@ class User(AbstractUser):
     # 판매자 여부
     is_seller = models.BooleanField(
         default=False,
+        db_index=True,  # 판매자 필터링 최적화
         verbose_name="판매자 여부",
         help_text="체크 시 상품 등록/관리 및 교환/환불 처리 권한 부여",
     )
@@ -78,7 +80,11 @@ class User(AbstractUser):
     last_login_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name="마지막 로그인 IP")
 
     # 탈퇴 관련
-    is_withdrawn = models.BooleanField(default=False, verbose_name="탈퇴 여부")
+    is_withdrawn = models.BooleanField(
+        default=False,
+        db_index=True,  # 활성 회원 필터링 최적화
+        verbose_name="탈퇴 여부",
+    )
 
     withdrawn_at = models.DateTimeField(null=True, blank=True, verbose_name="탈퇴 일시")
 
@@ -95,6 +101,22 @@ class User(AbstractUser):
         db_table = "shopping_users"
         verbose_name = "사용자"
         verbose_name_plural = "사용자 목록"
+        ordering = ["-date_joined"]  # 최신 가입 회원 우선
+
+    def clean(self) -> None:
+        """모델 유효성 검사"""
+        from django.core.exceptions import ValidationError
+
+        super().clean()
+
+        # 탈퇴 여부와 탈퇴 일시의 일관성 검증
+        if self.is_withdrawn and not self.withdrawn_at:
+            raise ValidationError(
+                {"withdrawn_at": "탈퇴 처리 시 탈퇴 일시를 입력해야 합니다."}
+            )
+        if not self.is_withdrawn and self.withdrawn_at:
+            # 탈퇴 취소 시 탈퇴 일시 자동 제거
+            self.withdrawn_at = None
 
     def __str__(self) -> str:
         return f'{self.username} ({self.get_full_name() or "이름없음"})'

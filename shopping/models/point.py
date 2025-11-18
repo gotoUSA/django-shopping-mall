@@ -5,10 +5,95 @@ from typing import TYPE_CHECKING, Any
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import QuerySet, Sum
 
 if TYPE_CHECKING:
     from shopping.models.order import Order
     from shopping.models.user import User
+
+
+class PointHistoryManager(models.Manager):
+    """포인트 이력 커스텀 매니저"""
+
+    def get_total_earned(self, user: User) -> int:
+        """
+        사용자의 총 적립 포인트를 계산합니다.
+
+        Args:
+            user: 조회할 사용자
+
+        Returns:
+            int: 총 적립 포인트
+        """
+        result = self.filter(user=user, points__gt=0).aggregate(total=Sum("points"))
+        return result["total"] or 0
+
+    def get_total_used(self, user: User) -> int:
+        """
+        사용자의 총 사용 포인트를 계산합니다.
+
+        Args:
+            user: 조회할 사용자
+
+        Returns:
+            int: 총 사용 포인트 (절댓값)
+        """
+        result = self.filter(user=user, points__lt=0).aggregate(total=Sum("points"))
+        return abs(result["total"] or 0)
+
+    def get_expiring_soon(self, user: User, days: int = 30) -> int:
+        """
+        사용자의 만료 예정 포인트를 계산합니다.
+
+        Args:
+            user: 조회할 사용자
+            days: 앞으로 며칠 이내 만료 포인트를 조회할지 (기본: 30일)
+
+        Returns:
+            int: 만료 예정 총 포인트
+        """
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        expire_date = timezone.now() + timedelta(days=days)
+        result = self.filter(
+            user=user,
+            type="earn",
+            points__gt=0,
+            expires_at__isnull=False,
+            expires_at__lte=expire_date,
+            expires_at__gt=timezone.now(),
+        ).aggregate(total=Sum("points"))
+        return result["total"] or 0
+
+    def get_month_statistics(self, user: User, start_date) -> dict[str, int]:
+        """
+        특정 기간 동안의 포인트 통계를 계산합니다.
+
+        Args:
+            user: 조회할 사용자
+            start_date: 시작 날짜
+
+        Returns:
+            dict: {"earned": 적립, "used": 사용}
+        """
+        earned = (
+            self.filter(user=user, points__gt=0, created_at__gte=start_date).aggregate(total=Sum("points"))["total"]
+            or 0
+        )
+        used = abs(
+            self.filter(user=user, points__lt=0, created_at__gte=start_date).aggregate(total=Sum("points"))["total"]
+            or 0
+        )
+        return {"earned": earned, "used": used}
+
+    def optimized_for_list(self) -> QuerySet:
+        """
+        목록 조회에 최적화된 쿼리셋을 반환합니다.
+        order 외래키를 select_related로 미리 로드합니다.
+        """
+        return self.select_related("order")
 
 
 class PointHistory(models.Model):
@@ -16,6 +101,8 @@ class PointHistory(models.Model):
     포인트 이력 관리 모델
     사용자의 모든 포인트 변동 내역을 기록합니다.
     """
+
+    objects = PointHistoryManager()
 
     # 포인트 이력 타입
     TYPE_CHOICES = [

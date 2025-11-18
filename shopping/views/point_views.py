@@ -22,13 +22,15 @@ class MyPointView(APIView):
     GET /api/points/my/
     """
 
+    permission_classes = [permissions.IsAuthenticated]
+
     def get(self, request: Request) -> Response:
         """내 포인트 현황 조회"""
         user = request.user
         serializer = UserPointSerializer(user)
 
-        # 최근 포인트 이력 5개
-        recent_histories = PointHistory.objects.filter(user=user).order_by("-created_at")[:5]
+        # 최근 포인트 이력 5개 - N+1 쿼리 방지를 위해 select_related 사용
+        recent_histories = PointHistory.objects.filter(user=user).select_related("order").order_by("-created_at")[:5]
 
         recent_serializer = PointHistorySerializer(recent_histories, many=True)
 
@@ -55,8 +57,8 @@ class PointHistoryListView(APIView):
         page = int(request.GET.get("page", 1))
         page_size = int(request.GET.get("page_size", 20))
 
-        # 기본 쿼리셋
-        queryset = PointHistory.objects.filter(user=user)
+        # 기본 쿼리셋 - N+1 쿼리 방지를 위해 select_related 사용
+        queryset = PointHistory.objects.filter(user=user).select_related("order")
 
         # 타입 필터
         if type_filter:
@@ -84,7 +86,7 @@ class PointHistoryListView(APIView):
 
         serializer = PointHistorySerializer(histories, many=True)
 
-        # 요약 정보
+        # 요약 정보 - DB aggregate 사용
         summary = {
             "current_points": user.points,
             "total_earned": queryset.filter(points__gt=0).aggregate(total=Sum("points"))["total"] or 0,
@@ -153,14 +155,18 @@ class ExpiringPointsView(APIView):
 
         expire_date = timezone.now() + timedelta(days=days)
 
-        # 만료 예정 포인트 이력
-        expiring_histories = PointHistory.objects.filter(
-            user=user,
-            type="earn",
-            points__gt=0,
-            expires_at__lte=expire_date,
-            expires_at__gt=timezone.now(),
-        ).order_by("expires_at")
+        # 만료 예정 포인트 이력 - N+1 쿼리 방지를 위해 select_related 사용
+        expiring_histories = (
+            PointHistory.objects.filter(
+                user=user,
+                type="earn",
+                points__gt=0,
+                expires_at__lte=expire_date,
+                expires_at__gt=timezone.now(),
+            )
+            .select_related("order")
+            .order_by("expires_at")
+        )
 
         # 월별 만료 예정
         monthly_expiring = {}
@@ -177,9 +183,12 @@ class ExpiringPointsView(APIView):
 
         serializer = PointHistorySerializer(expiring_histories, many=True)
 
+        # DB aggregate를 사용하여 총 만료 예정 포인트 계산
+        total_expiring = PointHistory.objects.get_expiring_soon(user, days=days)
+
         return Response(
             {
-                "total_expiring": sum(h.points for h in expiring_histories),
+                "total_expiring": total_expiring,
                 "days": days,
                 "monthly_summary": list(monthly_expiring.values()),
                 "histories": serializer.data,
@@ -197,35 +206,21 @@ def point_statistics(request: Request) -> Response:
     """
     user = request.user
 
-    # 이번달 적립/사용
-    this_month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0)
+    # 이번달 적립/사용 - manager 메서드 사용
+    this_month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    this_month_stats = PointHistory.objects.get_month_statistics(user, this_month_start)
 
-    this_month_earned = (
-        PointHistory.objects.filter(user=user, points__gt=0, created_at__gte=this_month_start).aggregate(total=Sum("points"))[
-            "total"
-        ]
-        or 0
-    )
+    # 전체 통계 - manager 메서드 사용
+    total_earned = PointHistory.objects.get_total_earned(user)
+    total_used = PointHistory.objects.get_total_used(user)
 
-    this_month_used = abs(
-        PointHistory.objects.filter(user=user, points__lt=0, created_at__gte=this_month_start).aggregate(total=Sum("points"))[
-            "total"
-        ]
-        or 0
-    )
-
-    # 전체 통계
-    total_earned = PointHistory.objects.filter(user=user, points__gt=0).aggregate(total=Sum("points"))["total"] or 0
-
-    total_used = abs(PointHistory.objects.filter(user=user, points__lt=0).aggregate(total=Sum("points"))["total"] or 0)
-
-    # 타입별 통계
+    # 타입별 통계 - DB aggregate 사용
     type_stats = PointHistory.objects.filter(user=user).values("type").annotate(count=Count("id"), total=Sum("points"))
 
     return Response(
         {
             "current_points": user.points,
-            "this_month": {"earned": this_month_earned, "used": this_month_used},
+            "this_month": this_month_stats,
             "all_time": {"earned": total_earned, "used": total_used},
             "by_type": list(type_stats),
         }

@@ -11,24 +11,21 @@ from shopping.models.user import User
 
 
 class EmailVerificationTokenSerializer(serializers.ModelSerializer):
-    """이메일 인증 토큰 시리얼라이저"""
+    """
+    이메일 인증 토큰 시리얼라이저 (Admin/내부용 전용)
+
+    WARNING: token과 verification_code는 민감 정보이므로
+    일반 API 응답에 절대 사용하지 말 것
+    """
 
     class Meta:
         model = EmailVerificationToken
-        fields = ["token", "verification_code", "created_at", "is_expired"]
-        read_only_fields = ["token", "verification_code", "created_at"]
-
-    is_expired = serializers.SerializerMethodField()
-
-    def get_is_expired(self, obj: EmailVerificationToken) -> bool:
-        return obj.is_expired()
+        fields = ["id", "user", "created_at", "is_used", "used_at"]
+        read_only_fields = ["id", "user", "created_at", "is_used", "used_at"]
 
 
 class SendVerificationEmailSerializer(serializers.Serializer):
     """이메일 발송 요청 시리얼라이저"""
-
-    message = serializers.CharField(read_only=True)
-    verification_code = serializers.CharField(read_only=True, required=False)
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         request = self.context.get("request")
@@ -126,9 +123,6 @@ class VerifyEmailByCodeSerializer(serializers.Serializer):
 class ResendVerificationEmailSerializer(serializers.Serializer):
     """이메일 재발송 시리얼라이저"""
 
-    message = serializers.CharField(read_only=True)
-    verification_code = serializers.CharField(read_only=True, required=False)
-
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         request = self.context.get("request")
         user = request.user
@@ -147,9 +141,36 @@ class ResendVerificationEmailSerializer(serializers.Serializer):
 
 
 class EmailLogSerializer(serializers.ModelSerializer):
-    """이메일 로그 시리얼라이저 (Admin용)"""
+    """
+    이메일 로그 시리얼라이저 (Admin/모니터링 전용)
+
+    Mass Assignment 방지를 위해 명시적 필드 선언
+    """
 
     class Meta:
         model = EmailLog
-        fields = "__all__"
-        read_only_fields = ["created_at"]
+        fields = [
+            "id",
+            "user",
+            "email_type",
+            "recipient_email",
+            "subject",
+            "status",
+            "token",
+            "sent_at",
+            "opened_at",
+            "clicked_at",
+            "verified_at",
+            "error_message",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "user",
+            "token",
+            "sent_at",
+            "opened_at",
+            "clicked_at",
+            "verified_at",
+            "created_at",
+        ]

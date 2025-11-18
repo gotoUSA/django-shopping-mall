@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
 if TYPE_CHECKING:
@@ -20,16 +21,20 @@ class ProductQuestion(models.Model):
     # 기본 정보
     product = models.ForeignKey(
         "Product",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="questions",
         verbose_name="상품",
+        help_text="문의가 있는 상품은 삭제할 수 없습니다",
     )
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="product_questions",
         verbose_name="작성자",
+        help_text="탈퇴한 사용자의 문의는 보존됩니다",
     )
 
     # 질문 내용
@@ -45,7 +50,7 @@ class ProductQuestion(models.Model):
     )
 
     # 답변 여부
-    is_answered = models.BooleanField(default=False, verbose_name="답변 완료", db_index=True)
+    is_answered = models.BooleanField(default=False, verbose_name="답변 완료")
 
     # 시간 정보
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="작성일")
@@ -79,12 +84,12 @@ class ProductQuestion(models.Model):
         if not user or not user.is_authenticated:
             return False
 
-        # 작성자 본인
-        if self.user == user:
+        # 작성자 본인 (탈퇴한 사용자의 경우 self.user가 None일 수 있음)
+        if self.user and self.user == user:
             return True
 
-        # 상품 판매자
-        if self.product.seller == user:
+        # 상품 판매자 (seller가 None일 수 있음)
+        if self.product.seller and self.product.seller == user:
             return True
 
         # 관리자
@@ -113,9 +118,12 @@ class ProductAnswer(models.Model):
     # 답변자 (판매자)
     seller = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="product_answers",
         verbose_name="답변자",
+        help_text="탈퇴한 판매자의 답변은 보존됩니다",
     )
 
     # 답변 내용
@@ -131,7 +139,39 @@ class ProductAnswer(models.Model):
         verbose_name_plural = "문의 답변"
 
     def __str__(self) -> str:
-        return f"{self.question.title}에 대한 답변"
+        return f"문의 #{self.question_id}에 대한 답변"
+
+    def clean(self) -> None:
+        """
+        답변 저장 시 검증
+        - 답변자가 실제 상품의 판매자인지 확인
+        - 관리자는 예외적으로 답변 가능
+        """
+        super().clean()
+
+        if not self.question_id:
+            return  # question이 설정되지 않은 경우 skip
+
+        # seller가 None인 경우 (탈퇴한 사용자) skip
+        if not self.seller:
+            return
+
+        # 관리자는 모든 문의에 답변 가능
+        if self.seller.is_staff or self.seller.is_superuser:
+            return
+
+        # 상품 판매자 확인 (seller가 None인 경우도 고려)
+        product_seller = self.question.product.seller
+        if not product_seller:
+            raise ValidationError({
+                "question": "판매자가 없는 상품에는 답변할 수 없습니다."
+            })
+
+        # 답변자가 상품의 판매자인지 확인
+        if self.seller != product_seller:
+            raise ValidationError({
+                "seller": "답변자는 해당 상품의 판매자여야 합니다."
+            })
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """

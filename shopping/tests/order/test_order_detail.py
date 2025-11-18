@@ -26,7 +26,6 @@ class TestOrderDetailHappyPath:
         # Assert
         assert response.status_code == status.HTTP_200_OK
         assert response.data["id"] == order.id
-        assert response.data["user"] == user.id
         assert response.data["user_username"] == user.username
         assert response.data["status"] == "pending"
         assert "order_items" in response.data

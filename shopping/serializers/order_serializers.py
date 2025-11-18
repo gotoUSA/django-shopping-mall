@@ -16,6 +16,14 @@ from ..services.order_service import OrderService, OrderServiceError
 from .product_serializers import ProductListSerializer
 
 
+class TotalShippingFeeMixin:
+    """배송비 계산 공통 Mixin"""
+
+    def get_total_shipping_fee(self, obj: Order) -> str:
+        """전체 배송비 반환"""
+        return str(obj.get_total_shipping_fee())
+
+
 class OrderItemSerializer(serializers.ModelSerializer):
     """주문 상품 조회용 Serializer"""
 
@@ -39,11 +47,11 @@ class OrderItemSerializer(serializers.ModelSerializer):
         return str(obj.get_subtotal())
 
 
-class OrderListSerializer(serializers.ModelSerializer):
+class OrderListSerializer(TotalShippingFeeMixin, serializers.ModelSerializer):
     """주문 목록 조회용 Serializer"""
 
     user_username = serializers.CharField(source="user.username", read_only=True)
-    item_count = serializers.IntegerField(source="order_items.count", read_only=True)
+    item_count = serializers.IntegerField(read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     total_shipping_fee = serializers.SerializerMethodField()
 
@@ -63,12 +71,8 @@ class OrderListSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-    def get_total_shipping_fee(self, obj: Order) -> str:
-        """전체 배송비 반환"""
-        return str(obj.get_total_shipping_fee())
 
-
-class OrderDetailSerializer(serializers.ModelSerializer):
+class OrderDetailSerializer(TotalShippingFeeMixin, serializers.ModelSerializer):
     """주문 상세 조회용 Serializer"""
 
     order_items = OrderItemSerializer(many=True, read_only=True)
@@ -81,7 +85,6 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         model = Order
         fields = [
             "id",
-            "user",
             "user_username",
             "status",
             "status_display",
@@ -105,10 +108,6 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-
-    def get_total_shipping_fee(self, obj: Order) -> str:
-        """전체 배송비 반환"""
-        return str(obj.get_total_shipping_fee())
 
 
 class OrderCreateSerializer(serializers.ModelSerializer):

@@ -74,7 +74,7 @@ class TestOrderAuthentication:
         # Assert
         assert response.status_code == status.HTTP_200_OK
         assert response.data["id"] == order.id
-        assert response.data["user"] == user.id
+        assert response.data["user_username"] == user.username
 
     def test_unauthenticated_cannot_access_order_list(self, api_client: pytest.fixture) -> None:
         """인증되지 않은 사용자는 주문 목록 조회 불가"""

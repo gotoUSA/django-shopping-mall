@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
 from django.db import models
+from django.utils import timezone
 
 if TYPE_CHECKING:
     from shopping.models.product import Product
@@ -103,20 +104,28 @@ class User(AbstractUser):
         verbose_name_plural = "사용자 목록"
         ordering = ["-date_joined"]  # 최신 가입 회원 우선
 
-    def clean(self) -> None:
-        """모델 유효성 검사"""
-        from django.core.exceptions import ValidationError
-
-        super().clean()
-
-        # 탈퇴 여부와 탈퇴 일시의 일관성 검증
+    def save(self, *args, **kwargs):
+        """
+        저장 시 자동 처리 로직
+        - 탈퇴 처리 시 탈퇴 일시 자동 기록
+        - update_fields 사용 시 withdrawn_at 필드 포함 처리
+        """
         if self.is_withdrawn and not self.withdrawn_at:
-            raise ValidationError(
-                {"withdrawn_at": "탈퇴 처리 시 탈퇴 일시를 입력해야 합니다."}
-            )
-        if not self.is_withdrawn and self.withdrawn_at:
-            # 탈퇴 취소 시 탈퇴 일시 자동 제거
+            self.withdrawn_at = timezone.now()
+            if "update_fields" in kwargs and kwargs["update_fields"] is not None:
+                # update_fields가 튜플일 수 있으므로 set으로 변환 후 list로 변경
+                fields = set(kwargs["update_fields"])
+                fields.add("withdrawn_at")
+                kwargs["update_fields"] = list(fields)
+
+        elif not self.is_withdrawn and self.withdrawn_at:
             self.withdrawn_at = None
+            if "update_fields" in kwargs and kwargs["update_fields"] is not None:
+                fields = set(kwargs["update_fields"])
+                fields.add("withdrawn_at")
+                kwargs["update_fields"] = list(fields)
+
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return f'{self.username} ({self.get_full_name() or "이름없음"})'

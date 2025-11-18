@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import uuid
-
 from django.utils import timezone
 
 from rest_framework import status
@@ -15,6 +13,8 @@ from shopping.models.email_verification import EmailLog, EmailVerificationToken
 from shopping.serializers.email_verification_serializers import (
     ResendVerificationEmailSerializer,
     SendVerificationEmailSerializer,
+    VerifyEmailByCodeSerializer,
+    VerifyEmailByTokenSerializer,
 )
 from shopping.tasks.email_tasks import send_verification_email_task
 from shopping.throttles import EmailVerificationRateThrottle, EmailVerificationResendRateThrottle
@@ -51,10 +51,7 @@ class SendVerificationEmailView(APIView):
         )
 
         return Response(
-            {
-                "message": "인증 이메일이 발송 중입니다. 잠시 후 이메일을 확인해주세요.",
-                "verification_code": token.verification_code,  # 테스트용
-            },
+            {"message": "인증 이메일이 발송 중입니다. 잠시 후 이메일을 확인해주세요."},
             status=status.HTTP_200_OK,
         )
 
@@ -74,95 +71,37 @@ class VerifyEmailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # UUID 형식 검증
-        try:
-            uuid.UUID(str(token))
-        except (ValueError, TypeError, AttributeError):
+        # Serializer를 사용한 검증 및 인증 처리
+        serializer = VerifyEmailByTokenSerializer(data={"token": token}, context={"request": request})
+
+        if serializer.is_valid():
+            serializer.save()
             return Response(
-                {"error": "유효하지 않은 토큰입니다."},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"message": "이메일 인증이 완료되었습니다!"},
+                status=status.HTTP_200_OK,
             )
-        try:
-            # UUID 토큰으로 인증
-            token_obj = EmailVerificationToken.objects.get(token=token)
 
-            # 이미 사용된 토큰 체크
-            if token_obj.is_used:
-                return Response(
-                    {"error": "이미 사용된 토큰입니다."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # 만료 체크
-            if token_obj.is_expired():
-                return Response(
-                    {"error": "토큰이 만료되었습니다. 다시 요청해주세요."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # 인증 처리
-            user = token_obj.user
-            user.is_email_verified = True
-            user.save(update_fields=["is_email_verified"])
-
-            # 토큰 사용 처리
-            token_obj.mark_as_used()
-
-            # 로그 업데이트
-            EmailLog.objects.filter(token=token_obj).update(status="verified", verified_at=timezone.now())
-
-            return Response({"message": "이메일 인증이 완료되었습니다!"}, status=status.HTTP_200_OK)
-
-        except EmailVerificationToken.DoesNotExist:
-            return Response(
-                {"error": "유효하지 않은 토큰입니다."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def post(self, request: Request) -> Response:
         """6자리 코드로 인증 (POST 요청)"""
         if not request.user.is_authenticated:
-            return Response({"error": "로그인이 필요합니다."}, status=status.HTTP_401_UNAUTHORIZED)
-
-        code = request.data.get("code")
-
-        if not code:
             return Response(
-                {"error": "인증 코드가 제공되지 않았습니다."},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"error": "로그인이 필요합니다."},
+                status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        # 대문자로 변환
-        code = code.upper()
+        # Serializer를 사용한 검증 및 인증 처리
+        serializer = VerifyEmailByCodeSerializer(data=request.data, context={"request": request})
 
-        try:
-            token_obj = EmailVerificationToken.objects.get(user=request.user, verification_code=code, is_used=False)
-
-            # 만료 체크
-            if token_obj.is_expired():
-                return Response(
-                    {"error": "인증 코드가 만료되었습니다."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # 인증 처리
-            user = token_obj.user
-            user.is_email_verified = True
-            user.save(update_fields=["is_email_verified"])
-
-            # 토큰 사용 처리
-            token_obj.mark_as_used()
-
-            # 로그 업데이트
-            EmailLog.objects.filter(token=token_obj).update(status="verified", verified_at=timezone.now())
-
-            return Response({"message": "이메일 인증이 완료되었습니다."}, status=status.HTTP_200_OK)
-
-        except EmailVerificationToken.DoesNotExist:
+        if serializer.is_valid():
+            serializer.save()
             return Response(
-                {"error": "유효하지 않은 인증 코드입니다."},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"message": "이메일 인증이 완료되었습니다."},
+                status=status.HTTP_200_OK,
             )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ResendVerificationEmailView(APIView):
@@ -197,10 +136,7 @@ class ResendVerificationEmailView(APIView):
         )
 
         return Response(
-            {
-                "message": "인증 이메일이 재발송 중입니다. 잠시 후 이메일을 확인해주세요.",
-                "verification_code": token.verification_code,  # 테스트용
-            },
+            {"message": "인증 이메일이 재발송 중입니다. 잠시 후 이메일을 확인해주세요."},
             status=status.HTTP_200_OK,
         )
 
@@ -211,18 +147,24 @@ def check_verification_status(request: Request) -> Response:
     """이메일 인증 상태 확인 API"""
     user = request.user
 
-    # 최신 토큰 정보
-    latest_token = EmailVerificationToken.objects.filter(user=user).order_by("-created_at").first()
-
     response_data = {"is_verified": user.is_email_verified, "email": user.email}
 
-    if not user.is_email_verified and latest_token:
-        response_data.update(
-            {
-                "pending_verification": True,
-                "token_expired": latest_token.is_expired(),
-                "can_resend": (latest_token.can_resend() if not latest_token.is_used else True),
-            }
+    # 인증되지 않은 경우에만 최신 토큰 정보 조회 (성능 최적화)
+    if not user.is_email_verified:
+        latest_token = (
+            EmailVerificationToken.objects.filter(user=user)
+            .only("id", "created_at", "is_used")
+            .order_by("-created_at")
+            .first()
         )
+
+        if latest_token:
+            response_data.update(
+                {
+                    "pending_verification": True,
+                    "token_expired": latest_token.is_expired(),
+                    "can_resend": (latest_token.can_resend() if not latest_token.is_used else True),
+                }
+            )
 
     return Response(response_data, status=status.HTTP_200_OK)

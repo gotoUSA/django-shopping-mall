@@ -34,11 +34,9 @@ class Category(MPTTModel):
         verbose_name="상위 카테고리",
     )
     description = models.TextField(blank=True, verbose_name="카테고리 설명")
-    is_active = models.BooleanField(default=True, verbose_name="활성화 여부")
+    is_active = models.BooleanField(default=True, db_index=True, verbose_name="활성화 여부")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    is_active = models.BooleanField(default=True, verbose_name="활성화")
 
     class MPTTMeta:
         """MPTT 설정"""
@@ -46,7 +44,7 @@ class Category(MPTTModel):
         # 정렬 기준 필드 지정
         order_insertion_by = ["name"]
 
-    class Mega:
+    class Meta:
         verbose_name = "카테고리"
         verbose_name_plural = "카테고리"
         ordering = ["name"]  # 기본 정렬
@@ -155,7 +153,7 @@ class Product(models.Model):
     # 판매자 정보
     seller = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="products",
         verbose_name="판매자",
         null=True,
@@ -171,13 +169,14 @@ class Product(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     # 상품 활성화 상태 추가
-    is_active = models.BooleanField(default=True, verbose_name="판매중", help_text="체크 해제시 상품이 숨겨집니다.")
+    is_active = models.BooleanField(default=True, db_index=True, verbose_name="판매중", help_text="체크 해제시 상품이 숨겨집니다.")
 
     class Meta:
         verbose_name = "상품"
         verbose_name_plural = "상품"
         ordering = ["-created_at"]  # 최신순 정렬
         indexes = [
+            models.Index(fields=["-created_at"]),  # 정렬 성능 최적화
             models.Index(fields=["name", "category"]),  # 복합 인덱스
             models.Index(fields=["price"]),
         ]
@@ -260,7 +259,7 @@ class ProductImage(models.Model):
         verbose_name="대체 텍스트",
         help_text="이미지 설명 (SEO용)",
     )
-    is_primary = models.BooleanField(default=False, verbose_name="대표 이미지")
+    is_primary = models.BooleanField(default=False, db_index=True, verbose_name="대표 이미지")
     order = models.PositiveIntegerField(default=0, verbose_name="표시 순서")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -268,6 +267,13 @@ class ProductImage(models.Model):
         verbose_name = "상품 이미지"
         verbose_name_plural = "상품 이미지"
         ordering = ["order", "created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product"],
+                condition=models.Q(is_primary=True),
+                name="unique_primary_image_per_product",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.product.name} - 이미지 {self.order}"

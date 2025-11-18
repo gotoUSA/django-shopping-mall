@@ -16,6 +16,14 @@ from ..services.order_service import OrderService, OrderServiceError
 from .product_serializers import ProductListSerializer
 
 
+class TotalShippingFeeMixin:
+    """배송비 계산 공통 Mixin - 코드 중복 제거"""
+
+    def get_total_shipping_fee(self, obj: Order) -> str:
+        """전체 배송비 반환 (기본 배송비 + 추가 배송비)"""
+        return str(obj.get_total_shipping_fee())
+
+
 class OrderItemSerializer(serializers.ModelSerializer):
     """주문 상품 조회용 Serializer"""
 
@@ -39,11 +47,17 @@ class OrderItemSerializer(serializers.ModelSerializer):
         return str(obj.get_subtotal())
 
 
-class OrderListSerializer(serializers.ModelSerializer):
-    """주문 목록 조회용 Serializer"""
+class OrderListSerializer(TotalShippingFeeMixin, serializers.ModelSerializer):
+    """
+    주문 목록 조회용 Serializer
+
+    성능 최적화:
+    - item_count: queryset에서 annotate로 계산됨 (N+1 쿼리 방지)
+    - user_username: queryset에서 select_related("user")로 최적화
+    """
 
     user_username = serializers.CharField(source="user.username", read_only=True)
-    item_count = serializers.IntegerField(source="order_items.count", read_only=True)
+    item_count = serializers.IntegerField(read_only=True)  # annotate에서 제공
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     total_shipping_fee = serializers.SerializerMethodField()
 
@@ -63,13 +77,16 @@ class OrderListSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-    def get_total_shipping_fee(self, obj: Order) -> str:
-        """전체 배송비 반환"""
-        return str(obj.get_total_shipping_fee())
 
+class OrderDetailSerializer(TotalShippingFeeMixin, serializers.ModelSerializer):
+    """
+    주문 상세 조회용 Serializer
 
-class OrderDetailSerializer(serializers.ModelSerializer):
-    """주문 상세 조회용 Serializer"""
+    보안 고려사항:
+    - user FK는 read_only이며, ViewSet의 get_queryset에서 권한 필터링됨
+    - 일반 사용자는 본인 주문만 조회 가능 (ViewSet 레벨 제어)
+    - 민감 정보(배송지, 연락처)는 본인/관리자만 접근 가능
+    """
 
     order_items = OrderItemSerializer(many=True, read_only=True)
     user_username = serializers.CharField(source="user.username", read_only=True)
@@ -105,10 +122,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-
-    def get_total_shipping_fee(self, obj: Order) -> str:
-        """전체 배송비 반환"""
-        return str(obj.get_total_shipping_fee())
+        read_only_fields = ["user"]  # user FK는 읽기 전용
 
 
 class OrderCreateSerializer(serializers.ModelSerializer):

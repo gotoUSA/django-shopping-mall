@@ -167,3 +167,41 @@ class IsSellerOrReadOnly(permissions.BasePermission):
 
         # 쓰기 요청은 판매자만
         return request.user and request.user.is_authenticated and request.user.is_seller
+
+
+class IsOrderOwnerOrAdmin(permissions.BasePermission):
+    """
+    주문 소유자 또는 관리자만 접근 가능
+
+    - 일반 사용자는 본인의 주문만 조회/수정 가능
+    - 관리자(staff/superuser)는 모든 주문 접근 가능
+    - get_queryset 필터링과 함께 사용하여 이중 보안 제공
+
+    사용 예시:
+        permission_classes = [IsAuthenticated, IsOrderOwnerOrAdmin]
+
+    보안 계층:
+    1. ViewSet.get_queryset(): 쿼리 레벨 필터링
+    2. IsOrderOwnerOrAdmin: 객체 레벨 권한 검증 (이중 체크)
+    """
+
+    message = "본인의 주문만 조회/수정할 수 있습니다."
+
+    def has_object_permission(self, request: Request, view: APIView, obj: Any) -> bool:
+        """
+        객체 레벨 권한 체크 - 주문 소유자 또는 관리자인지 확인
+
+        Args:
+            request: HTTP 요청 객체
+            view: 뷰 객체
+            obj: 체크할 객체 (Order)
+
+        Returns:
+            bool: 권한 여부
+        """
+        # 관리자는 모든 주문 접근 가능
+        if request.user.is_staff or request.user.is_superuser:
+            return True
+
+        # 일반 사용자는 본인 주문만 가능
+        return obj.user == request.user

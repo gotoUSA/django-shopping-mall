@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from django.db.models import Count
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
@@ -12,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.serializers import BaseSerializer
 
 from ..models.order import Order
+from ..permissions import IsOrderOwnerOrAdmin
 from ..serializers.order_serializers import OrderCreateSerializer, OrderDetailSerializer, OrderListSerializer
 from ..services.order_service import OrderService, OrderServiceError
 from ..throttles import OrderCancelRateThrottle, OrderCreateRateThrottle
@@ -28,9 +30,21 @@ class OrderPagination(PageNumberPagination):
 
 
 class OrderViewSet(viewsets.ModelViewSet):
-    """주문 관리 ViewSet"""
+    """
+    주문 관리 ViewSet
 
-    permission_classes = [permissions.IsAuthenticated]
+    보안:
+    - IsAuthenticated: 인증된 사용자만 접근 가능
+    - IsOrderOwnerOrAdmin: 객체 레벨 권한 (본인 주문 또는 관리자)
+    - get_queryset: 쿼리 레벨 필터링 (이중 보안)
+
+    성능 최적화:
+    - select_related("user"): user 정보 조회 최적화
+    - prefetch_related("order_items__product"): 주문 아이템 조회 최적화
+    - annotate(item_count): 주문 아이템 개수를 쿼리에서 계산 (N+1 방지)
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsOrderOwnerOrAdmin]
 
     # 페이지네이션 설정
     pagination_class = OrderPagination
@@ -50,13 +64,32 @@ class OrderViewSet(viewsets.ModelViewSet):
         return super().get_throttles()
 
     def get_queryset(self) -> Any:
-        """주문 조회 - 관리자는 전체, 일반 사용자는 본인 것만"""
+        """
+        주문 조회 - 관리자는 전체, 일반 사용자는 본인 것만
+
+        성능 최적화:
+        - select_related("user"): user_username 필드를 위한 JOIN (N+1 방지)
+        - prefetch_related("order_items__product"): 주문 아이템 및 상품 조회 최적화
+        - annotate(item_count): 주문 아이템 개수를 쿼리에서 미리 계산 (N+1 방지)
+
+        보안:
+        - 일반 사용자는 본인 주문만 필터링 (쿼리 레벨 보안)
+        - IsOrderOwnerOrAdmin과 함께 이중 보안 제공
+        """
+        # 기본 queryset: 성능 최적화 적용
+        queryset = (
+            Order.objects.select_related("user")
+            .prefetch_related("order_items__product")
+            .annotate(item_count=Count("order_items"))
+        )
+
+        # 권한에 따라 필터링
         if self.request.user.is_staff or self.request.user.is_superuser:
             # 관리자는 모든 주문 조회 가능
-            return Order.objects.all().prefetch_related("order_items__product")
+            return queryset
         else:
             # 일반 사용자는 본인 주문만 조회 가능
-            return Order.objects.filter(user=self.request.user).prefetch_related("order_items__product")
+            return queryset.filter(user=self.request.user)
 
     def get_serializer_class(self) -> type[BaseSerializer]:
         if self.action == "list":

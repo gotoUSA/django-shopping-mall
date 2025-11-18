@@ -26,12 +26,13 @@ from ..serializers.payment_serializers import (
 from ..services.payment_service import PaymentConfirmError, PaymentService
 from ..throttles import PaymentCancelRateThrottle, PaymentConfirmRateThrottle, PaymentRequestRateThrottle
 from ..utils.toss_payment import TossPaymentClient, TossPaymentError, get_error_message
+from .mixins import EmailVerificationRequiredMixin
 
 # 로거 설정
 logger = logging.getLogger(__name__)
 
 
-class PaymentRequestView(APIView):
+class PaymentRequestView(EmailVerificationRequiredMixin, APIView):
     """
     결제 요청 뷰
 
@@ -67,25 +68,28 @@ class PaymentRequestView(APIView):
         }
         """
         # 이메일 인증 체크
-        if not request.user.is_email_verified:
-            return Response(
-                {"error": "이메일 인증이 필요합니다. 먼저 이메일을 인증해주세요."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        verification_error = self.check_email_verification(request, "결제를")
+        if verification_error:
+            return verification_error
 
         serializer = PaymentRequestSerializer(data=request.data, context={"request": request})
 
         if serializer.is_valid():
             # Payment 생성
             payment = serializer.save()
+
+            # N+1 방지: order와 order_items를 함께 조회
+            payment = Payment.objects.select_related("order").prefetch_related("order__order_items").get(
+                pk=payment.id
+            )
             order = payment.order
 
             # 주문명 생성 (첫 상품명 + 나머지 개수)
-            order_items = order.order_items.all()
-            first_item = order_items.first()
+            order_items = list(order.order_items.all())  # prefetch된 데이터 사용
+            first_item = order_items[0]
 
-            if order_items.count() > 1:
-                order_name = f"{first_item.product_name} 외 {order_items.count() - 1}건"
+            if len(order_items) > 1:
+                order_name = f"{first_item.product_name} 외 {len(order_items) - 1}건"
             else:
                 order_name = first_item.product_name
 
@@ -107,7 +111,7 @@ class PaymentRequestView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PaymentConfirmView(APIView):
+class PaymentConfirmView(EmailVerificationRequiredMixin, APIView):
     """
     결제 승인 뷰
 
@@ -132,17 +136,9 @@ class PaymentConfirmView(APIView):
         }
         """
         # 이메일 인증 체크 (보안)
-        if not request.user.is_email_verified:
-            logger.warning(f"미인증 사용자 결제 승인 시도: user_id={request.user.id}, email={request.user.email}")
-            return Response(
-                {
-                    "error": "이메일 인증이 필요합니다.",
-                    "message": "결제를 완료하려면 먼저 이메일을 인증해주세요.",
-                    "verification_required": True,
-                    "verification_url": "/api/email-verification/send/",
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        verification_error = self.check_email_verification(request, "결제를")
+        if verification_error:
+            return verification_error
 
         # Serializer를 통한 검증
         serializer = PaymentConfirmSerializer(data=request.data, context={"request": request})
@@ -264,8 +260,8 @@ class PaymentCancelView(APIView):
                 payment_id=payment_id, user=request.user, cancel_reason=cancel_reason
             )
 
-            # 응답용 Payment 객체 조회
-            payment = Payment.objects.get(pk=payment_id)
+            # N+1 방지: 응답용 Payment 객체를 order와 함께 조회
+            payment = Payment.objects.select_related("order").get(pk=payment_id)
 
             return Response(
                 {
@@ -310,9 +306,11 @@ class PaymentFailView(APIView):
     Payment 상태를 aborted로 변경하고 실패 로그를 기록합니다.
 
     POST /api/payments/fail/
+
+    보안: 사용자 인증 필수 - 본인의 결제만 실패 처리 가능
     """
 
-    permission_classes = [permissions.AllowAny]  # 토스 콜백은 인증 불필요
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         """
@@ -325,7 +323,7 @@ class PaymentFailView(APIView):
             "order_id": "20250115000001"
         }
         """
-        serializer = PaymentFailSerializer(data=request.data)
+        serializer = PaymentFailSerializer(data=request.data, context={"request": request})
 
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -333,6 +331,17 @@ class PaymentFailView(APIView):
         payment = serializer.payment
         fail_code = serializer.validated_data["code"]
         fail_message = serializer.validated_data["message"]
+
+        # 보안: 본인의 결제만 실패 처리 가능
+        if payment.order.user != request.user:
+            logger.warning(
+                f"타인의 결제 실패 처리 시도: user_id={request.user.id}, "
+                f"payment_id={payment.id}, payment_user_id={payment.order.user.id}"
+            )
+            return Response(
+                {"error": "결제 정보를 찾을 수 없습니다."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         try:
             # 1. Payment 상태를 aborted로 변경
@@ -393,7 +402,8 @@ class PaymentDetailView(APIView):
     def get(self, request, payment_id):
         """결제 정보 조회"""
         try:
-            payment = Payment.objects.get(id=payment_id, order__user=request.user)
+            # N+1 방지: order와 함께 조회
+            payment = Payment.objects.select_related("order").get(id=payment_id, order__user=request.user)
         except Payment.DoesNotExist:
             return Response(
                 {"error": "결제 정보를 찾을 수 없습니다."},

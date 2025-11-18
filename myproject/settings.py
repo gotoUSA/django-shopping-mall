@@ -165,6 +165,11 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Password Reset 설정
+# 비밀번호 재설정 토큰 만료 시간 (초 단위)
+# 기본값: 86400초 (24시간)
+PASSWORD_RESET_TIMEOUT = int(os.environ.get("PASSWORD_RESET_TIMEOUT", 86400))
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/

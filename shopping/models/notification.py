@@ -45,7 +45,7 @@ class Notification(models.Model):
     link = models.CharField(
         max_length=200,
         blank=True,
-        null=True,
+        default="",
         verbose_name="링크",
         help_text="클릭 시 이동할 URL (예: /products/123/questions/45)",
     )

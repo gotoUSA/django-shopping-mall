@@ -72,6 +72,7 @@ class LoginView(APIView):
     """
     로그인 API
     - POST: 인증 후 JWT 토큰 발급
+    - 로그인 시 비회원 장바구니가 있으면 회원 장바구니로 병합
     """
 
     permission_classes = [AllowAny]
@@ -82,6 +83,17 @@ class LoginView(APIView):
 
         if serializer.is_valid():
             user = serializer.validated_data["user"]
+
+            # 비회원 장바구니 병합 (로그인 전 세션에 장바구니가 있었다면)
+            session_key = request.session.session_key
+            if session_key:
+                try:
+                    from shopping.models.cart import Cart
+
+                    Cart.merge_anonymous_cart(user, session_key)
+                except Exception:
+                    # 병합 실패해도 로그인은 진행 (에러 무시)
+                    pass
 
             # 마지막 로그인 시간 및 IP 업데이트
             user.last_login = timezone.now()

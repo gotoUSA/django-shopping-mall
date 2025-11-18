@@ -181,6 +181,13 @@ class PaymentCancelSerializer(serializers.Serializer):
 class PaymentLogSerializer(serializers.ModelSerializer):
     """
     결제 로그 조회용 시리얼라이저
+
+    보안 주의사항:
+    - 'data' 필드는 디버깅 정보와 API 응답을 포함할 수 있습니다.
+    - 민감한 정보(카드번호, 개인정보 등)가 포함될 수 있으므로,
+      일반 사용자에게 노출할 때는 주의가 필요합니다.
+    - 관리자 전용 API에서만 사용하거나, 'data' 필드를 제외한
+      별도의 serializer를 사용하는 것을 권장합니다.
     """
 
     log_type_display = serializers.CharField(source="get_log_type_display", read_only=True)
@@ -193,7 +200,7 @@ class PaymentLogSerializer(serializers.ModelSerializer):
             "log_type",
             "log_type_display",
             "message",
-            "data",
+            "data",  # 주의: 민감 정보 포함 가능
             "created_at",
         ]
 
@@ -249,7 +256,8 @@ class PaymentFailSerializer(serializers.Serializer):
     def validate_order_id(self, value: str) -> str:
         """주문 및 결제 정보 검증"""
         try:
-            payment = Payment.objects.get(toss_order_id=value)
+            # N+1 방지: order와 user를 함께 조회 (view에서 사용)
+            payment = Payment.objects.select_related("order__user").get(toss_order_id=value)
         except Payment.DoesNotExist:
             raise serializers.ValidationError("결제 정보를 찾을 수 없습니다.")
 

@@ -210,6 +210,15 @@ class Product(models.Model):
         """구매 가능한지 확인"""
         return self.is_in_stock and self.stock >= quantity
 
+    @property
+    def stock_status(self) -> str:
+        """재고 상태를 한글로 표시"""
+        if self.stock == 0:
+            return "품절"
+        elif self.stock < 10:
+            return "재고 부족"
+        return "재고 충분"
+
     # 찜하기 관련 메서드
     def get_wishlist_count(self) -> int:
         """이 상품을 찜한 사용자 수 반환"""

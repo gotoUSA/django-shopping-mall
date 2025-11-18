@@ -47,8 +47,8 @@ class ProductListSerializer(serializers.ModelSerializer):
     # 지금은 원가와 동일하게 반환
     discounted_price = serializers.SerializerMethodField(help_text="할인가 (현재는 원가와 동일)")
 
-    # 재고 상태를 텍스트로 표시
-    stock_status = serializers.SerializerMethodField(help_text="재고 상태 (품절/부족/충분)")
+    # 재고 상태를 텍스트로 표시 (모델 property 사용)
+    stock_status = serializers.ReadOnlyField(help_text="재고 상태 (품절/부족/충분)")
 
     # 찜 관련 필드
     wishlist_count = serializers.SerializerMethodField()
@@ -130,19 +130,7 @@ class ProductListSerializer(serializers.ModelSerializer):
         # 현재는 원가 그대로 반환
         return str(obj.price)
 
-    def get_stock_status(self, obj: Product) -> str:
-        """
-        재고 상태를 한글로 표시합니다.
 
-        Returns:
-            str: '품절', '부족', '충분' 중 하나
-        """
-        if obj.stock == 0:
-            return "품절"
-        elif obj.stock < 10:
-            return "부족"  # 10개 미만이면 부족으로 표시
-        else:
-            return "충분"
 
     def get_wishlist_count(self, obj: Product) -> int:
         """찜한 사용자 수"""
@@ -217,7 +205,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     # 계산 필드
     average_rating = serializers.SerializerMethodField()
     review_count = serializers.IntegerField(source="reviews.count", read_only=True)
-    stock_status = serializers.SerializerMethodField()
+    stock_status = serializers.ReadOnlyField()
     is_in_stock = serializers.SerializerMethodField()
 
     class Meta:
@@ -267,19 +255,10 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
     def get_average_rating(self, obj: Product) -> float:
         """평균 평점 계산"""
-        reviews = obj.reviews.all()
-        if reviews.exists():
-            avg = sum(review.rating for review in reviews) / reviews.count()
-            return round(avg, 1)
-        return 0.0
+        avg_rating = obj.reviews.aggregate(avg=Avg("rating"))["avg"]
+        return round(avg_rating, 1) if avg_rating else 0.0
 
-    def get_stock_status(self, obj: Product) -> str:
-        """재고 상태 한글 표시"""
-        if obj.stock == 0:
-            return "품절"
-        elif obj.stock < 10:
-            return "재고 부족"
-        return "재고 충분"
+
 
     def get_is_in_stock(self, obj: Product) -> bool:
         """재고 여부"""
@@ -356,7 +335,6 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
             # 상태
             "is_active",
             # 읽기 전용 필드
-            "seller",  # 포함하되 read_only로 설정
             "view_count",
             "sold_count",
             "created_at",
@@ -365,7 +343,6 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
 
         read_only_fields = [
             "id",
-            "seller",  # ViewSet에서 자동 설정
             "view_count",  # 시스템에서 관리
             "sold_count",  # 시스템에서 관리
             "created_at",
@@ -515,20 +492,9 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         """
         data = super().to_representation(instance)
 
-        # 카테고리 정보 추가
-        if instance.category:
-            data["category_name"] = instance.category.name
-
         # 판매자 정보 추가
         if instance.seller:
+            data["seller"] = instance.seller.id
             data["seller_username"] = instance.seller.username
-
-        # 재고 상태 추가
-        if instance.stock == 0:
-            data["stock_status"] = "품절"
-        elif instance.stock < 10:
-            data["stock_status"] = "재고 부족"
-        else:
-            data["stock_status"] = "재고 충분"
 
         return data

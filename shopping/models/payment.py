@@ -3,6 +3,8 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -80,8 +82,9 @@ class Payment(models.Model):
 
     installment_plan_months = models.IntegerField(
         default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(60)],
         verbose_name="할부 개월수",
-        help_text="0은 일시불",
+        help_text="0은 일시불, 최대 60개월",
     )
 
     # 결제 상태
@@ -161,14 +164,45 @@ class Payment(models.Model):
         verbose_name_plural = "결제 목록"
         ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=["payment_key"]),
-            models.Index(fields=["toss_order_id"]),
-            models.Index(fields=["status"]),
-            models.Index(fields=["-created_at"]),
+            # payment_key, toss_order_id는 unique=True로 자동 인덱스 생성
+            models.Index(fields=["status", "-created_at"]),  # 상태별 최근 결제 조회
+            models.Index(fields=["-created_at"]),  # 전체 최근 결제 조회
         ]
 
     def __str__(self) -> str:
         return f"{self.toss_order_id} - {self.get_status_display()} ({self.amount:,}원)"
+
+    def clean(self) -> None:
+        """모델 수준 검증"""
+        super().clean()
+
+        # 1. 결제 금액은 0보다 커야 함
+        if self.amount is not None and self.amount <= 0:
+            raise ValidationError({"amount": "결제 금액은 0보다 커야 합니다."})
+
+        # 2. 취소 금액이 결제 금액을 초과할 수 없음
+        if self.canceled_amount > self.amount:
+            raise ValidationError(
+                {"canceled_amount": "취소 금액이 결제 금액을 초과할 수 없습니다."}
+            )
+
+        # 3. 완료 상태에서는 payment_key 필수
+        if self.status == "done" and not self.payment_key:
+            raise ValidationError(
+                {"payment_key": "결제 완료 상태에서는 결제키가 필요합니다."}
+            )
+
+        # 4. 완료 상태에서는 승인 일시 필수
+        if self.status == "done" and not self.approved_at:
+            raise ValidationError(
+                {"approved_at": "결제 완료 상태에서는 승인 일시가 필요합니다."}
+            )
+
+        # 5. 취소 상태에서는 취소 관련 필드 필수
+        if self.status == "canceled" and not self.canceled_at:
+            raise ValidationError(
+                {"canceled_at": "결제 취소 상태에서는 취소 일시가 필요합니다."}
+            )
 
     @property
     def is_paid(self) -> bool:
@@ -200,8 +234,8 @@ class Payment(models.Model):
         # 영수증 URL
         self.receipt_url = payment_data.get("receipt", {}).get("url", "")
 
-        # 원본 응답 저장
-        self.raw_response = payment_data
+        # 민감 정보 제거 후 원본 응답 저장
+        self.raw_response = self.sanitize_raw_response(payment_data)
 
         self.save()
 
@@ -222,10 +256,56 @@ class Payment(models.Model):
         self.cancel_reason = cancel_data.get("cancelReason", "")
         self.canceled_at = cancel_data.get("canceledAt")
 
-        # 원본 응답 업데이트
-        self.raw_response = cancel_data
+        # 민감 정보 제거 후 원본 응답 업데이트
+        self.raw_response = self.sanitize_raw_response(cancel_data)
 
         self.save()
+
+    def mark_as_partial_canceled(
+        self, partial_amount: Decimal, cancel_data: dict[str, Any]
+    ) -> None:
+        """
+        부분 취소 처리
+
+        TODO: 부분 취소 로직 구현 필요
+        - 취소 금액 누적 관리
+        - 부분 취소 내역 추적
+        - 잔여 금액 계산
+        """
+        # 구현 예정
+        raise NotImplementedError("부분 취소 기능은 향후 구현 예정입니다.")
+
+    def sanitize_raw_response(self, response: dict[str, Any]) -> dict[str, Any]:
+        """
+        민감 정보를 제거한 응답 데이터 반환
+
+        보안상 저장하지 말아야 할 정보:
+        - 완전한 카드번호
+        - CVV/CVC
+        - 비밀번호
+        - 개인 인증 정보
+        """
+        # 저장하지 않을 민감 필드 목록
+        sensitive_fields = {"cardNumber", "cvv", "cvc", "password", "pin"}
+
+        def _sanitize(data: dict[str, Any]) -> dict[str, Any]:
+            """재귀적으로 민감 정보 제거"""
+            sanitized = {}
+            for key, value in data.items():
+                if key in sensitive_fields:
+                    sanitized[key] = "***REDACTED***"
+                elif isinstance(value, dict):
+                    sanitized[key] = _sanitize(value)
+                elif isinstance(value, list):
+                    sanitized[key] = [
+                        _sanitize(item) if isinstance(item, dict) else item
+                        for item in value
+                    ]
+                else:
+                    sanitized[key] = value
+            return sanitized
+
+        return _sanitize(response)
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """
@@ -283,6 +363,11 @@ class PaymentLog(models.Model):
         verbose_name = "결제 로그"
         verbose_name_plural = "결제 로그 목록"
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["payment", "-created_at"]),  # 특정 결제의 최근 로그 조회
+            models.Index(fields=["log_type"]),  # 로그 타입별 필터링
+            models.Index(fields=["-created_at"]),  # 전체 최근 로그 조회
+        ]
 
     def __str__(self) -> str:
         return f"[{self.get_log_type_display()}] {self.payment.order_id} - {self.created_at}"

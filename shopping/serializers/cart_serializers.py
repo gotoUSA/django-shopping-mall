@@ -284,15 +284,20 @@ class CartSerializer(serializers.ModelSerializer):
 
     def get_total_amount(self, obj: Cart) -> str:
         """
-        총 금액 계산 (모델의 property 활용)
+        총 금액 계산 (prefetch된 items로 Python 계산)
+
+        DB aggregate 대신 이미 로드된 데이터를 활용하여 성능 최적화
         """
-        return str(obj.total_amount)
+        total = sum(item.subtotal for item in obj.items.all())
+        return str(total)
 
     def get_total_quantity(self, obj: Cart) -> int:
         """
-        총 수량 계산 (모델의 property 활용)
+        총 수량 계산 (prefetch된 items로 Python 계산)
+
+        DB aggregate 대신 이미 로드된 데이터를 활용하여 성능 최적화
         """
-        return obj.total_quantity
+        return sum(item.quantity for item in obj.items.all())
 
     def get_item_count(self, obj: Cart) -> int:
         """
@@ -303,12 +308,10 @@ class CartSerializer(serializers.ModelSerializer):
     def get_is_all_available(self, obj: Cart) -> bool:
         """
         모든 상품이 구매 가능한지 확인
+
+        get_unavailable_items 결과를 재사용하여 중복 순회 방지
         """
-        # 하나라도 구매 불가능하면 False
-        for item in obj.items.all():
-            if not item.is_available():
-                return False
-        return True
+        return len(self.get_unavailable_items(obj)) == 0
 
     def get_unavailable_items(self, obj: Cart) -> list[dict[str, Any]]:
         """
@@ -345,12 +348,12 @@ class SimpleCartSerializer(serializers.ModelSerializer):
     """
     간단한 장바구니 정보용 Serializer
 
-    헤더나 사이드바에서 장바구니 요약 저보를 보여줄 때 사용합니다.
+    헤더나 사이드바에서 장바구니 요약 정보를 보여줄 때 사용합니다.
     """
 
     total_amount = serializers.SerializerMethodField()
     total_quantity = serializers.SerializerMethodField()
-    item_count = serializers.IntegerField(source="items.count", read_only=True)
+    item_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Cart
@@ -362,11 +365,23 @@ class SimpleCartSerializer(serializers.ModelSerializer):
         ]
 
     def get_total_amount(self, obj: Cart) -> str:
-        """총 금액"""
-        return str(obj.total_amount)
+        """
+        총 금액 (prefetch된 items로 Python 계산)
+        """
+        total = sum(item.subtotal for item in obj.items.all())
+        return str(total)
 
     def get_total_quantity(self, obj: Cart) -> int:
-        return obj.total_quantity
+        """
+        총 수량 (prefetch된 items로 Python 계산)
+        """
+        return sum(item.quantity for item in obj.items.all())
+
+    def get_item_count(self, obj: Cart) -> int:
+        """
+        상품 종류 수 (prefetch된 데이터 활용)
+        """
+        return len(obj.items.all())
 
 
 class CartClearSerializer(serializers.Serializer):

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import F, Prefetch
 
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -14,6 +14,7 @@ from rest_framework.serializers import BaseSerializer
 
 # 모델 import
 from shopping.models.cart import Cart, CartItem
+from shopping.models.product import Product
 
 # Serializer import
 from shopping.serializers import (
@@ -31,7 +32,9 @@ class CartViewSet(viewsets.GenericViewSet):
     장바구니 관리 ViewSet
 
     사용자별로 하나의 활성 장바구니를 관리합니다.
-    인증된 사용자만 사용 가능합니다.
+    회원/비회원 모두 사용 가능합니다.
+    - 회원: user 기반 장바구니
+    - 비회원: session_key 기반 장바구니
 
     엔드포인트:
     - GET    /api/cart/            - 내 장바구니 조회
@@ -43,7 +46,7 @@ class CartViewSet(viewsets.GenericViewSet):
     - POST   /api/cart/clear/      - 장바구니 비우기
     """
 
-    permission_classes = [permissions.IsAuthenticated]  # 로그인 필수
+    permission_classes = [permissions.AllowAny]  # 회원/비회원 모두 허용
     queryset = Cart.objects.none()
 
     def get_serializer_class(self) -> type[BaseSerializer]:
@@ -65,16 +68,28 @@ class CartViewSet(viewsets.GenericViewSet):
 
     def get_cart(self) -> Cart:
         """
-        현재 사용자의 활성 장바구니를 가져오거나 생성
+        현재 사용자/세션의 활성 장바구니를 가져오거나 생성
+
+        회원: user 기반 장바구니
+        비회원: session_key 기반 장바구니
 
         Returns:
-            cart: 사용자의 활성 장바구니
+            cart: 활성 장바구니
         """
-        # get_or_create_active_cart 메서드 사용 (모델에 정의됨)
-        cart, created = Cart.get_or_create_active_cart(self.request.user)
+        # 회원/비회원 구분
+        if self.request.user.is_authenticated:
+            # 회원 장바구니
+            cart, created = Cart.get_or_create_active_cart(user=self.request.user)
+        else:
+            # 비회원 장바구니: 세션 키 사용
+            session_key = self.request.session.session_key
+            if not session_key:
+                # 세션이 없으면 생성
+                self.request.session.create()
+                session_key = self.request.session.session_key
+            cart, created = Cart.get_or_create_active_cart(session_key=session_key)
 
         # 성능 최적화: 관련 데이터 미리 로드
-        # select_related: 1:1, N:1 관계 (user)
         # prefetch_related: 1:N 관계 (items와 각 item의 product)
         cart = Cart.objects.prefetch_related(
             Prefetch(
@@ -267,7 +282,7 @@ class CartViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=["post"])
     def bulk_add(self, request: Request) -> Response:
         """
-        여러 상품을 한 번에 장바구니에 추가
+        여러 상품을 한 번에 장바구니에 추가 (N+1 쿼리 최적화)
         POST /api/cart/bulk_add/
 
         요청 본문:
@@ -289,26 +304,78 @@ class CartViewSet(viewsets.GenericViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # N+1 쿼리 방지: 사전에 모든 product_id 수집 후 bulk 조회
+        product_ids = [item.get("product_id") for item in items_data if "product_id" in item]
+        products = {p.id: p for p in Product.objects.filter(id__in=product_ids, is_active=True)}
+
         added_items = []
         errors = []
 
         # 트랜잭션으로 전체 처리
         with transaction.atomic():
-            for idx, items_data in enumerate(items_data):
-                serializer = CartItemCreateSerializer(data=items_data, context={"request": request, "cart": cart})
+            # Cart 잠금 (동시성 제어)
+            cart = Cart.objects.select_for_update().get(pk=cart.pk)
 
-                if serializer.is_valid():
-                    cart_item = serializer.save()
-                    added_items.append(cart_item)
-                else:
-                    # 에러 정보 수집
+            for idx, item_data in enumerate(items_data):
+                product_id = item_data.get("product_id")
+                quantity = item_data.get("quantity", 1)
+
+                # 유효성 검증
+                if not product_id:
+                    errors.append({"index": idx, "product_id": None, "errors": {"product_id": "상품 ID가 필요합니다."}})
+                    continue
+
+                # 사전 조회한 products dict 활용
+                if product_id not in products:
                     errors.append(
                         {
                             "index": idx,
-                            "product_id": items_data.get("product_id"),
-                            "errors": serializer.errors,
+                            "product_id": product_id,
+                            "errors": {"product_id": "상품을 찾을 수 없거나 판매 중단되었습니다."},
                         }
                     )
+                    continue
+
+                product = products[product_id]
+
+                # 수량 검증
+                if not isinstance(quantity, int) or quantity < 1:
+                    errors.append(
+                        {"index": idx, "product_id": product_id, "errors": {"quantity": "수량은 1 이상이어야 합니다."}}
+                    )
+                    continue
+
+                if quantity > 999:
+                    errors.append(
+                        {"index": idx, "product_id": product_id, "errors": {"quantity": "수량은 999 이하여야 합니다."}}
+                    )
+                    continue
+
+                # 재고 검증
+                if product.stock < quantity:
+                    errors.append(
+                        {
+                            "index": idx,
+                            "product_id": product_id,
+                            "errors": {"quantity": f"재고 부족. 현재 재고: {product.stock}개"},
+                        }
+                    )
+                    continue
+
+                # CartItem 생성/업데이트 (F() 사용하여 atomic update)
+                try:
+                    cart_item, created = cart.items.select_for_update().get_or_create(
+                        product_id=product_id, defaults={"quantity": quantity}
+                    )
+
+                    if not created:
+                        # 이미 있으면 수량 증가
+                        CartItem.objects.filter(pk=cart_item.pk).update(quantity=F("quantity") + quantity)
+                        cart_item.refresh_from_db()
+
+                    added_items.append(cart_item)
+                except Exception as e:
+                    errors.append({"index": idx, "product_id": product_id, "errors": {"detail": str(e)}})
 
         # 응답 생성
         response_data = {
@@ -318,6 +385,7 @@ class CartViewSet(viewsets.GenericViewSet):
 
         if errors:
             response_data["errors"] = errors
+            response_data["error_count"] = len(errors)
             return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
 
         return Response(response_data, status=status.HTTP_201_CREATED)
@@ -394,18 +462,30 @@ class CartItemViewSet(viewsets.GenericViewSet):
 
     RESTful하게 아이템을 관리하고 싶을 때 사용합니다.
     CartViewSet의 action들과 동일한 기능을 제공합니다.
+    회원/비회원 모두 사용 가능합니다.
     """
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]  # 회원/비회원 모두 허용
     serializer_class = CartItemSerializer
 
     def get_queryset(self) -> Any:
         """
-        현재 사용자의 장바구니 아이템만 반환
+        현재 사용자/세션의 장바구니 아이템만 반환
+
+        회원: user 기반 장바구니
+        비회원: session_key 기반 장바구니
         """
-        # 사용자의 활성 장바구니 찾기
         try:
-            cart = Cart.objects.get(user=self.request.user, is_active=True)
+            if self.request.user.is_authenticated:
+                # 회원 장바구니
+                cart = Cart.objects.get(user=self.request.user, is_active=True)
+            else:
+                # 비회원 장바구니
+                session_key = self.request.session.session_key
+                if not session_key:
+                    return CartItem.objects.none()
+                cart = Cart.objects.get(session_key=session_key, is_active=True)
+
             return cart.items.select_related("product").order_by("-added_at")
         except Cart.DoesNotExist:
             return CartItem.objects.none()
@@ -423,8 +503,18 @@ class CartItemViewSet(viewsets.GenericViewSet):
         """
         장바구니에 아이템 추가
         POST /api/cart-items/
+
+        회원/비회원 모두 사용 가능
         """
-        cart, created = Cart.get_or_create_active_cart(request.user)
+        # 회원/비회원 구분하여 장바구니 가져오기
+        if request.user.is_authenticated:
+            cart, created = Cart.get_or_create_active_cart(user=request.user)
+        else:
+            session_key = request.session.session_key
+            if not session_key:
+                request.session.create()
+                session_key = request.session.session_key
+            cart, created = Cart.get_or_create_active_cart(session_key=session_key)
 
         serializer = CartItemCreateSerializer(data=request.data, context={"request": request, "cart": cart})
 

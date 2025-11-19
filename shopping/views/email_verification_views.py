@@ -91,6 +91,13 @@ class VerifyEmailView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
+        # 코드 누락 체크
+        if "code" not in request.data:
+            return Response(
+                {"error": "인증 코드가 제공되지 않았습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         # Serializer를 사용한 검증 및 인증 처리
         serializer = VerifyEmailByCodeSerializer(data=request.data, context={"request": request})
 

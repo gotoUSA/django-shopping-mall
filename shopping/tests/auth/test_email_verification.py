@@ -255,7 +255,7 @@ class TestEmailVerificationBoundary:
 
         # Assert - 만료되어야 함
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "만료" in response.data["error"]
+        assert "만료" in (response.data["token"][0])
 
     def test_token_valid_before_24_hours(self, api_client, unverified_user):
         """24시간 전이면 아직 유효함"""
@@ -373,7 +373,7 @@ class TestEmailVerificationByTokenException:
 
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "만료" in response.data["error"]
+        assert "만료" in (response.data["token"][0])
 
     def test_verify_with_used_token(self, api_client, unverified_user):
         """이미 사용된 토큰으로 인증 시도"""
@@ -388,7 +388,7 @@ class TestEmailVerificationByTokenException:
 
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "이미 사용된 토큰입니다" in response.data["error"]
+        assert "유효하지 않은 토큰입니다" in str(response.data["token"][0])
 
     def test_verify_with_invalid_uuid_format(self, api_client):
         """잘못된 UUID 형식"""
@@ -400,7 +400,7 @@ class TestEmailVerificationByTokenException:
 
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "유효하지 않은 토큰입니다" in response.data["error"]
+        assert "Must be a valid UUID" in str(response.data["token"][0])
 
     def test_verify_with_nonexistent_token(self, api_client):
         """존재하지 않는 UUID 토큰"""
@@ -413,7 +413,7 @@ class TestEmailVerificationByTokenException:
 
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "유효하지 않은 토큰입니다" in response.data["error"]
+        assert "유효하지 않은 토큰입니다" in str(response.data["token"][0])
 
     def test_verify_without_token_parameter(self, api_client):
         """토큰 파라미터 누락"""
@@ -455,7 +455,7 @@ class TestEmailVerificationByCodeException:
 
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "유효하지 않은 인증 코드입니다" in response.data["error"]
+        assert "유효하지 않은 인증 코드입니다" in response.data["code"][0]
 
     def test_verify_with_expired_code(self, api_client, unverified_user):
         """만료된 코드로 인증 시도"""
@@ -472,7 +472,7 @@ class TestEmailVerificationByCodeException:
 
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "만료" in response.data["error"]
+        assert "만료" in response.data["code"][0]
 
     def test_verify_without_code_parameter(self, api_client, unverified_user):
         """코드 파라미터 누락"""

@@ -211,6 +211,7 @@ class TestPasswordResetConfirmValidation:
         # Arrange
         url = reverse("password-reset-confirm")
         data = {
+            "email": "test@example.com",  # 이메일 필드 추가
             "token": "00000000-0000-0000-0000-000000000000",  # 존재하지 않는 UUID
             "new_password": "NewPass123!",
             "new_password2": "NewPass123!",
@@ -221,7 +222,8 @@ class TestPasswordResetConfirmValidation:
 
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "token" in response.data
+        # 토큰 검증 에러는 non_field_errors로 반환됨
+        assert "유효하지 않은 토큰" in str(response.data)
 
     def test_confirm_with_expired_token(self, api_client, user, password_reset_confirm_data_factory):
         """만료된 토큰으로 재설정 시도"""
@@ -239,7 +241,8 @@ class TestPasswordResetConfirmValidation:
 
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "만료" in str(response.data)
+        # 보안상 만료된 토큰도 "유효하지 않은 토큰"으로 반환
+        assert "유효하지 않은 토큰" in str(response.data)
 
     def test_confirm_with_used_token(self, api_client, user, password_reset_confirm_data_factory):
         """이미 사용된 토큰으로 재설정 시도 (재사용 방지)"""
@@ -258,16 +261,17 @@ class TestPasswordResetConfirmValidation:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "유효하지 않은 토큰" in str(response.data)
 
-    def test_confirm_password_mismatch(self, api_client, user):
+    def test_confirm_password_mismatch(self, api_client, user, password_reset_confirm_data_factory):
         """비밀번호 불일치"""
         # Arrange
         raw_token = PasswordResetToken.generate_token(user=user)
         url = reverse("password-reset-confirm")
-        data = {
-            "token": raw_token,
-            "new_password": "NewPass123!",
-            "new_password2": "DifferentPass456!",  # 다른 비밀번호
-        }
+        # Factory 사용: new_password2만 다르게 설정
+        data = password_reset_confirm_data_factory(
+            token=raw_token,
+            new_password="NewPass123!",
+            new_password2="DifferentPass456!"  # 다른 비밀번호
+        )
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -276,16 +280,16 @@ class TestPasswordResetConfirmValidation:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "일치하지 않습니다" in str(response.data)
 
-    def test_confirm_weak_password(self, api_client, user):
+    def test_confirm_weak_password(self, api_client, user, password_reset_confirm_data_factory):
         """약한 비밀번호 (Django 정책 위반)"""
         # Arrange
         raw_token = PasswordResetToken.generate_token(user=user)
         url = reverse("password-reset-confirm")
-        data = {
-            "token": raw_token,
-            "new_password": "1234",  # 너무 짧음
-            "new_password2": "1234",
-        }
+        # Factory 사용: 너무 짧은 비밀번호
+        data = password_reset_confirm_data_factory(
+            token=raw_token,
+            new_password="1234"  # 너무 짧음
+        )
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -294,16 +298,16 @@ class TestPasswordResetConfirmValidation:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "new_password" in response.data
 
-    def test_confirm_common_password(self, api_client, user):
+    def test_confirm_common_password(self, api_client, user, password_reset_confirm_data_factory):
         """흔한 비밀번호 (Django 정책 위반)"""
         # Arrange
         raw_token = PasswordResetToken.generate_token(user=user)
         url = reverse("password-reset-confirm")
-        data = {
-            "token": raw_token,
-            "new_password": "password123",  # 흔한 비밀번호
-            "new_password2": "password123",
-        }
+        # Factory 사용: 흔한 비밀번호
+        data = password_reset_confirm_data_factory(
+            token=raw_token,
+            new_password="password123"  # 흔한 비밀번호
+        )
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -316,6 +320,7 @@ class TestPasswordResetConfirmValidation:
         """필수 필드 누락"""
         # Arrange
         url = reverse("password-reset-confirm")
+        # 이 테스트는 빈 dict로 필수 필드 검증을 테스트하므로 factory 사용 안 함
         data = {}
 
         # Act
@@ -323,6 +328,7 @@ class TestPasswordResetConfirmValidation:
 
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "email" in response.data
         assert "token" in response.data
         assert "new_password" in response.data
         assert "new_password2" in response.data
@@ -418,7 +424,8 @@ class TestPasswordResetBoundary:
 
         # Assert - 만료되어야 함
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "만료" in str(response.data)
+        # 보안상 만료된 토큰도 "유효하지 않은 토큰"으로 반환
+        assert "유효하지 않은 토큰" in str(response.data)
 
     def test_token_valid_before_24_hours(self, api_client, user, password_reset_confirm_data_factory):
         """24시간 전이면 아직 유효함"""
@@ -437,16 +444,15 @@ class TestPasswordResetBoundary:
         # Assert - 성공해야 함
         assert response.status_code == status.HTTP_200_OK
 
-    def test_minimum_password_length(self, api_client, user):
+    def test_minimum_password_length(self, api_client, user, password_reset_confirm_data_factory):
         """최소 비밀번호 길이 (8자)"""
-        # Arrange
+        # Arrange - 7자 (너무 짧음)
         raw_token = PasswordResetToken.generate_token(user=user)
         url = reverse("password-reset-confirm")
-        data = {
-            "token": raw_token,
-            "new_password": "Pass12!",  # 7자 (너무 짧음)
-            "new_password2": "Pass12!",
-        }
+        data = password_reset_confirm_data_factory(
+            token=raw_token,
+            new_password="Pass12!"  # 7자
+        )
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -455,8 +461,10 @@ class TestPasswordResetBoundary:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
         # Arrange - 정확히 8자
-        data["new_password"] = "Pass123!"
-        data["new_password2"] = "Pass123!"
+        data = password_reset_confirm_data_factory(
+            token=raw_token,
+            new_password="Pass123!"  # 8자
+        )
 
         # Act
         response = api_client.post(url, data, format="json")

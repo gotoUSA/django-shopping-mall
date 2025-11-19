@@ -134,15 +134,11 @@ class OrderViewSet(viewsets.ModelViewSet):
         try:
             OrderService.cancel_order(order)
             logger.info(
-                f"주문 취소 성공: order_id={order.id}, order_number={order.order_number}, "
-                f"user_id={request.user.id}"
+                f"주문 취소 성공: order_id={order.id}, order_number={order.order_number}, " f"user_id={request.user.id}"
             )
             return Response({"message": "주문이 취소되었습니다."})
         except OrderServiceError as e:
-            logger.warning(
-                f"주문 취소 실패: order_id={order.id}, user_id={request.user.id}, "
-                f"error={str(e)}"
-            )
+            logger.warning(f"주문 취소 실패: order_id={order.id}, user_id={request.user.id}, " f"error={str(e)}")
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,

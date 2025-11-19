@@ -105,7 +105,7 @@ class OrderService:
         )
 
         # 1. 주문 총액 계산
-        total_amount = cart.total_amount
+        total_amount = cart.get_total_amount()
 
         # 2. 배송비 계산
         shipping_result = ShippingService.calculate_fee(

@@ -10,6 +10,32 @@ from rest_framework import serializers
 from shopping.models.user import User
 
 
+class UserListSerializer(serializers.ModelSerializer):
+    """
+    사용자 목록 조회용 경량 시리얼라이저
+    - N+1 쿼리 방지를 위해 email_verification_pending 필드 제외
+    - 최소한의 필드만 포함하여 성능 최적화
+    """
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "membership_level",
+            "points",
+            "is_email_verified",
+            "is_phone_verified",
+            "date_joined",
+            "last_login",
+        ]
+        read_only_fields = fields  # 모든 필드 읽기 전용
+
+
+
 class UserSerializer(serializers.ModelSerializer):
     """
     사용자 프로필 조회/수정용 시리얼라이저

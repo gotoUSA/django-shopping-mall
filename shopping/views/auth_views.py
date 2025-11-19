@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.contrib.auth import update_session_auth_hash
 from django.db import transaction
 from django.utils import timezone
 
@@ -17,9 +16,8 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, Ou
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from shopping.models.email_verification import EmailVerificationToken
 from shopping.serializers.user_serializers import LoginSerializer, PasswordChangeSerializer, RegisterSerializer, UserSerializer
-from shopping.tasks.email_tasks import send_verification_email_task
+from shopping.services.user_service import UserService
 from shopping.throttles import LoginRateThrottle, RegisterRateThrottle, TokenRefreshRateThrottle
 
 
@@ -39,33 +37,23 @@ class RegisterView(APIView):
             # 사용자 생성
             user = serializer.save()
 
-            # JWT 토큰 생성
-            refresh = RefreshToken.for_user(user)
+            # UserService로 회원가입 후처리 (토큰 생성 + 이메일 발송)
+            result = UserService.register_user(user)
 
-            # 이메일 인증 토큰 생성
-            token = EmailVerificationToken.objects.create(user=user)
+            response_data = {
+                "message": "회원가입이 완료되었습니다. 인증 이메일을 확인해주세요.",
+                "user": UserSerializer(user).data,
+                "tokens": result["tokens"],
+            }
 
-            # 비동기 이메일 발송 (Celery 태스크)
-            send_verification_email_task.delay(
-                user_id=user.id,
-                token_id=token.id,
-                is_resend=False,
-            )
+            # DEBUG 모드에서만 verification_code 포함
+            if "verification_code" in result["verification_result"]:
+                response_data["verification_code"] = result["verification_result"]["verification_code"]
 
-            return Response(
-                {
-                    "message": "회원가입이 완료되었습니다. 인증 이메일을 확인해주세요.",
-                    "user": UserSerializer(user).data,
-                    "tokens": {
-                        "refresh": str(refresh),
-                        "access": str(refresh.access_token),
-                    },
-                    "verification_code": token.verification_code,  # 테스크용
-                },
-                status=status.HTTP_201_CREATED,
-            )
+            return Response(response_data, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class LoginView(APIView):

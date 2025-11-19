@@ -17,7 +17,7 @@ from shopping.tests.factories import (
 class TestPaymentFailNormalCase:
     """정상 케이스"""
 
-    def test_user_cancel_payment(self, api_client, payment):
+    def test_user_cancel_payment(self, authenticated_client, payment):
         """사용자 취소 (USER_CANCEL) - 가장 일반적인 케이스"""
         # Arrange
         request_data = {
@@ -27,7 +27,7 @@ class TestPaymentFailNormalCase:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -43,7 +43,7 @@ class TestPaymentFailNormalCase:
         assert "USER_CANCEL" in payment.fail_reason
         assert "사용자가 결제를 취소했습니다" in payment.fail_reason
 
-    def test_timeout_payment(self, api_client, payment):
+    def test_timeout_payment(self, authenticated_client, payment):
         """시간 초과 (TIMEOUT)"""
         # Arrange
         request_data = {
@@ -53,7 +53,7 @@ class TestPaymentFailNormalCase:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -66,7 +66,7 @@ class TestPaymentFailNormalCase:
         assert payment.status == "aborted"
         assert "TIMEOUT" in payment.fail_reason
 
-    def test_invalid_card_expiration(self, api_client, payment):
+    def test_invalid_card_expiration(self, authenticated_client, payment):
         """카드 유효기간 오류"""
         # Arrange
         request_data = {
@@ -76,7 +76,7 @@ class TestPaymentFailNormalCase:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -89,7 +89,7 @@ class TestPaymentFailNormalCase:
         assert payment.status == "aborted"
         assert "INVALID_CARD_EXPIRATION" in payment.fail_reason
 
-    def test_exceed_daily_limit(self, api_client, payment):
+    def test_exceed_daily_limit(self, authenticated_client, payment):
         """일일 한도 초과"""
         # Arrange
         request_data = {
@@ -99,7 +99,7 @@ class TestPaymentFailNormalCase:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -112,7 +112,7 @@ class TestPaymentFailNormalCase:
         assert payment.status == "aborted"
         assert "EXCEED_MAX_DAILY_PAYMENT_COUNT" in payment.fail_reason
 
-    def test_provider_error(self, api_client, payment):
+    def test_provider_error(self, authenticated_client, payment):
         """결제 승인 실패"""
         # Arrange
         request_data = {
@@ -122,7 +122,7 @@ class TestPaymentFailNormalCase:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -135,7 +135,7 @@ class TestPaymentFailNormalCase:
         assert payment.status == "aborted"
         assert "PROVIDER_ERROR" in payment.fail_reason
 
-    def test_payment_status_changed_to_aborted(self, api_client, payment):
+    def test_payment_status_changed_to_aborted(self, authenticated_client, payment):
         """Payment 상태 변경 (ready → aborted)"""
         # Arrange
         assert payment.status == "ready"
@@ -147,7 +147,7 @@ class TestPaymentFailNormalCase:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -159,7 +159,7 @@ class TestPaymentFailNormalCase:
         payment.refresh_from_db()
         assert payment.status == "aborted"
 
-    def test_order_status_remains_pending(self, api_client, payment):
+    def test_order_status_remains_pending(self, authenticated_client, payment):
         """주문 상태는 pending 유지"""
         # Arrange
         order = payment.order
@@ -172,7 +172,7 @@ class TestPaymentFailNormalCase:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -184,7 +184,7 @@ class TestPaymentFailNormalCase:
         order.refresh_from_db()
         assert order.status == "pending"  # 주문 상태는 변경되지 않음
 
-    def test_fail_log_created(self, api_client, payment):
+    def test_fail_log_created(self, authenticated_client, payment):
         """실패 로그 기록 확인"""
         # Arrange
         initial_log_count = PaymentLog.objects.filter(payment=payment).count()
@@ -196,7 +196,7 @@ class TestPaymentFailNormalCase:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -218,7 +218,7 @@ class TestPaymentFailNormalCase:
         final_log_count = PaymentLog.objects.filter(payment=payment).count()
         assert final_log_count > initial_log_count
 
-    def test_response_data_structure(self, api_client, payment):
+    def test_response_data_structure(self, authenticated_client, payment):
         """응답 데이터 구조 검증"""
         # Arrange
         request_data = {
@@ -228,7 +228,7 @@ class TestPaymentFailNormalCase:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -259,7 +259,7 @@ class TestPaymentFailNormalCase:
         assert data["status"] == "aborted"
         assert data["fail_code"] == "USER_CANCEL"
 
-    def test_fail_reason_format(self, api_client, payment):
+    def test_fail_reason_format(self, authenticated_client, payment):
         """실패 사유 저장 형식 확인"""
         # Arrange
         request_data = {
@@ -269,7 +269,7 @@ class TestPaymentFailNormalCase:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -288,7 +288,7 @@ class TestPaymentFailNormalCase:
 class TestPaymentFailBoundary:
     """경계값 테스트"""
 
-    def test_long_fail_message(self, api_client, payment):
+    def test_long_fail_message(self, authenticated_client, payment):
         """긴 실패 메시지 처리"""
         # Arrange
         long_message = ("실패 사유 " * 80).strip()  # 480자, 마지막 공백 제거
@@ -300,7 +300,7 @@ class TestPaymentFailBoundary:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -313,7 +313,7 @@ class TestPaymentFailBoundary:
         assert payment.status == "aborted"
         assert long_message in payment.fail_reason
 
-    def test_special_characters_in_message(self, api_client, payment):
+    def test_special_characters_in_message(self, authenticated_client, payment):
         """특수문자 포함 메시지"""
         # Arrange
         special_message = "결제 실패: <script>alert('XSS')</script> & 특수문자 \"테스트\""
@@ -325,7 +325,7 @@ class TestPaymentFailBoundary:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -338,7 +338,7 @@ class TestPaymentFailBoundary:
         assert payment.status == "aborted"
         assert special_message in payment.fail_reason
 
-    def test_minimal_required_fields(self, api_client, payment):
+    def test_minimal_required_fields(self, authenticated_client, payment):
         """최소 필수 필드만 전송"""
         # Arrange
         request_data = {
@@ -348,7 +348,7 @@ class TestPaymentFailBoundary:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -360,7 +360,7 @@ class TestPaymentFailBoundary:
         payment.refresh_from_db()
         assert payment.status == "aborted"
 
-    def test_unicode_characters_in_message(self, api_client, payment):
+    def test_unicode_characters_in_message(self, authenticated_client, payment):
         """유니코드 문자 포함 메시지"""
         # Arrange
         unicode_message = "결제 실패 😢 カード エラー 💳"
@@ -372,7 +372,7 @@ class TestPaymentFailBoundary:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -389,7 +389,7 @@ class TestPaymentFailBoundary:
 class TestPaymentFailException:
     """예외 케이스"""
 
-    def test_nonexistent_order_id(self, api_client):
+    def test_nonexistent_order_id(self, authenticated_client):
         """존재하지 않는 order_id"""
         # Arrange
         request_data = {
@@ -399,7 +399,7 @@ class TestPaymentFailException:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -409,7 +409,7 @@ class TestPaymentFailException:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "결제 정보를 찾을 수 없습니다" in str(response.data)
 
-    def test_already_done_payment(self, api_client, user, product):
+    def test_already_done_payment(self, authenticated_client, user, product):
         """이미 완료된 결제 (done 상태)"""
         # Arrange - 완료된 결제 생성
         from django.utils import timezone
@@ -438,7 +438,7 @@ class TestPaymentFailException:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -448,7 +448,7 @@ class TestPaymentFailException:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "이미 완료된 결제입니다" in str(response.data)
 
-    def test_already_canceled_payment(self, api_client, user, product):
+    def test_already_canceled_payment(self, authenticated_client, user, product):
         """이미 취소된 결제"""
         # Arrange - 취소된 결제 생성
         from django.utils import timezone
@@ -478,7 +478,7 @@ class TestPaymentFailException:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -488,7 +488,7 @@ class TestPaymentFailException:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "이미 취소된 결제입니다" in str(response.data)
 
-    def test_missing_code_field(self, api_client, payment):
+    def test_missing_code_field(self, authenticated_client, payment):
         """필수 필드 누락 - code"""
         # Arrange
         request_data = {
@@ -498,7 +498,7 @@ class TestPaymentFailException:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -508,7 +508,7 @@ class TestPaymentFailException:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "code" in str(response.data)
 
-    def test_missing_message_field(self, api_client, payment):
+    def test_missing_message_field(self, authenticated_client, payment):
         """필수 필드 누락 - message"""
         # Arrange
         request_data = {
@@ -518,7 +518,7 @@ class TestPaymentFailException:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -528,7 +528,7 @@ class TestPaymentFailException:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "message" in str(response.data)
 
-    def test_missing_order_id_field(self, api_client):
+    def test_missing_order_id_field(self, authenticated_client):
         """필수 필드 누락 - order_id"""
         # Arrange
         request_data = {
@@ -538,7 +538,7 @@ class TestPaymentFailException:
         }
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -548,13 +548,13 @@ class TestPaymentFailException:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "order_id" in str(response.data)
 
-    def test_empty_request_body(self, api_client):
+    def test_empty_request_body(self, authenticated_client):
         """빈 요청 본문"""
         # Arrange
         request_data = {}
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             format="json",
@@ -563,13 +563,13 @@ class TestPaymentFailException:
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_invalid_json_format(self, api_client):
+    def test_invalid_json_format(self, authenticated_client):
         """잘못된 JSON 형식"""
         # Arrange - 문자열로 전송
         request_data = "invalid_json"
 
         # Act
-        response = api_client.post(
+        response = authenticated_client.post(
             "/api/payments/fail/",
             request_data,
             content_type="application/json",

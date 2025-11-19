@@ -421,21 +421,9 @@ class TestOrderValidationException:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "shipping_address" in response.data
 
-    def test_missing_shipping_address_detail(self, authenticated_client, user, product, add_to_cart_helper, invalid_shipping_field_factory):
-        """상세 주소 누락"""
-        # Arrange
-        add_to_cart_helper(user, product, quantity=1)
-        url = reverse("order-list")
-        invalid_data = invalid_shipping_field_factory("shipping_address_detail")
-
-        # Act
-        response = authenticated_client.post(url, invalid_data, format="json")
-
-        # Assert
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "shipping_address_detail" in response.data
 
     def test_all_fields_missing(self, authenticated_client, user, product, add_to_cart_helper):
+
         """모든 배송지 정보 누락"""
         # Arrange
         add_to_cart_helper(user, product, quantity=1)

@@ -8,6 +8,9 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
 
+# TODO: Django 5.2 호환 암호화 라이브러리 선택 필요
+# from encrypted_model_fields.fields import EncryptedCharField
+
 from .order import Order, OrderItem
 from .product import Product
 
@@ -59,9 +62,10 @@ class Return(models.Model):
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,  # Changed from CASCADE: 거래 기록 보존 의무(전자상거래법)
         related_name="returns",
         verbose_name="신청자",
+        help_text="사용자 탈퇴 시에도 교환/환불 기록 유지 (법적 보존 의무)",
     )
 
     return_number = models.CharField(
@@ -142,10 +146,13 @@ class Return(models.Model):
         verbose_name="환불 계좌 은행",
     )
 
+    # TODO: 암호화 필드 구현 필요 (Django 5.2 호환 라이브러리 선택 후)
+    # Candidate: django-cryptography (Django 5.x 지원 확인 필요)
     refund_account_number = models.CharField(
-        max_length=50,
+        max_length=255,
         blank=True,
         verbose_name="환불 계좌번호",
+        help_text="⚠️ TODO: 암호화하여 저장 필요 (개인정보보호법)",
     )
 
     refund_account_holder = models.CharField(
@@ -181,7 +188,7 @@ class Return(models.Model):
     admin_memo = models.TextField(
         blank=True,
         verbose_name="관리자 메모",
-        help_text="내부용 메모",
+        help_text="⚠️ 내부용 메모 - 고객에게 노출되어선 안 됨 (Serializer/View에서 관리자만 조회 가능하도록 설정 필요)",
     )
 
     approved_at = models.DateTimeField(
@@ -218,7 +225,7 @@ class Return(models.Model):
         verbose_name_plural = "교환/환불 목록"
         ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=["return_number"]),
+            # return_number는 unique=True로 자동 인덱스 생성되므로 제외
             models.Index(fields=["user", "-created_at"]),
             models.Index(fields=["order"]),
             models.Index(fields=["status"]),
@@ -252,29 +259,39 @@ class Return(models.Model):
         from shopping.services.return_service import ReturnService
         return ReturnService.calculate_refund_amount(self.return_items.all())
 
-    def can_request(self) -> tuple[bool, str]:
+    @classmethod
+    def can_request_for_order(cls, order: Order) -> tuple[bool, str]:
         """
-        교환/환불 신청 가능 여부 확인
+        교환/환불 신청 가능 여부 확인 (클래스 메서드)
+
+        신청 전에 호출하여 검증할 수 있도록 클래스 메서드로 구현
 
         조건:
         1. 주문 상태가 'delivered' (배송 완료)
-        2. 배송 완료 후 7일 이내
+        2. 배송 완료 후 설정된 기간 이내 (기본 7일)
         3. 이미 교환/환불 신청한 주문이 아니어야 함
+
+        Args:
+            order: 확인할 주문 객체
+
+        Returns:
+            (가능 여부, 메시지)
         """
         # 주문 상태 확인
-        if self.order.status != "delivered":
+        if order.status != "delivered":
             return False, "배송 완료된 주문만 신청 가능합니다."
 
-        #  배송 완료 후 7일 이내 확인
+        # 배송 완료 후 지정된 기간 이내 확인
         # (실제로는 Order 모델에 delivered_at 필드가 있어야 함)
         # 여기서는 간단히 created_at 기준으로 체크
-        days_passed = (timezone.now() - self.order.created_at).days
-        if days_passed > 7:
-            return False, "배송 완료 후 7일이 지나 신청할 수 없습니다."
+        deadline_days = getattr(settings, 'RETURN_REQUEST_DEADLINE_DAYS', 7)
+        days_passed = (timezone.now() - order.created_at).days
+        if days_passed > deadline_days:
+            return False, f"배송 완료 후 {deadline_days}일이 지나 신청할 수 없습니다."
 
         # 이미 신청한 교환/환불이 있는지 확인
-        existing_returns = Return.objects.filter(
-            order=self.order, status__in=["requested", "approved", "shipping", "received"]
+        existing_returns = cls.objects.filter(
+            order=order, status__in=["requested", "approved", "shipping", "received"]
         ).exists()
 
         if existing_returns:
@@ -359,11 +376,17 @@ class Return(models.Model):
         """
         환불 완료 처리
 
+        ⚠️ DEPRECATED: 실제 운영에서는 ReturnService.complete_refund() 사용 권장
+
         실제 환불 처리:
         1. 토스페이먼츠 API 호출하여 환불
         2. 재고 복구
         3. 포인트 처리
         4. 상태 변경
+
+        성능 최적화:
+        - N+1 쿼리 방지: select_related('order_item__product') 사용
+        - 대량 처리 시: bulk_update() 고려
         """
         if self.type != "refund":
             raise ValueError("환불 타입에서만 사용 가능합니다.")
@@ -374,6 +397,9 @@ class Return(models.Model):
         from django.db import transaction
 
         with transaction.atomic():
+            # 성능 최적화: N+1 쿼리 방지
+            return_items = self.return_items.select_related('order_item__product').all()
+
             # 1. 토스페이먼츠 환불 처리
             if hasattr(self.order, "payment") and self.order.payment:
                 from shopping.utils.toss_payment import TossPaymentClient
@@ -400,7 +426,7 @@ class Return(models.Model):
                     )
 
             # 2. 재고 복구
-            for return_item in self.return_items.all():
+            for return_item in return_items:
                 if return_item.order_item.product:
                     product = return_item.order_item.product
                     product.stock += return_item.quantity
@@ -438,9 +464,14 @@ class Return(models.Model):
         """
         교환 완료 처리
 
+        ⚠️ DEPRECATED: 실제 운영에서는 ReturnService.complete_exchange() 사용 권장
+
         교환 상품 발송 후 호출:
         1. 재고 조정 (반품 +1, 교환 -1)
         2. 상태 변경
+
+        성능 최적화:
+        - N+1 쿼리 방지: select_related('order_item__product') 사용
         """
         if self.type != "exchange":
             raise ValueError("교환 타입에서만 사용 가능합니다.")
@@ -451,8 +482,11 @@ class Return(models.Model):
         from django.db import transaction
 
         with transaction.atomic():
+            # 성능 최적화: N+1 쿼리 방지
+            return_items = self.return_items.select_related('order_item__product').all()
+
             # 1. 재고 조정
-            for return_item in self.return_items.all():
+            for return_item in return_items:
                 # 반품 상품 재고 증가
                 if return_item.order_item.product:
                     product = return_item.order_item.product

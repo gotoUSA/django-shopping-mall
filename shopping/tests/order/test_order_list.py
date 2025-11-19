@@ -461,11 +461,10 @@ class TestOrderListException:
         url = reverse("order-list")
 
         # Act & Assert - 쿼리 수 확인
-        # 실제 쿼리: 인증(1) + count(1) + orders(1) + order_items prefetch(1)
-        #            + products(1) + user 조회(10) = 15
-        # user 조회가 N+1 발생 중이지만 OrderListSerializer에서 user_username만 사용하므로
-        # 치명적인 성능 이슈는 아님
-        with django_assert_num_queries(15):
+        # 실제 쿼리: 인증(1) + count(1) + orders with select_related/prefetch_related(1)
+        #            + annotate(1) + session(1) = 5
+        # 리팩토링 후 select_related("user")로 user 조회 최적화 완료
+        with django_assert_num_queries(5):
             response = authenticated_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK

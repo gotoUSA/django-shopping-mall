@@ -32,6 +32,24 @@ class ProfileView(generics.RetrieveUpdateAPIView):
         """현재 로그인한 사용자 반환"""
         return self.request.user
 
+    def update(self, request: Request, *args, **kwargs) -> Response:
+        """PUT 요청 처리 - 전체 수정"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        return Response({
+            "user": serializer.data,
+            "message": "프로필이 수정되었습니다."
+        }, status=status.HTTP_200_OK)
+
+    def partial_update(self, request: Request, *args, **kwargs) -> Response:
+        """PATCH 요청 처리 - 부분 수정"""
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
 
 class PasswordChangeView(APIView):
     """

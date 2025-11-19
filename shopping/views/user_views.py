@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from django.contrib.auth import update_session_auth_hash
+import logging
+
 from django.db import transaction
 from django.utils import timezone
 
-from rest_framework import status
+from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -14,46 +15,22 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, Ou
 
 from shopping.serializers.user_serializers import PasswordChangeSerializer, UserSerializer
 
+logger = logging.getLogger(__name__)
 
-class ProfileView(APIView):
+
+class ProfileView(generics.RetrieveUpdateAPIView):
     """
-    사용자 프로필 API
+    사용자 프로필 API (Generic View 사용)
     - GET: 현재 로그인한 사용자 정보 조회
     - PUT/PATCH: 사용자 정보 수정
     """
 
     permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
 
-    def get(self, request: Request) -> Response:
-        """프로필 조회"""
-        serializer = UserSerializer(request.user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def put(self, request: Request) -> Response:
-        """프로필 전체 수정"""
-        serializer = UserSerializer(request.user, data=request.data, partial=False)
-
-        if serializer.is_valid():
-            serializer.save()
-            return Response(
-                {"user": serializer.data, "message": "프로필이 수정되었습니다."},
-                status=status.HTTP_200_OK,
-            )
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def patch(self, request: Request) -> Response:
-        """프로필 부분 수정"""
-        serializer = UserSerializer(request.user, data=request.data, partial=True)
-
-        if serializer.is_valid():
-            serializer.save()
-            return Response(
-                {"user": serializer.data, "message": "프로필이 수정되었습니다."},
-                status=status.HTTP_200_OK,
-            )
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def get_object(self):
+        """현재 로그인한 사용자 반환"""
+        return self.request.user
 
 
 class PasswordChangeView(APIView):
@@ -69,13 +46,11 @@ class PasswordChangeView(APIView):
 
         if serializer.is_valid():
             serializer.save()
-
-            # 비밀번호 변경 후에도 로그인 유지
-            update_session_auth_hash(request, request.user)
-
+            logger.info(f"비밀번호 변경 완료: user_id={request.user.id}")
             return Response({"message": "비밀번호가 변경되었습니다."}, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 @api_view(["POST"])
@@ -101,6 +76,7 @@ def withdraw(request: Request) -> Response:
 
     # 비밀번호 확인
     if not user.check_password(password):
+        logger.warning(f"회원 탈퇴 실패 - 비밀번호 불일치: user_id={user.id}")
         return Response(
             {"error": "비밀번호가 올바르지 않습니다."},
             status=status.HTTP_400_BAD_REQUEST,
@@ -114,20 +90,29 @@ def withdraw(request: Request) -> Response:
             user.withdrawn_at = timezone.now()
             user.is_active = False
             user.save()
+            logger.info(f"사용자 탈퇴 처리: user_id={user.id}, username={user.username}")
 
             # 2. 모든 JWT 토큰 무효화
-            # OutstandingToken에서 해당 사용자의 모든 토큰을 찾아 블랙리스트에 추가
             outstanding_tokens = OutstandingToken.objects.filter(user=user)
 
             for outstanding_token in outstanding_tokens:
                 # 이미 블랙리스트에 없는 토큰만 추가
                 BlacklistedToken.objects.get_or_create(token=outstanding_token)
 
+            logger.info(f"JWT 토큰 무효화 완료: user_id={user.id}, token_count={outstanding_tokens.count()}")
+
+        return Response({"message": "회원 탈퇴가 완료되었습니다."}, status=status.HTTP_200_OK)
+
+    except OutstandingToken.DoesNotExist:
+        # 토큰이 없는 경우 (정상 케이스일 수 있음)
+        logger.warning(f"탈퇴 처리 - 토큰 없음: user_id={user.id}")
         return Response({"message": "회원 탈퇴가 완료되었습니다."}, status=status.HTTP_200_OK)
 
     except Exception as e:
-        # 예외 발생 시 자동 롤백 (transaction.atomic이 처리)
+        # 예상치 못한 에러
+        logger.error(f"탈퇴 처리 중 오류 발생: user_id={user.id}, error={str(e)}", exc_info=True)
         return Response(
-            {"error": f"탈퇴 처리 중 오류가 발생했습니다: {str(e)}"},
+            {"error": "탈퇴 처리 중 오류가 발생했습니다. 고객센터에 문의해주세요."},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+

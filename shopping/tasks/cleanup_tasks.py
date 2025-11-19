@@ -37,7 +37,7 @@ def delete_unverified_users_task(self: Task, days: int = 7) -> dict[str, Any]:
         # 미인증 사용자 조회
         unverified_users = User.objects.filter(
             is_email_verified=False,
-            date_joined__lt=cutoff_date,
+            date_joined__lte=cutoff_date,
         ).select_related()
 
         # 주문 이력이 있는 사용자 제외

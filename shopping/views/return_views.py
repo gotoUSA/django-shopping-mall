@@ -180,7 +180,7 @@ class ReturnViewSet(viewsets.ModelViewSet):
         return_obj = self.get_object()
 
         # 판매자 권한 확인
-        has_permission, error_mesasge = self._check_seller_permission(return_obj)
+        has_permission, error_message = self._check_seller_permission(return_obj)
         if not has_permission:
             return Response({"message": error_message}, status=status.HTTP_403_FORBIDDEN)
 

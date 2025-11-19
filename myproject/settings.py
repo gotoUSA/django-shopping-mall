@@ -198,8 +198,20 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
+# ========== Encryption Settings ==========
+# 계좌번호 등 민감 정보 암호화 키
+ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "")
+
+if not ENCRYPTION_KEY and not TESTING:
+    import warnings
+    warnings.warn(
+        "⚠️ ENCRYPTION_KEY가 설정되지 않았습니다. "
+        "계좌번호 암호화 기능이 작동하지 않습니다. "
+        ".env 파일에 ENCRYPTION_KEY를 추가해주세요."
+    )
 
 # ========== Return Request Settings ==========
+
 # 교환/환불 신청 가능 기간 (일 단위)
 RETURN_REQUEST_DEADLINE_DAYS = int(os.environ.get("RETURN_REQUEST_DEADLINE_DAYS", 7))
 

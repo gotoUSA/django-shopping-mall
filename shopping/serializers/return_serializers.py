@@ -205,8 +205,13 @@ class ReturnListSerializer(serializers.ModelSerializer):
         ]
 
     def get_item_count(self, obj: Return) -> int:
-        """반품 상품 개수"""
-        return obj.return_items.count()
+        """
+        반품 상품 개수
+
+        성능 최적화: prefetch_related된 데이터 사용
+        count()는 DB 쿼리를 유발할 수 있으므로 len() 사용
+        """
+        return len(obj.return_items.all())
 
 
 class ReturnDetailSerializer(serializers.ModelSerializer):
@@ -219,6 +224,7 @@ class ReturnDetailSerializer(serializers.ModelSerializer):
     order_info = serializers.SerializerMethodField(read_only=True)
     return_items = ReturnItemSerializer(many=True, read_only=True)
     exchange_product_info = serializers.SerializerMethodField(read_only=True)
+    refund_account_number = serializers.SerializerMethodField(read_only=True)
 
     # 액션 가능 여부
     can_cancel = serializers.SerializerMethodField(read_only=True)
@@ -274,6 +280,15 @@ class ReturnDetailSerializer(serializers.ModelSerializer):
             "created_at": obj.order.created_at,
         }
 
+    def get_refund_account_number(self, obj: Return) -> str:
+        """
+        환불 계좌번호 (마스킹 처리)
+
+        보안을 위해 마스킹된 계좌번호를 반환합니다.
+        예: "***-***-6789"
+        """
+        return obj.get_masked_account_number()
+
     def get_exchange_product_info(self, obj: Return) -> dict[str, Any] | None:
         """교환 상품 정보"""
         if obj.type != "exchange" or not obj.exchange_product:
@@ -326,9 +341,9 @@ class ReturnUpdateSerializer(serializers.ModelSerializer):
         # 판매자에게 알림
         from shopping.models import Notification
 
-        # 반품하는 상품들의 판매자 찾기
+        # 성능 최적화: select_related로 N+1 쿼리 방지
         sellers = set()
-        for return_item in instance.return_items.all():
+        for return_item in instance.return_items.select_related('order_item__product__seller').all():
             if return_item.order_item.product and return_item.order_item.product.seller:
                 sellers.add(return_item.order_item.product.seller)
 
@@ -364,14 +379,16 @@ class ReturnApproveSerializer(serializers.Serializer):
 
     def save(self) -> Return:
         """승인 처리"""
+        from shopping.services.return_service import ReturnService
+
         return_obj = self.context.get("return_obj")
         admin_memo = self.validated_data.get("admin_memo", "")
 
-        if admin_memo:
-            return_obj.admin_memo = admin_memo
-
-        return_obj.approve()
-        return return_obj
+        return ReturnService.approve_return(
+            return_obj,
+            admin_user=None,  # 향후 request.user 전달 가능
+            admin_memo=admin_memo
+        )
 
 
 class ReturnRejectSerializer(serializers.Serializer):
@@ -390,11 +407,12 @@ class ReturnRejectSerializer(serializers.Serializer):
 
     def save(self) -> Return:
         """거부 처리"""
+        from shopping.services.return_service import ReturnService
+
         return_obj = self.context.get("return_obj")
         rejected_reason = self.validated_data["rejected_reason"]
 
-        return_obj.reject(rejected_reason)
-        return return_obj
+        return ReturnService.reject_return(return_obj, reason=rejected_reason)
 
 
 class ReturnConfirmReceiveSerializer(serializers.Serializer):
@@ -411,9 +429,10 @@ class ReturnConfirmReceiveSerializer(serializers.Serializer):
 
     def save(self) -> Return:
         """수령 확인 처리"""
+        from shopping.services.return_service import ReturnService
+
         return_obj = self.context.get("return_obj")
-        return_obj.confirm_receive()
-        return return_obj
+        return ReturnService.confirm_receive_return(return_obj)
 
 
 class ReturnCompleteSerializer(serializers.Serializer):
@@ -443,17 +462,20 @@ class ReturnCompleteSerializer(serializers.Serializer):
 
     def save(self) -> Return:
         """완료 처리 (환불 또는 교환)"""
+        from shopping.services.return_service import ReturnService
+
         return_obj = self.context.get("return_obj")
 
         if return_obj.type == "refund":
             # 환불 처리
-            return_obj.complete_refund()
+            return ReturnService.complete_refund(return_obj)
         else:
             # 교환 처리
-            return_obj.exchange_tracking_number = self.validated_data["exchange_tracking_number"]
-            return_obj.exchange_shipping_company = self.validated_data["exchange_shipping_company"]
-            return_obj.save(update_fields=["exchange_tracking_number", "exchange_shipping_company"])
+            exchange_tracking_number = self.validated_data["exchange_tracking_number"]
+            exchange_shipping_company = self.validated_data["exchange_shipping_company"]
 
-            return_obj.complete_exchange()
-
-        return return_obj
+            return ReturnService.complete_exchange(
+                return_obj,
+                exchange_tracking_number=exchange_tracking_number,
+                exchange_shipping_company=exchange_shipping_company
+            )

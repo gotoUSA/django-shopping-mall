@@ -138,9 +138,9 @@ class TestPasswordResetConfirm:
     def test_confirm_password_reset_success(self, api_client, user, password_reset_confirm_data_factory):
         """유효한 토큰으로 비밀번호 재설정 성공"""
         # Arrange
-        token = PasswordResetToken.objects.create(user=user)
+        raw_token = PasswordResetToken.generate_token(user=user)
         url = reverse("password-reset-confirm")
-        data = password_reset_confirm_data_factory(token=token.token)
+        data = password_reset_confirm_data_factory(token=raw_token)
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -156,19 +156,19 @@ class TestPasswordResetConfirm:
         assert not user.check_password("testpass123")  # 이전 비밀번호는 안됨
 
         # Assert - 토큰 사용 처리 확인
-        token.refresh_from_db()
-        assert token.is_used is True
-        assert token.used_at is not None
+        token_obj = PasswordResetToken.objects.get(user=user, is_used=True)
+        assert token_obj is not None
+        assert token_obj.used_at is not None
 
     def test_login_with_new_password_after_reset(
         self, api_client, user, password_reset_confirm_data_factory, login_data_factory
     ):
         """재설정 후 새 비밀번호로 로그인"""
         # Arrange - 비밀번호 재설정
-        token = PasswordResetToken.objects.create(user=user)
+        raw_token = PasswordResetToken.generate_token(user=user)
         confirm_url = reverse("password-reset-confirm")
         new_password = "ResetPassword456!"
-        confirm_data = password_reset_confirm_data_factory(token=token.token, new_password=new_password)
+        confirm_data = password_reset_confirm_data_factory(token=raw_token, new_password=new_password)
         confirm_response = api_client.post(confirm_url, confirm_data, format="json")
         assert confirm_response.status_code == status.HTTP_200_OK
 
@@ -188,9 +188,9 @@ class TestPasswordResetConfirm:
         """재설정 후 이전 비밀번호는 사용 불가"""
         # Arrange - 비밀번호 재설정
         old_password = "testpass123"  # user fixture의 기본 비밀번호
-        token = PasswordResetToken.objects.create(user=user)
+        raw_token = PasswordResetToken.generate_token(user=user)
         confirm_url = reverse("password-reset-confirm")
-        confirm_data = password_reset_confirm_data_factory(token=token.token, new_password="NewPassword789!")
+        confirm_data = password_reset_confirm_data_factory(token=raw_token, new_password="NewPassword789!")
         api_client.post(confirm_url, confirm_data, format="json")
 
         # Act - 이전 비밀번호로 로그인 시도
@@ -226,12 +226,13 @@ class TestPasswordResetConfirmValidation:
     def test_confirm_with_expired_token(self, api_client, user, password_reset_confirm_data_factory):
         """만료된 토큰으로 재설정 시도"""
         # Arrange - 24시간 이상 경과한 토큰
-        token = PasswordResetToken.objects.create(user=user)
-        token.created_at = datetime.now(dt_timezone.utc) - timedelta(hours=24, seconds=1)
-        token.save()
+        raw_token = PasswordResetToken.generate_token(user=user)
+        token_obj = PasswordResetToken.objects.get(user=user, is_used=False)
+        token_obj.created_at = datetime.now(dt_timezone.utc) - timedelta(hours=24, seconds=1)
+        token_obj.save()
 
         url = reverse("password-reset-confirm")
-        data = password_reset_confirm_data_factory(token=token.token, new_password="NewPass123!")
+        data = password_reset_confirm_data_factory(token=raw_token, new_password="NewPass123!")
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -243,11 +244,12 @@ class TestPasswordResetConfirmValidation:
     def test_confirm_with_used_token(self, api_client, user, password_reset_confirm_data_factory):
         """이미 사용된 토큰으로 재설정 시도 (재사용 방지)"""
         # Arrange
-        token = PasswordResetToken.objects.create(user=user)
-        token.mark_as_used()  # 사용 처리
+        raw_token = PasswordResetToken.generate_token(user=user)
+        token_obj = PasswordResetToken.objects.get(user=user, is_used=False)
+        token_obj.mark_as_used()  # 사용 처리
 
         url = reverse("password-reset-confirm")
-        data = password_reset_confirm_data_factory(token=token.token, new_password="NewPass123!")
+        data = password_reset_confirm_data_factory(token=raw_token, new_password="NewPass123!")
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -259,10 +261,10 @@ class TestPasswordResetConfirmValidation:
     def test_confirm_password_mismatch(self, api_client, user):
         """비밀번호 불일치"""
         # Arrange
-        token = PasswordResetToken.objects.create(user=user)
+        raw_token = PasswordResetToken.generate_token(user=user)
         url = reverse("password-reset-confirm")
         data = {
-            "token": str(token.token),
+            "token": raw_token,
             "new_password": "NewPass123!",
             "new_password2": "DifferentPass456!",  # 다른 비밀번호
         }
@@ -277,10 +279,10 @@ class TestPasswordResetConfirmValidation:
     def test_confirm_weak_password(self, api_client, user):
         """약한 비밀번호 (Django 정책 위반)"""
         # Arrange
-        token = PasswordResetToken.objects.create(user=user)
+        raw_token = PasswordResetToken.generate_token(user=user)
         url = reverse("password-reset-confirm")
         data = {
-            "token": str(token.token),
+            "token": raw_token,
             "new_password": "1234",  # 너무 짧음
             "new_password2": "1234",
         }
@@ -295,10 +297,10 @@ class TestPasswordResetConfirmValidation:
     def test_confirm_common_password(self, api_client, user):
         """흔한 비밀번호 (Django 정책 위반)"""
         # Arrange
-        token = PasswordResetToken.objects.create(user=user)
+        raw_token = PasswordResetToken.generate_token(user=user)
         url = reverse("password-reset-confirm")
         data = {
-            "token": str(token.token),
+            "token": raw_token,
             "new_password": "password123",  # 흔한 비밀번호
             "new_password2": "password123",
         }
@@ -333,60 +335,63 @@ class TestPasswordResetTokenModel:
     def test_token_creation(self, user):
         """토큰 생성 시 UUID 자동 생성"""
         # Arrange & Act
-        token = PasswordResetToken.objects.create(user=user)
+        raw_token = PasswordResetToken.generate_token(user=user)
 
         # Assert
-        assert token.token is not None
-        assert len(str(token.token)) == 36  # UUID 형식
-        assert token.is_used is False
-        assert token.used_at is None
+        assert raw_token is not None
+        assert len(str(raw_token)) == 36  # UUID 형식
+        token_obj = PasswordResetToken.objects.get(user=user)
+        assert token_obj.is_used is False
+        assert token_obj.used_at is None
 
     def test_is_expired_method(self, user):
         """is_expired() 메서드 테스트"""
         # Arrange
         base_time = datetime(2025, 1, 28, 10, 0, 0, tzinfo=dt_timezone.utc)
-        token = PasswordResetToken.objects.create(user=user)
-        token.created_at = base_time
-        token.save()
+        raw_token = PasswordResetToken.generate_token(user=user)
+        token_obj = PasswordResetToken.objects.get(user=user)
+        token_obj.created_at = base_time
+        token_obj.save()
 
         # Assert - 정확히 24시간 후 (만료되지 않음)
-        assert token.is_expired(now=base_time + timedelta(hours=24)) is False
+        assert token_obj.is_expired(now=base_time + timedelta(hours=24)) is False
 
         # Assert - 24시간 1초 후 (만료됨)
-        assert token.is_expired(now=base_time + timedelta(hours=24, seconds=1)) is True
+        assert token_obj.is_expired(now=base_time + timedelta(hours=24, seconds=1)) is True
 
         # Assert - 23시간 59분 59초 후 (유효)
-        assert token.is_expired(now=base_time + timedelta(hours=23, minutes=59, seconds=59)) is False
+        assert token_obj.is_expired(now=base_time + timedelta(hours=23, minutes=59, seconds=59)) is False
 
     def test_mark_as_used_method(self, user):
         """mark_as_used() 메서드 테스트"""
         # Arrange
-        token = PasswordResetToken.objects.create(user=user)
-        assert token.is_used is False
-        assert token.used_at is None
+        raw_token = PasswordResetToken.generate_token(user=user)
+        token_obj = PasswordResetToken.objects.get(user=user)
+        assert token_obj.is_used is False
+        assert token_obj.used_at is None
 
         # Act
-        token.mark_as_used()
+        token_obj.mark_as_used()
 
         # Assert
-        assert token.is_used is True
-        assert token.used_at is not None
+        assert token_obj.is_used is True
+        assert token_obj.used_at is not None
 
     def test_token_uniqueness(self, user):
         """토큰 고유성 확인"""
         # Arrange & Act
-        token1 = PasswordResetToken.objects.create(user=user)
-        token2 = PasswordResetToken.objects.create(user=user)
+        raw_token1 = PasswordResetToken.generate_token(user=user, invalidate_previous=False)
+        raw_token2 = PasswordResetToken.generate_token(user=user, invalidate_previous=False)
 
         # Assert - UUID는 항상 다름
-        assert token1.token != token2.token
+        assert raw_token1 != raw_token2
 
     def test_multiple_tokens_per_user(self, user):
         """한 사용자가 여러 토큰을 가질 수 있음"""
         # Arrange & Act
-        token1 = PasswordResetToken.objects.create(user=user)
-        token2 = PasswordResetToken.objects.create(user=user)
-        token3 = PasswordResetToken.objects.create(user=user)
+        raw_token1 = PasswordResetToken.generate_token(user=user, invalidate_previous=False)
+        raw_token2 = PasswordResetToken.generate_token(user=user, invalidate_previous=False)
+        raw_token3 = PasswordResetToken.generate_token(user=user, invalidate_previous=False)
 
         # Assert
         tokens = PasswordResetToken.objects.filter(user=user)
@@ -400,12 +405,13 @@ class TestPasswordResetBoundary:
     def test_token_expiry_exactly_24_hours(self, api_client, user, password_reset_confirm_data_factory):
         """토큰이 정확히 24시간 후에 만료됨"""
         # Arrange - 정확히 24시간 1초 전 토큰
-        token = PasswordResetToken.objects.create(user=user)
-        token.created_at = datetime.now(dt_timezone.utc) - timedelta(hours=24, seconds=1)
-        token.save()
+        raw_token = PasswordResetToken.generate_token(user=user)
+        token_obj = PasswordResetToken.objects.get(user=user)
+        token_obj.created_at = datetime.now(dt_timezone.utc) - timedelta(hours=24, seconds=1)
+        token_obj.save()
 
         url = reverse("password-reset-confirm")
-        data = password_reset_confirm_data_factory(token=token.token, new_password="NewPass123!")
+        data = password_reset_confirm_data_factory(token=raw_token, new_password="NewPass123!")
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -417,12 +423,13 @@ class TestPasswordResetBoundary:
     def test_token_valid_before_24_hours(self, api_client, user, password_reset_confirm_data_factory):
         """24시간 전이면 아직 유효함"""
         # Arrange - 23시간 59분 59초 전 토큰
-        token = PasswordResetToken.objects.create(user=user)
-        token.created_at = datetime.now(dt_timezone.utc) - timedelta(hours=23, minutes=59, seconds=59)
-        token.save()
+        raw_token = PasswordResetToken.generate_token(user=user)
+        token_obj = PasswordResetToken.objects.get(user=user)
+        token_obj.created_at = datetime.now(dt_timezone.utc) - timedelta(hours=23, minutes=59, seconds=59)
+        token_obj.save()
 
         url = reverse("password-reset-confirm")
-        data = password_reset_confirm_data_factory(token=token.token, new_password="NewPass123!")
+        data = password_reset_confirm_data_factory(token=raw_token, new_password="NewPass123!")
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -433,10 +440,10 @@ class TestPasswordResetBoundary:
     def test_minimum_password_length(self, api_client, user):
         """최소 비밀번호 길이 (8자)"""
         # Arrange
-        token = PasswordResetToken.objects.create(user=user)
+        raw_token = PasswordResetToken.generate_token(user=user)
         url = reverse("password-reset-confirm")
         data = {
-            "token": str(token.token),
+            "token": raw_token,
             "new_password": "Pass12!",  # 7자 (너무 짧음)
             "new_password2": "Pass12!",
         }

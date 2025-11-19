@@ -919,7 +919,7 @@ def password_change_data_factory():
 
 
 @pytest.fixture
-def password_reset_confirm_data_factory():
+def password_reset_confirm_data_factory(user):
     """
     비밀번호 재설정 확인 데이터 팩토리
 
@@ -932,8 +932,9 @@ def password_reset_confirm_data_factory():
             response = api_client.post("/api/auth/password/reset/confirm/", data)
     """
 
-    def _create_data(token, new_password="NewSecurePass123!", new_password2=None):
+    def _create_data(token, email=None, new_password="NewSecurePass123!", new_password2=None):
         return {
+            "email": email or user.email,
             "token": str(token),
             "new_password": new_password,
             "new_password2": new_password2 or new_password,

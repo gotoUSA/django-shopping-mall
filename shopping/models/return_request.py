@@ -319,8 +319,8 @@ class Return(models.Model):
             decrypted = self.get_decrypted_account_number()
             return mask_account_number(decrypted)
         except Exception:
-            # 복호화 실패 시 전체 마스킹
-            return "***-***-****"
+            # 복호화 실패 시 안전한 마스킹 (형식 무관)
+            return "************"
 
     @classmethod
     def can_request_for_order(cls, order: Order) -> tuple[bool, str]:

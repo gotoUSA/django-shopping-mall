@@ -8,8 +8,8 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
 
-# TODO: Install django-fernet-fields for encryption
-# from fernet_fields import EncryptedCharField
+# TODO: Django 5.2 호환 암호화 라이브러리 선택 필요
+# from encrypted_model_fields.fields import EncryptedCharField
 
 from .order import Order, OrderItem
 from .product import Product
@@ -146,13 +146,13 @@ class Return(models.Model):
         verbose_name="환불 계좌 은행",
     )
 
-    # TODO: 보안 개선 필요 - 암호화 필드 사용 권장
-    # refund_account_number = EncryptedCharField(max_length=50, blank=True, verbose_name="환불 계좌번호")
+    # TODO: 암호화 필드 구현 필요 (Django 5.2 호환 라이브러리 선택 후)
+    # Candidate: django-cryptography (Django 5.x 지원 확인 필요)
     refund_account_number = models.CharField(
-        max_length=50,
+        max_length=255,
         blank=True,
         verbose_name="환불 계좌번호",
-        help_text="⚠️ 보안: 향후 암호화 필드로 전환 필요 (개인정보보호법)",
+        help_text="⚠️ TODO: 암호화하여 저장 필요 (개인정보보호법)",
     )
 
     refund_account_holder = models.CharField(

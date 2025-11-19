@@ -199,6 +199,10 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 
+# ========== Return Request Settings ==========
+# 교환/환불 신청 가능 기간 (일 단위)
+RETURN_REQUEST_DEADLINE_DAYS = int(os.environ.get("RETURN_REQUEST_DEADLINE_DAYS", 7))
+
 # REST Framework 기본 설정
 REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",

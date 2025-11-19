@@ -8,8 +8,13 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
 
-# TODO: Django 5.2 호환 암호화 라이브러리 선택 필요
-# from encrypted_model_fields.fields import EncryptedCharField
+# 암호화 유틸리티 임포트
+from shopping.utils.encryption import (
+    encrypt_account_number,
+    decrypt_account_number,
+    mask_account_number,
+    is_encrypted,
+)
 
 from .order import Order, OrderItem
 from .product import Product
@@ -146,13 +151,12 @@ class Return(models.Model):
         verbose_name="환불 계좌 은행",
     )
 
-    # TODO: 암호화 필드 구현 필요 (Django 5.2 호환 라이브러리 선택 후)
-    # Candidate: django-cryptography (Django 5.x 지원 확인 필요)
-    refund_account_number = models.CharField(
-        max_length=255,
+    # 암호화하여 저장 (Fernet 대칭 암호화)
+    # 저장 시 자동 암호화, 조회 시 get_decrypted_account_number() 사용
+    refund_account_number = models.TextField(
         blank=True,
-        verbose_name="환불 계좌번호",
-        help_text="⚠️ TODO: 암호화하여 저장 필요 (개인정보보호법)",
+        verbose_name="환불 계좌번호 (암호화)",
+        help_text="암호화되어 저장됩니다. 복호화는 get_decrypted_account_number() 사용",
     )
 
     refund_account_holder = models.CharField(
@@ -236,9 +240,21 @@ class Return(models.Model):
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """
-        저장 시 자동 처리는 서비스 레이어에서 담당합니다.
-        교환/환불 생성: ReturnService.create_return() 사용
+        저장 시 자동 처리:
+        1. 계좌번호 암호화 (평문인 경우에만)
+        2. 교환/환불 생성은 서비스 레이어에서 담당 (ReturnService.create_return())
         """
+        # 계좌번호 암호화 (평문인 경우에만)
+        if self.refund_account_number and not is_encrypted(self.refund_account_number):
+            try:
+                self.refund_account_number = encrypt_account_number(self.refund_account_number)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"계좌번호 암호화 실패: {e}")
+                # 암호화 실패 시에도 저장은 진행 (운영 중단 방지)
+                # 단, 경고 로그 남김
+
         super().save(*args, **kwargs)
 
     def generate_return_number(self) -> str:
@@ -258,6 +274,53 @@ class Return(models.Model):
         """
         from shopping.services.return_service import ReturnService
         return ReturnService.calculate_refund_amount(self.return_items.all())
+
+    def get_decrypted_account_number(self) -> str:
+        """
+        암호화된 계좌번호를 복호화하여 반환
+
+        환불 처리 시 토스페이먼츠 API에 전달할 때 사용
+
+        Returns:
+            str: 복호화된 계좌번호 (예: "110-123-456789")
+
+        Raises:
+            ValueError: 복호화 실패 시
+        """
+        if not self.refund_account_number:
+            return ""
+
+        # 이미 평문인 경우 (마이그레이션 전 데이터)
+        if not is_encrypted(self.refund_account_number):
+            return self.refund_account_number
+
+        try:
+            return decrypt_account_number(self.refund_account_number)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"계좌번호 복호화 실패 (Return ID: {self.id}): {e}")
+            raise ValueError("계좌번호 복호화에 실패했습니다.")
+
+    def get_masked_account_number(self) -> str:
+        """
+        계좌번호를 마스킹 처리하여 반환
+
+        API 응답에 포함할 때 사용 (보안)
+
+        Returns:
+            str: 마스킹된 계좌번호 (예: "***-***-6789")
+        """
+        if not self.refund_account_number:
+            return ""
+
+        try:
+            # 복호화 후 마스킹
+            decrypted = self.get_decrypted_account_number()
+            return mask_account_number(decrypted)
+        except Exception:
+            # 복호화 실패 시 전체 마스킹
+            return "***-***-****"
 
     @classmethod
     def can_request_for_order(cls, order: Order) -> tuple[bool, str]:
@@ -303,219 +366,60 @@ class Return(models.Model):
         """
         판매자 승인 처리
 
+        DEPRECATED: ReturnService.approve_return() 사용 권장
+
         Args:
             admin_user: 승인한 관리자 (향후 이력 관리용)
         """
-        if self.status != "requested":
-            raise ValueError("신청 상태에서만 승인할 수 있습니다.")
-
-        self.status = "approved"
-        self.approved_at = timezone.now()
-        self.save()
-
-        # 알림 발송 (기존 알림 시스템 활용)
-        from .notification import Notification
-
-        Notification.objects.create(
-            user=self.user,
-            type="return",
-            title=f"{self.get_type_display()} 승인",
-            message=f"{self.return_number} 신청이 승인되었습니다. 반품 상품을 발송해주세요.",
-            metadata={"return_id": self.id, "return_number": self.return_number},
-        )
+        from shopping.services.return_service import ReturnService
+        ReturnService.approve_return(self, admin_user=admin_user)
 
     def reject(self, reason: str) -> None:
         """
         판매자 거부 처리
 
+        DEPRECATED: ReturnService.reject_return() 사용 권장
+
         Args:
             reason: 거부 사유
         """
-        if self.status != "requested":
-            raise ValueError("신청 상태에서만 거부할 수 있습니다.")
-
-        self.status = "rejected"
-        self.rejected_reason = reason
-        self.save()
-
-        # 알림 발송
-        from .notification import Notification
-
-        Notification.objects.create(
-            user=self.user,
-            type="return",
-            title=f"{self.get_type_display()} 거부",
-            message=f"{self.return_number} 신청이 거부되었습니다. 사유: {reason}",
-            metadata={"return_id": self.id, "return_number": self.return_number, "reason": reason},
-        )
+        from shopping.services.return_service import ReturnService
+        ReturnService.reject_return(self, reason=reason)
 
     def confirm_receive(self) -> None:
         """
         반품 도착 확인 (판매자)
 
+        DEPRECATED: ReturnService.confirm_receive_return() 사용 권장
+
         반품 상품을 수령했음을 확인
         """
-        if self.status != "shipping":
-            raise ValueError("배송 중 상태에서만 수령 확인할 수 있습니다.")
-
-        self.status = "received"
-        self.save()
-
-        # 알림 발송
-        from .notification import Notification
-
-        Notification.objects.create(
-            user=self.user,
-            type="return",
-            title="반품 도착 확인",
-            message=f"{self.return_number} 반품 상품이 도착했습니다. 곧 처리될 예정입니다.",
-            metadata={"return_id": self.id, "return_number": self.return_number},
-        )
+        from shopping.services.return_service import ReturnService
+        ReturnService.confirm_receive_return(self)
 
     def complete_refund(self) -> None:
         """
         환불 완료 처리
 
-        ⚠️ DEPRECATED: 실제 운영에서는 ReturnService.complete_refund() 사용 권장
-
-        실제 환불 처리:
-        1. 토스페이먼츠 API 호출하여 환불
-        2. 재고 복구
-        3. 포인트 처리
-        4. 상태 변경
-
-        성능 최적화:
-        - N+1 쿼리 방지: select_related('order_item__product') 사용
-        - 대량 처리 시: bulk_update() 고려
+        DEPRECATED: ReturnService.complete_refund() 사용 권장
         """
-        if self.type != "refund":
-            raise ValueError("환불 타입에서만 사용 가능합니다.")
-
-        if self.status != "received":
-            raise ValueError("반품 도착 상태에서만 환불 처리할 수 있습니다.")
-
-        from django.db import transaction
-
-        with transaction.atomic():
-            # 성능 최적화: N+1 쿼리 방지
-            return_items = self.return_items.select_related('order_item__product').all()
-
-            # 1. 토스페이먼츠 환불 처리
-            if hasattr(self.order, "payment") and self.order.payment:
-                from shopping.utils.toss_payment import TossPaymentClient
-
-                toss_client = TossPaymentClient()
-
-                # 환불 금액 계산 (반품 배송비 차감)
-                actual_refund_amount = self.refund_amount - self.return_shipping_fee
-
-                if actual_refund_amount > 0:
-                    refund_account = None
-                    if self.refund_account_number:
-                        refund_account = {
-                            "bank": self.refund_account_bank,
-                            "accountNumber": self.refund_account_number,
-                            "holderName": self.refund_account_holder,
-                        }
-
-                    toss_client.cancel_payment(
-                        payment_key=self.order.payment.payment_key,
-                        cancel_reason=f"{self.get_reason_display()} - {self.reason_detail}",
-                        cancel_amount=int(actual_refund_amount),
-                        refund_account=refund_account,
-                    )
-
-            # 2. 재고 복구
-            for return_item in return_items:
-                if return_item.order_item.product:
-                    product = return_item.order_item.product
-                    product.stock += return_item.quantity
-                    product.save(update_fields=["stock"])
-
-            # 3. 포인트 처리 (향후 구현)
-            # - 사용한 포인트 환불
-            # - 적립된 포인트 회수
-
-            # 4. 상태 변경
-            self.status = "completed"
-            self.completed_at = timezone.now()
-            self.save()
-
-            # 5. 주문 상태 변경
-            self.order.status = "refunded"
-            self.order.save(update_fields=["status"])
-
-        # 알림 발송
-        from .notification import Notification
-
-        Notification.objects.create(
-            user=self.user,
-            type="return",
-            title="환불 완료",
-            message=f"{self.return_number} 환불이 완료되었습니다. 환불 금액: {actual_refund_amount:,}원",
-            metadata={
-                "return_id": self.id,
-                "return_number": self.return_number,
-                "refund_amount": str(actual_refund_amount),
-            },
-        )
+        from shopping.services.return_service import ReturnService
+        ReturnService.complete_refund(self)
 
     def complete_exchange(self) -> None:
         """
         교환 완료 처리
 
-        ⚠️ DEPRECATED: 실제 운영에서는 ReturnService.complete_exchange() 사용 권장
-
-        교환 상품 발송 후 호출:
-        1. 재고 조정 (반품 +1, 교환 -1)
-        2. 상태 변경
-
-        성능 최적화:
-        - N+1 쿼리 방지: select_related('order_item__product') 사용
+        DEPRECATED: ReturnService.complete_exchange() 사용 권장
         """
-        if self.type != "exchange":
-            raise ValueError("교환 타입에서만 사용 가능합니다.")
-
-        if self.status != "received":
-            raise ValueError("반품 도착 상태에서만 교환 처리할 수 있습니다.")
-
-        from django.db import transaction
-
-        with transaction.atomic():
-            # 성능 최적화: N+1 쿼리 방지
-            return_items = self.return_items.select_related('order_item__product').all()
-
-            # 1. 재고 조정
-            for return_item in return_items:
-                # 반품 상품 재고 증가
-                if return_item.order_item.product:
-                    product = return_item.order_item.product
-                    product.stock += return_item.quantity
-                    product.save(update_fields=["stock"])
-
-            # 교환 상품 재고 감소
-            if self.exchange_product:
-                self.exchange_product.stock -= 1
-                self.exchange_product.save(update_fields=["stock"])
-
-            # 2. 상태 변경
-            self.status = "completed"
-            self.completed_at = timezone.now()
-            self.save()
-
-        # 알림 발송
-        from .notification import Notification
-
-        Notification.objects.create(
-            user=self.user,
-            type="return",
-            title="교환 완료",
-            message=f"{self.return_number} 교환 상품이 발송되었습니다. 송장번호: {self.exchange_tracking_number}",
-            metadata={
-                "return_id": self.id,
-                "return_number": self.return_number,
-                "tracking_number": self.exchange_tracking_number,
-            },
+        from shopping.services.return_service import ReturnService
+        # 교환 송장번호는 이미 저장되어 있어야 함
+        if not self.exchange_tracking_number or not self.exchange_shipping_company:
+            raise ValueError("교환 상품 송장번호가 필요합니다.")
+        ReturnService.complete_exchange(
+            self,
+            exchange_tracking_number=self.exchange_tracking_number,
+            exchange_shipping_company=self.exchange_shipping_company
         )
 
 

@@ -148,3 +148,310 @@ class ReturnService:
         )
 
         return return_request
+
+    @staticmethod
+    @transaction.atomic
+    def approve_return(
+        return_obj: Return,
+        admin_user: User | None = None,
+        admin_memo: str = ""
+    ) -> Return:
+        """
+        교환/환불 승인 처리 (판매자)
+
+        Args:
+            return_obj: 승인할 Return 객체
+            admin_user: 승인한 관리자 (향후 이력 관리용)
+            admin_memo: 관리자 메모
+
+        Returns:
+            Return: 승인된 Return 객체
+
+        Raises:
+            ValueError: 승인 불가능한 상태인 경우
+        """
+        if return_obj.status != "requested":
+            raise ValueError("신청 상태에서만 승인할 수 있습니다.")
+
+        return_obj.status = "approved"
+        return_obj.approved_at = timezone.now()
+
+        if admin_memo:
+            return_obj.admin_memo = admin_memo
+
+        return_obj.save()
+
+        # 알림 발송
+        from shopping.models import Notification
+
+        Notification.objects.create(
+            user=return_obj.user,
+            notification_type="return",
+            title=f"{return_obj.get_type_display()} 승인",
+            message=f"{return_obj.return_number} 신청이 승인되었습니다. 반품 상품을 발송해주세요.",
+            metadata={"return_id": return_obj.id, "return_number": return_obj.return_number},
+        )
+
+        logger.info(
+            f"교환/환불 승인: return_id={return_obj.id}, "
+            f"return_number={return_obj.return_number}, admin_user_id={admin_user.id if admin_user else None}"
+        )
+
+        return return_obj
+
+    @staticmethod
+    @transaction.atomic
+    def reject_return(return_obj: Return, reason: str) -> Return:
+        """
+        교환/환불 거부 처리 (판매자)
+
+        Args:
+            return_obj: 거부할 Return 객체
+            reason: 거부 사유
+
+        Returns:
+            Return: 거부된 Return 객체
+
+        Raises:
+            ValueError: 거부 불가능한 상태인 경우
+        """
+        if return_obj.status != "requested":
+            raise ValueError("신청 상태에서만 거부할 수 있습니다.")
+
+        return_obj.status = "rejected"
+        return_obj.rejected_reason = reason
+        return_obj.save()
+
+        # 알림 발송
+        from shopping.models import Notification
+
+        Notification.objects.create(
+            user=return_obj.user,
+            notification_type="return",
+            title=f"{return_obj.get_type_display()} 거부",
+            message=f"{return_obj.return_number} 신청이 거부되었습니다. 사유: {reason}",
+            metadata={"return_id": return_obj.id, "return_number": return_obj.return_number, "reason": reason},
+        )
+
+        logger.info(
+            f"교환/환불 거부: return_id={return_obj.id}, "
+            f"return_number={return_obj.return_number}, reason={reason}"
+        )
+
+        return return_obj
+
+    @staticmethod
+    @transaction.atomic
+    def confirm_receive_return(return_obj: Return) -> Return:
+        """
+        반품 도착 확인 (판매자)
+
+        Args:
+            return_obj: 수령 확인할 Return 객체
+
+        Returns:
+            Return: 수령 확인된 Return 객체
+
+        Raises:
+            ValueError: 수령 확인 불가능한 상태인 경우
+        """
+        if return_obj.status != "shipping":
+            raise ValueError("배송 중 상태에서만 수령 확인할 수 있습니다.")
+
+        return_obj.status = "received"
+        return_obj.save()
+
+        # 알림 발송
+        from shopping.models import Notification
+
+        Notification.objects.create(
+            user=return_obj.user,
+            notification_type="return",
+            title="반품 도착 확인",
+            message=f"{return_obj.return_number} 반품 상품이 도착했습니다. 곧 처리될 예정입니다.",
+            metadata={"return_id": return_obj.id, "return_number": return_obj.return_number},
+        )
+
+        logger.info(
+            f"반품 도착 확인: return_id={return_obj.id}, "
+            f"return_number={return_obj.return_number}"
+        )
+
+        return return_obj
+
+    @staticmethod
+    @transaction.atomic
+    def complete_refund(return_obj: Return) -> Return:
+        """
+        환불 완료 처리
+
+        실제 환불 처리:
+        1. 토스페이먼츠 API 호출하여 환불
+        2. 재고 복구
+        3. 포인트 처리 (향후 구현)
+        4. 상태 변경
+
+        Args:
+            return_obj: 환불 처리할 Return 객체
+
+        Returns:
+            Return: 환불 완료된 Return 객체
+
+        Raises:
+            ValueError: 환불 처리 불가능한 상태인 경우
+        """
+        if return_obj.type != "refund":
+            raise ValueError("환불 타입에서만 사용 가능합니다.")
+
+        if return_obj.status != "received":
+            raise ValueError("반품 도착 상태에서만 환불 처리할 수 있습니다.")
+
+        # 성능 최적화: N+1 쿼리 방지
+        return_items = return_obj.return_items.select_related('order_item__product').all()
+
+        # 1. 토스페이먼츠 환불 처리
+        actual_refund_amount = return_obj.refund_amount - return_obj.return_shipping_fee
+
+        if hasattr(return_obj.order, "payment") and return_obj.order.payment:
+            from shopping.utils.toss_payment import TossPaymentClient
+
+            toss_client = TossPaymentClient()
+
+            if actual_refund_amount > 0:
+                refund_account = None
+                if return_obj.refund_account_number:
+                    # 복호화된 계좌번호 사용
+                    decrypted_account = return_obj.get_decrypted_account_number()
+                    refund_account = {
+                        "bank": return_obj.refund_account_bank,
+                        "accountNumber": decrypted_account,
+                        "holderName": return_obj.refund_account_holder,
+                    }
+
+                toss_client.cancel_payment(
+                    payment_key=return_obj.order.payment.payment_key,
+                    cancel_reason=f"{return_obj.get_reason_display()} - {return_obj.reason_detail}",
+                    cancel_amount=int(actual_refund_amount),
+                    refund_account=refund_account,
+                )
+
+        # 2. 재고 복구
+        for return_item in return_items:
+            if return_item.order_item.product:
+                product = return_item.order_item.product
+                product.stock += return_item.quantity
+                product.save(update_fields=["stock"])
+
+        # 3. 포인트 처리 (향후 구현)
+        # - 사용한 포인트 환불
+        # - 적립된 포인트 회수
+
+        # 4. 상태 변경
+        return_obj.status = "completed"
+        return_obj.completed_at = timezone.now()
+        return_obj.save()
+
+        # 5. 주문 상태 변경
+        return_obj.order.status = "refunded"
+        return_obj.order.save(update_fields=["status"])
+
+        # 알림 발송
+        from shopping.models import Notification
+
+        Notification.objects.create(
+            user=return_obj.user,
+            notification_type="return",
+            title="환불 완료",
+            message=f"{return_obj.return_number} 환불이 완료되었습니다. 환불 금액: {actual_refund_amount:,}원",
+            metadata={
+                "return_id": return_obj.id,
+                "return_number": return_obj.return_number,
+                "refund_amount": str(actual_refund_amount),
+            },
+        )
+
+        logger.info(
+            f"환불 완료: return_id={return_obj.id}, "
+            f"return_number={return_obj.return_number}, refund_amount={actual_refund_amount}"
+        )
+
+        return return_obj
+
+    @staticmethod
+    @transaction.atomic
+    def complete_exchange(
+        return_obj: Return,
+        exchange_tracking_number: str,
+        exchange_shipping_company: str
+    ) -> Return:
+        """
+        교환 완료 처리
+
+        교환 상품 발송 후 호출:
+        1. 재고 조정 (반품 +1, 교환 -1)
+        2. 상태 변경
+        3. 교환 상품 송장번호 저장
+
+        Args:
+            return_obj: 교환 처리할 Return 객체
+            exchange_tracking_number: 교환 상품 송장번호
+            exchange_shipping_company: 교환 상품 택배사
+
+        Returns:
+            Return: 교환 완료된 Return 객체
+
+        Raises:
+            ValueError: 교환 처리 불가능한 상태인 경우
+        """
+        if return_obj.type != "exchange":
+            raise ValueError("교환 타입에서만 사용 가능합니다.")
+
+        if return_obj.status != "received":
+            raise ValueError("반품 도착 상태에서만 교환 처리할 수 있습니다.")
+
+        # 성능 최적화: N+1 쿼리 방지
+        return_items = return_obj.return_items.select_related('order_item__product').all()
+
+        # 1. 재고 조정
+        for return_item in return_items:
+            # 반품 상품 재고 증가
+            if return_item.order_item.product:
+                product = return_item.order_item.product
+                product.stock += return_item.quantity
+                product.save(update_fields=["stock"])
+
+        # 교환 상품 재고 감소
+        if return_obj.exchange_product:
+            return_obj.exchange_product.stock -= 1
+            return_obj.exchange_product.save(update_fields=["stock"])
+
+        # 2. 교환 상품 송장번호 저장
+        return_obj.exchange_tracking_number = exchange_tracking_number
+        return_obj.exchange_shipping_company = exchange_shipping_company
+
+        # 3. 상태 변경
+        return_obj.status = "completed"
+        return_obj.completed_at = timezone.now()
+        return_obj.save()
+
+        # 알림 발송
+        from shopping.models import Notification
+
+        Notification.objects.create(
+            user=return_obj.user,
+            notification_type="return",
+            title="교환 완료",
+            message=f"{return_obj.return_number} 교환 상품이 발송되었습니다. 송장번호: {exchange_tracking_number}",
+            metadata={
+                "return_id": return_obj.id,
+                "return_number": return_obj.return_number,
+                "tracking_number": exchange_tracking_number,
+            },
+        )
+
+        logger.info(
+            f"교환 완료: return_id={return_obj.id}, "
+            f"return_number={return_obj.return_number}, tracking_number={exchange_tracking_number}"
+        )
+
+        return return_obj

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
 from django.db import models
+from django.utils import timezone
 
 if TYPE_CHECKING:
     from shopping.models.product import Product
@@ -62,6 +63,7 @@ class User(AbstractUser):
         max_length=10,
         choices=MEMBERSHIP_CHOICES,
         default="bronze",
+        db_index=True,  # 등급별 조회 최적화
         verbose_name="회원등급",
     )
 
@@ -70,6 +72,7 @@ class User(AbstractUser):
     # 판매자 여부
     is_seller = models.BooleanField(
         default=False,
+        db_index=True,  # 판매자 필터링 최적화
         verbose_name="판매자 여부",
         help_text="체크 시 상품 등록/관리 및 교환/환불 처리 권한 부여",
     )
@@ -78,7 +81,11 @@ class User(AbstractUser):
     last_login_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name="마지막 로그인 IP")
 
     # 탈퇴 관련
-    is_withdrawn = models.BooleanField(default=False, verbose_name="탈퇴 여부")
+    is_withdrawn = models.BooleanField(
+        default=False,
+        db_index=True,  # 활성 회원 필터링 최적화
+        verbose_name="탈퇴 여부",
+    )
 
     withdrawn_at = models.DateTimeField(null=True, blank=True, verbose_name="탈퇴 일시")
 
@@ -95,6 +102,30 @@ class User(AbstractUser):
         db_table = "shopping_users"
         verbose_name = "사용자"
         verbose_name_plural = "사용자 목록"
+        ordering = ["-date_joined"]  # 최신 가입 회원 우선
+
+    def save(self, *args, **kwargs):
+        """
+        저장 시 자동 처리 로직
+        - 탈퇴 처리 시 탈퇴 일시 자동 기록
+        - update_fields 사용 시 withdrawn_at 필드 포함 처리
+        """
+        if self.is_withdrawn and not self.withdrawn_at:
+            self.withdrawn_at = timezone.now()
+            if "update_fields" in kwargs and kwargs["update_fields"] is not None:
+                # update_fields가 튜플일 수 있으므로 set으로 변환 후 list로 변경
+                fields = set(kwargs["update_fields"])
+                fields.add("withdrawn_at")
+                kwargs["update_fields"] = list(fields)
+
+        elif not self.is_withdrawn and self.withdrawn_at:
+            self.withdrawn_at = None
+            if "update_fields" in kwargs and kwargs["update_fields"] is not None:
+                fields = set(kwargs["update_fields"])
+                fields.add("withdrawn_at")
+                kwargs["update_fields"] = list(fields)
+
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return f'{self.username} ({self.get_full_name() or "이름없음"})'

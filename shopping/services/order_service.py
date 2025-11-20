@@ -104,10 +104,24 @@ class OrderService:
             f"use_points={use_points}, postal_code={shipping_postal_code}"
         )
 
-        # 1. 주문 총액 계산
+        # 1. 장바구니 락 획득 (동시성 제어)
+        # 트랜잭션 내부에서 select_for_update로 장바구니를 다시 조회하여 락 획득
+        # 이렇게 하면 동일 사용자의 장바구니는 한 번에 하나의 주문만 처리됨
+        cart = Cart.objects.select_for_update().get(pk=cart.pk)
+
+        # 락 획득 후 장바구니가 여전히 비어있지 않은지 확인
+        if not cart.items.exists():
+            raise OrderServiceError("장바구니가 비어있습니다.")
+
+        logger.info(
+            f"장바구니 락 획득: cart_id={cart.id}, user_id={user.id}, "
+            f"items_count={cart.items.count()}"
+        )
+
+        # 2. 주문 총액 계산
         total_amount = cart.get_total_amount()
 
-        # 2. 배송비 계산
+        # 3. 배송비 계산
         shipping_result = ShippingService.calculate_fee(
             total_amount=total_amount, postal_code=shipping_postal_code
         )
@@ -118,16 +132,16 @@ class OrderService:
             f"is_free_shipping={shipping_result['is_free_shipping']}"
         )
 
-        # 3. 포인트 사용 검증 (비즈니스 로직)
+        # 4. 포인트 사용 검증 (비즈니스 로직)
         total_payment_amount = (
             total_amount + shipping_result["shipping_fee"] + shipping_result["additional_fee"]
         )
         OrderService._validate_point_usage(user, use_points, total_payment_amount)
 
-        # 4. 최종 결제 금액 계산 (배송비 포함, 포인트 차감)
+        # 5. 최종 결제 금액 계산 (배송비 포함, 포인트 차감)
         final_amount = max(Decimal("0"), total_payment_amount - Decimal(str(use_points)))
 
-        # 5. 주문 생성
+        # 6. 주문 생성
         order = Order.objects.create(
             user=user,
             status="pending",  # 결제 대기 상태
@@ -149,14 +163,14 @@ class OrderService:
             f"total_amount={total_amount}, final_amount={final_amount}"
         )
 
-        # 6. 주문 아이템 생성 + 재고 차감
+        # 7. 주문 아이템 생성 + 재고 차감
         OrderService._create_order_items_and_decrease_stock(order, cart)
 
-        # 7. 포인트 사용 처리
+        # 8. 포인트 사용 처리
         if use_points > 0:
             OrderService._process_point_usage(user, order, use_points, total_amount, final_amount)
 
-        # 8. 장바구니 비우기
+        # 9. 장바구니 비우기
         cart.items.all().delete()
         logger.info(f"장바구니 비우기 완료: cart_id={cart.id}, user_id={user.id}")
 

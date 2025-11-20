@@ -737,12 +737,10 @@ class TestPointServiceExpirePointsConcurrency:
 
         # Assert
         total_count = sum(r.get("count", 0) for r in results)
-        # 동시성 환경에서 metadata 체크가 락 해제 후 발생하여 중복 처리 가능
-        # 실제로는 1번만 처리되어야 하지만, 테스트 환경에서는 3번 모두 처리될 수 있음
-        assert total_count >= 1, f"최소 1번은 처리되어야 함. 실제: {total_count}"
+        assert total_count == 1  # 중복 처리 방지
 
         user.refresh_from_db()
-        assert user.points == 900  # 최종 결과는 동일
+        assert user.points == 900
 
 
 @pytest.mark.django_db

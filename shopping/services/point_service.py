@@ -206,8 +206,19 @@ class PointService:
                 remaining = self.get_remaining_points(point_history)
 
                 if remaining > 0:
-                    # 동시성 제어: select_for_update로 락 획득
+                    # 동시성 제어 1: User 락 획득 (Deadlock 방지를 위해 User 먼저 락)
                     user = User.objects.select_for_update().get(pk=point_history.user_id)
+
+                    # 동시성 제어 2: PointHistory 락 획득 및 상태 재확인
+                    # 이미 다른 트랜잭션에서 만료 처리했을 수 있음
+                    current_ph = PointHistory.objects.select_for_update().get(pk=point_history.id)
+                    if current_ph.metadata.get("expired"):
+                        continue
+
+                    # 재계산 (혹시 그 사이 사용되었을 수 있음)
+                    remaining = self.get_remaining_points(current_ph)
+                    if remaining <= 0:
+                        continue
 
                     # F() 객체로 안전하게 차감 (Greatest로 0 이하 방지)
                     User.objects.filter(pk=user.pk).update(
@@ -232,15 +243,15 @@ class PointService:
                     )
 
                     # 원본 이력에 만료 표시
-                    point_history.metadata["expired"] = True
-                    point_history.metadata["expired_at"] = timezone.now().isoformat()
-                    point_history.metadata["expired_amount"] = remaining
-                    point_history.save(update_fields=["metadata"])
+                    current_ph.metadata["expired"] = True
+                    current_ph.metadata["expired_at"] = timezone.now().isoformat()
+                    current_ph.metadata["expired_amount"] = remaining
+                    current_ph.save(update_fields=["metadata"])
 
                     expired_count += 1
 
                     logger.info(
-                        f"포인트 만료 처리: User={user.username}, " f"Amount={remaining}, HistoryID={point_history.id}"
+                        f"포인트 만료 처리: User={user.username}, " f"Amount={remaining}, HistoryID={current_ph.id}"
                     )
 
             except Exception as e:

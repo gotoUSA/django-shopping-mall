@@ -311,13 +311,18 @@ class PointService:
                 "message": "포인트가 부족합니다.",
             }
 
-        # 사용 가능한 포인트만 조회: 만료되지 않은 적립 포인트
-        # 1. metadata에 expired=True가 없고
-        # 2. 만료일이 아직 지나지 않은 것만
+        # 사용 가능한 포인트 조회
+        # cancel_deduct (취소 회수)의 경우: 만료되지 않은 적립 포인트만
+        # use (일반 사용)의 경우: 모든 적립 포인트 (user.points 잔액 기반)
         now = timezone.now()
+        query = PointHistory.objects.select_for_update().filter(user=user, type="earn")
+
+        # 취소 회수는 만료되지 않은 포인트만 회수 가능
+        if type == "cancel_deduct":
+            query = query.filter(expires_at__gt=now)
+
         available_points = (
-            PointHistory.objects.select_for_update()
-            .filter(user=user, type="earn", expires_at__gt=now)
+            query
             .exclude(metadata__contains={"expired": True})
             .order_by("expires_at", "created_at")
         )
@@ -365,10 +370,11 @@ class PointService:
 
             remaining_to_use -= use_from_this
 
-        # FIFO 루프 후 검증: 실제로 요청한 만큼 회수되었는지 확인
-        # 만료된 포인트가 user.points에 포함되어 있지만 배치 미실행 시,
-        # 사전 체크는 통과하지만 available_points가 부족할 수 있음
-        if remaining_to_use > 0:
+        # FIFO 루프 후 검증 (cancel_deduct만 해당)
+        # 취소 회수 시에는 만료되지 않은 포인트만 대상이므로,
+        # 만료된 포인트가 user.points에 포함되어 있지만 배치 미실행 시 부족할 수 있음
+        # 일반 사용(use)은 user.points 잔액 기반이므로 검증 불필요
+        if type == "cancel_deduct" and remaining_to_use > 0:
             return {
                 "success": False,
                 "used_details": [],

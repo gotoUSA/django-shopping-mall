@@ -25,6 +25,7 @@ class ProductService:
         상품의 대표 이미지 설정
 
         기존 대표 이미지를 해제하고 새 이미지를 대표로 설정합니다.
+        트랜잭션 내에서 동시성을 제어하며 완전한 저장까지 수행합니다.
 
         Args:
             product_image: 대표로 설정할 상품 이미지
@@ -39,6 +40,9 @@ class ProductService:
             product=product_image.product,
             is_primary=True
         ).exclude(pk=product_image.pk).update(is_primary=False)
+
+        # 새로운 대표 이미지 저장
+        product_image.save(update_fields=["is_primary"])
 
         logger.info(
             f"대표 이미지 설정: product_id={product_image.product_id}, "

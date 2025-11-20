@@ -9,20 +9,7 @@ from django.db import IntegrityError
 
 from shopping.models.notification import Notification
 from shopping.services.product_qa_service import ProductQAService
-from shopping.tests.factories import ProductQuestionFactory, UserFactory
-
-"""
-ProductQAService 테스트
-"""
-
-from unittest.mock import patch
-
-import pytest
-from django.db import IntegrityError
-
-from shopping.models.notification import Notification
-from shopping.services.product_qa_service import ProductQAService
-from shopping.tests.factories import ProductQuestionFactory, UserFactory
+from shopping.tests.factories import ProductQuestionFactory
 
 
 @pytest.mark.django_db

@@ -148,7 +148,8 @@ class ProductQuestionTestCase(TestCase):
             content="배송 언제 되나요?",
         )
 
-        ProductAnswer.objects.create(question=question, seller=self.seller, content="내일 출발합니다")
+        from shopping.services import ProductQAService
+        ProductQAService.create_answer(question=question, seller=self.seller, content="내일 출발합니다")
 
         # 작성자로 로그인
         self.client.force_authenticate(user=self.buyer)
@@ -225,7 +226,8 @@ class ProductQuestionTestCase(TestCase):
         )
 
         # 판매자가 답변 작성
-        ProductAnswer.objects.create(question=question, seller=self.seller, content="내일 출발 예정입니다!")
+        from shopping.services import ProductQAService
+        ProductQAService.create_answer(question=question, seller=self.seller, content="내일 출발 예정입니다!")
 
         # 알림이 생성되었는지 확인
         self.assertEqual(Notification.objects.count(), 1)

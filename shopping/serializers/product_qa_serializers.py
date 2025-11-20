@@ -176,6 +176,12 @@ class ProductQuestionUpdateSerializer(ProductQuestionBaseSerializer):
         model = ProductQuestion
         fields = ["title", "content", "is_secret"]
 
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """답변이 달린 문의는 수정 불가"""
+        if self.instance and self.instance.is_answered:
+            raise serializers.ValidationError("답변이 달린 문의는 수정할 수 없습니다.")
+        return attrs
+
 
 class ProductAnswerCreateSerializer(serializers.ModelSerializer):
     """답변 작성용 Serializer"""

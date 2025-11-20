@@ -166,7 +166,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
 
         # 해당 상품의 판매자인지 확인
         if question.product.seller != request.user:
-            return Response({"error": "본인 상품의 문의에만 답변할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"error": "본인 상품의 문의에만 답변할 수 있습니다."}, status=status.HTTP_400_BAD_REQUEST)
 
         # 이미 답변이 있는지 확인
         if hasattr(question, "answer"):

@@ -365,6 +365,16 @@ class PointService:
 
             remaining_to_use -= use_from_this
 
+        # FIFO 루프 후 검증: 실제로 요청한 만큼 회수되었는지 확인
+        # 만료된 포인트가 user.points에 포함되어 있지만 배치 미실행 시,
+        # 사전 체크는 통과하지만 available_points가 부족할 수 있음
+        if remaining_to_use > 0:
+            return {
+                "success": False,
+                "used_details": [],
+                "message": f"유효한 포인트가 부족합니다. (필요: {amount}, 사용 가능: {amount - remaining_to_use})",
+            }
+
         # F() 객체로 안전하게 포인트 차감
         User.objects.filter(pk=user.pk).update(points=F("points") - amount)
 

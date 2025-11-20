@@ -497,6 +497,7 @@ class TestCompleteRefund:
 
         return_obj = ReturnFactory.received(type="refund", order=order)
         ReturnItemFactory(return_request=return_obj, order_item=order_item, quantity=2)
+        PaymentFactory(order=order, status="done", payment_key="test_key_123")
 
         initial_stock = product.stock
 
@@ -564,6 +565,7 @@ class TestCompleteRefund:
         """환불 완료 시 알림 발송 확인"""
         # Arrange
         return_obj = ReturnFactory.received(type="refund")
+        PaymentFactory(order=return_obj.order, status="done", payment_key="test_key_123")
 
         # Mock 토스 API
         with patch("shopping.utils.toss_payment.TossPaymentClient"):
@@ -583,6 +585,7 @@ class TestCompleteRefund:
         return_obj = ReturnFactory.received(
             type="refund", refund_amount=Decimal("0"), return_shipping_fee=Decimal("3000")
         )
+        PaymentFactory(order=return_obj.order, status="done", payment_key="test_key_123")
 
         # Mock 토스 API
         with patch("shopping.utils.toss_payment.TossPaymentClient") as mock_toss:
@@ -624,6 +627,7 @@ class TestCompleteRefund:
 
         # Arrange
         return_obj = ReturnFactory.received(type="refund")
+        PaymentFactory(order=return_obj.order, status="done", payment_key="test_key_123")
 
         # Mock 토스 API
         with patch("shopping.utils.toss_payment.TossPaymentClient"):

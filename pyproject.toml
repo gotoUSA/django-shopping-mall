@@ -82,6 +82,9 @@ omit = [
     "myproject/asgi.py",
 ]
 branch = true
+# 병렬 테스트 지원 (pytest-xdist)
+parallel = true
+concurrency = ["thread", "multiprocessing"]
 
 [tool.coverage.report]
 exclude_lines = [

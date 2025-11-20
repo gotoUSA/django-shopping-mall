@@ -90,15 +90,22 @@ jobs:
         echo "📦 pytest-xdist 버전:"
         pip show pytest-xdist | grep Version
         echo "🚀 테스트 시작 (병렬 실행)..."
-        # -n auto는 pyproject.toml에 설정되어 있음 (사용 가능한 모든 코어 사용)
+        # 병렬 실행 시 각 워커별 .coverage 파일 생성
         pytest shopping/tests/ \
           --reuse-db \
           --cov=shopping \
-          --cov-report=term-missing \
-          --cov-report=xml \
-          --cov-fail-under=0 \
+          --cov-report= \
           -vv \
           --dist loadscope
+
+        # 워커별 coverage 데이터 병합
+        echo "📊 Coverage 데이터 병합 중..."
+        coverage combine
+
+        # 병합된 데이터로 리포트 생성
+        echo "📈 Coverage 리포트 생성 중..."
+        coverage report --skip-covered
+        coverage xml
 
     # 코드 스타일 체크 (선택사항)
     - name: Lint with flake8

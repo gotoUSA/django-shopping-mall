@@ -703,6 +703,30 @@ class PointHistoryFactory(DjangoModelFactory):
         kwargs.setdefault("description", "테스트 사용")
         return cls(**kwargs)
 
+    @classmethod
+    def earn_expiring_soon(cls, days=7, **kwargs):
+        """곧 만료될 적립 포인트"""
+        kwargs.setdefault("type", "earn")
+        kwargs.setdefault("expires_at", timezone.now() + timedelta(days=days))
+        kwargs.setdefault("description", "만료 예정 적립")
+        return cls(**kwargs)
+
+    @classmethod
+    def earn_expired(cls, **kwargs):
+        """이미 만료된 적립 포인트"""
+        kwargs.setdefault("type", "earn")
+        kwargs.setdefault("expires_at", timezone.now() - timedelta(days=1))
+        kwargs.setdefault("description", "만료된 적립")
+        return cls(**kwargs)
+
+    @classmethod
+    def with_partial_usage(cls, used_amount=50, **kwargs):
+        """부분 사용된 포인트"""
+        history = cls.earn(**kwargs)
+        history.metadata["used_amount"] = used_amount
+        history.save()
+        return history
+
 
 # ==========================================
 # Trait 및 Helper Factory

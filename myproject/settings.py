@@ -127,21 +127,27 @@ TESTING = (
     or os.getenv("TESTING") == "True"  # 수동 설정
 )
 
-# 데이터베이스 설정
+# 데이터베이스 설정 (PostgreSQL 전용)
+# 개발-프로덕션 패리티 유지를 위해 SQLite fallback 제거
 DATABASES = {
     "default": {
-        "ENGINE": os.getenv("DATABASE_ENGINE", "django.db.backends.sqlite3"),
-        "NAME": os.getenv("DATABASE_NAME", BASE_DIR / "db.sqlite3"),
-        "USER": os.getenv("DATABASE_USER", ""),
-        "PASSWORD": os.getenv("DATABASE_PASSWORD", ""),
-        "HOST": os.getenv("DATABASE_HOST", ""),
-        "PORT": os.getenv("DATABASE_PORT", ""),
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("DATABASE_NAME", "myproject_dev"),
+        "USER": os.getenv("DATABASE_USER", "postgres"),
+        "PASSWORD": os.getenv("DATABASE_PASSWORD", "postgres"),
+        "HOST": os.getenv("DATABASE_HOST", "localhost"),
+        "PORT": os.getenv("DATABASE_PORT", "5432"),
         # Connection pooling: 테스트에서는 즉시 닫기 (0초), 프로덕션에서는 재사용 (600초)
         # 이유: 동시성 테스트에서 PostgreSQL "too many clients" 방지
         # 참고: 테스트에서 간헐적 타이밍 이슈 발생 가능 (정상 동작)
         "CONN_MAX_AGE": 0 if TESTING else 600,
         # Health checks: 테스트에서는 비활성화하여 연결 절약
         "CONN_HEALTH_CHECKS": not TESTING,
+        # PostgreSQL-specific options for better connection management
+        "OPTIONS": {
+            "connect_timeout": 10,
+            "options": "-c statement_timeout=30000",  # 30 second query timeout
+        },
     }
 }
 
@@ -391,35 +397,7 @@ if TESTING:
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
 
-# ========== 데이터베이스 설정 수정 (Docker 사용 시) ==========
 
-# 환경변수로 데이터베이스 설정 관리
-if os.environ.get("DATABASE_ENGINE"):
-    DATABASES = {
-        "default": {
-            "ENGINE": os.environ.get("DATABASE_ENGINE", "django.db.backends.sqlite3"),
-            "NAME": os.environ.get("DATABASE_NAME", BASE_DIR / "db.sqlite3"),
-            "USER": os.environ.get("DATABASE_USER", ""),
-            "PASSWORD": os.environ.get("DATABASE_PASSWORD", ""),
-            "HOST": os.environ.get("DATABASE_HOST", ""),
-            "PORT": os.environ.get("DATABASE_PORT", ""),
-            # Connection pooling: 테스트에서는 즉시 닫기 (0초), 프로덕션에서는 재사용 (600초)
-            # 이유: 동시성 테스트에서 PostgreSQL "too many clients" 방지
-            # 참고: 테스트에서 간헐적 타이밍 이슈 발생 가능 (정상 동작)
-            "CONN_MAX_AGE": 0 if TESTING else 600,
-            # Health checks: 테스트에서는 비활성화하여 연결 절약
-            "CONN_HEALTH_CHECKS": not TESTING,
-            # PostgreSQL-specific options for better connection management
-            "OPTIONS": (
-                {
-                    "connect_timeout": 10,
-                    "options": "-c statement_timeout=30000",  # 30 second query timeout
-                }
-                if os.environ.get("DATABASE_ENGINE") == "django.db.backends.postgresql"
-                else {}
-            ),
-        }
-    }
 
 # ========== 이메일 설정 (포인트 만료 알림용) ==========
 

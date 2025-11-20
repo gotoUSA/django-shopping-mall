@@ -148,8 +148,11 @@ class CartItemCreateSerializer(serializers.ModelSerializer):
         """
         장바구니 아이템 생성 또는 수량 증가
 
-        트랜잭션을 사용하여 동시성 문제를 방지합니다.
+        IntegrityError retry 패턴으로 동시성 문제를 완벽하게 방지합니다.
+        동시에 여러 요청이 같은 상품을 추가해도 안전하게 처리됩니다.
         """
+        from django.db import IntegrityError
+
         product_id = validated_data.pop("product_id")
         quantity = validated_data.get("quantity", 1)
 
@@ -162,15 +165,39 @@ class CartItemCreateSerializer(serializers.ModelSerializer):
             # Cart를 잠금 (동시 접근 방지)
             cart = Cart.objects.select_for_update().get(pk=cart.pk)
 
+            # 먼저 조회 시도 (lock을 걸어서)
             try:
-                # 기존 아이템을 잠금과 함께 조회
-                cart_item = CartItem.objects.select_for_update().get(cart=cart, product_id=product_id)
-                # F() 객체로 안전하게 수량 증가 (atomic update)
-                CartItem.objects.filter(pk=cart_item.pk).update(quantity=F("quantity") + quantity, updated_at=timezone.now())
-                cart_item.refresh_from_db()  # DB에서 최신 값 다시 로드
+                cart_item = CartItem.objects.select_for_update().get(
+                    cart=cart,
+                    product_id=product_id
+                )
+                # 이미 존재하는 경우 수량 증가 (F() 사용하여 atomic update)
+                CartItem.objects.filter(pk=cart_item.pk).update(
+                    quantity=F("quantity") + quantity,
+                    updated_at=timezone.now()
+                )
+                cart_item.refresh_from_db()
+
             except CartItem.DoesNotExist:
-                # 없으면 생성
-                cart_item = CartItem.objects.create(cart=cart, product_id=product_id, quantity=quantity)
+                # 없으면 생성 시도
+                try:
+                    cart_item = CartItem.objects.create(
+                        cart=cart,
+                        product_id=product_id,
+                        quantity=quantity
+                    )
+                except IntegrityError:
+                    # 다른 트랜잭션이 동시에 생성함 → 다시 조회하고 수량 증가
+                    # 이 시점에는 반드시 존재하므로 get()이 성공
+                    cart_item = CartItem.objects.select_for_update().get(
+                        cart=cart,
+                        product_id=product_id
+                    )
+                    CartItem.objects.filter(pk=cart_item.pk).update(
+                        quantity=F("quantity") + quantity,
+                        updated_at=timezone.now()
+                    )
+                    cart_item.refresh_from_db()
 
             return cart_item
 

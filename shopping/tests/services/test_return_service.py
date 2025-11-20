@@ -1,0 +1,742 @@
+"""ReturnService 단위 테스트"""
+
+from decimal import Decimal
+from unittest.mock import patch
+
+import pytest
+from django.utils import timezone
+
+from shopping.models.return_request import Return, ReturnItem
+from shopping.services.return_service import ReturnService
+from shopping.tests.factories import (
+    OrderFactory,
+    OrderItemFactory,
+    PaymentFactory,
+    ProductFactory,
+    ReturnFactory,
+    ReturnItemFactory,
+    UserFactory,
+)
+
+
+@pytest.mark.django_db
+class TestGenerateReturnNumber:
+    """교환/환불 번호 생성 테스트"""
+
+    def test_generate_return_number_format(self):
+        """번호 형식 검증 (RET + YYYYMMDD + 001)"""
+        # Act
+        return_number = ReturnService.generate_return_number()
+
+        # Assert
+        today = timezone.now().strftime("%Y%m%d")
+        assert return_number.startswith(f"RET{today}")
+        assert len(return_number) == 14  # RET(3) + YYYYMMDD(8) + 001(3)
+
+    def test_generate_return_number_sequential(self):
+        """순차 증가 검증"""
+        # Arrange - DB에 Return 객체를 생성해야 generate_return_number가 올바르게 작동
+        today = timezone.now().strftime("%Y%m%d")
+        number1 = ReturnService.generate_return_number()
+        ReturnFactory(return_number=number1)  # DB에 저장
+
+        # Act
+        number2 = ReturnService.generate_return_number()
+
+        # Assert
+        assert int(number2[-3:]) == int(number1[-3:]) + 1
+
+    def test_generate_return_number_with_existing_returns(self):
+        """기존 번호가 있을 때 다음 번호 생성"""
+        # Arrange
+        today = timezone.now().strftime("%Y%m%d")
+        existing_number = f"RET{today}005"
+        ReturnFactory(return_number=existing_number)
+
+        # Act
+        new_number = ReturnService.generate_return_number()
+
+        # Assert
+        assert new_number == f"RET{today}006"
+
+
+@pytest.mark.django_db
+class TestCalculateRefundAmount:
+    """환불 금액 계산 테스트"""
+
+    def test_calculate_refund_amount_single_item(self):
+        """단일 상품 환불 금액 계산"""
+        # Arrange
+        return_obj = ReturnFactory.with_items()
+        return_items = return_obj.return_items.all()
+
+        # Act
+        amount = ReturnService.calculate_refund_amount(return_items)
+
+        # Assert
+        expected = return_items[0].product_price * return_items[0].quantity
+        assert amount == expected
+
+    def test_calculate_refund_amount_multiple_items(self):
+        """여러 상품 환불 금액 계산"""
+        # Arrange
+        order = OrderFactory.delivered()
+        order_item1 = OrderItemFactory(order=order, price=Decimal("10000"), quantity=2)
+        order_item2 = OrderItemFactory(order=order, price=Decimal("20000"), quantity=1)
+
+        return_obj = ReturnFactory(order=order)
+        ReturnItemFactory(return_request=return_obj, order_item=order_item1, quantity=2)
+        ReturnItemFactory(return_request=return_obj, order_item=order_item2, quantity=1)
+
+        return_items = return_obj.return_items.all()
+
+        # Act
+        amount = ReturnService.calculate_refund_amount(return_items)
+
+        # Assert
+        assert amount == Decimal("40000")  # 10000*2 + 20000*1
+
+    def test_calculate_refund_amount_empty_list(self):
+        """빈 리스트 환불 금액 (0원)"""
+        # Act
+        amount = ReturnService.calculate_refund_amount([])
+
+        # Assert
+        assert amount == Decimal("0")
+
+
+@pytest.mark.django_db
+class TestCreateReturn:
+    """교환/환불 신청 생성 테스트"""
+
+    def test_create_refund_success(self):
+        """환불 신청 생성 성공"""
+        # Arrange
+        order = OrderFactory.delivered()
+        order_item = OrderItemFactory(order=order, price=Decimal("10000"), quantity=2)
+        user = order.user
+
+        return_items_data = [
+            {
+                "order_item": order_item,
+                "quantity": 2,
+                "product_name": order_item.product_name,
+                "product_price": order_item.price,
+            }
+        ]
+
+        # Act
+        return_obj = ReturnService.create_return(
+            order=order,
+            user=user,
+            type="refund",
+            reason="change_of_mind",
+            reason_detail="단순 변심",
+            return_items_data=return_items_data,
+            refund_account_bank="신한은행",
+            refund_account_number="110-123-456789",
+            refund_account_holder="홍길동",
+        )
+
+        # Assert
+        assert return_obj is not None
+        assert return_obj.order == order
+        assert return_obj.user == user
+        assert return_obj.type == "refund"
+        assert return_obj.status == "requested"
+        assert return_obj.return_number is not None
+        assert return_obj.refund_amount == Decimal("20000")  # 10000 * 2
+        assert return_obj.return_items.count() == 1
+
+    def test_create_exchange_success(self):
+        """교환 신청 생성 성공"""
+        # Arrange
+        order = OrderFactory.delivered()
+        order_item = OrderItemFactory(order=order)
+        exchange_product = ProductFactory()
+        user = order.user
+
+        return_items_data = [
+            {
+                "order_item": order_item,
+                "quantity": 1,
+                "product_name": order_item.product_name,
+                "product_price": order_item.price,
+            }
+        ]
+
+        # Act
+        return_obj = ReturnService.create_return(
+            order=order,
+            user=user,
+            type="exchange",
+            reason="defective",
+            reason_detail="상품 불량",
+            return_items_data=return_items_data,
+            exchange_product=exchange_product,
+        )
+
+        # Assert
+        assert return_obj.type == "exchange"
+        assert return_obj.exchange_product == exchange_product
+        assert return_obj.refund_amount == Decimal("0")  # 교환은 환불 금액 없음
+
+    def test_create_return_with_multiple_items(self):
+        """여러 상품 반품 신청"""
+        # Arrange
+        order = OrderFactory.delivered()
+        order_item1 = OrderItemFactory(order=order, price=Decimal("10000"))
+        order_item2 = OrderItemFactory(order=order, price=Decimal("20000"))
+        user = order.user
+
+        return_items_data = [
+            {
+                "order_item": order_item1,
+                "quantity": 1,
+                "product_name": order_item1.product_name,
+                "product_price": order_item1.price,
+            },
+            {
+                "order_item": order_item2,
+                "quantity": 1,
+                "product_name": order_item2.product_name,
+                "product_price": order_item2.price,
+            },
+        ]
+
+        # Act
+        return_obj = ReturnService.create_return(
+            order=order,
+            user=user,
+            type="refund",
+            reason="change_of_mind",
+            reason_detail="단순 변심",
+            return_items_data=return_items_data,
+            refund_account_bank="신한은행",
+            refund_account_number="110-123-456789",
+            refund_account_holder="홍길동",
+        )
+
+        # Assert
+        assert return_obj.return_items.count() == 2
+        assert return_obj.refund_amount == Decimal("30000")
+
+    def test_create_return_generates_unique_number(self):
+        """교환/환불 번호 자동 생성 및 고유성"""
+        # Arrange
+        order = OrderFactory.delivered()
+        order_item = OrderItemFactory(order=order)
+        user = order.user
+
+        return_items_data = [
+            {
+                "order_item": order_item,
+                "quantity": 1,
+                "product_name": order_item.product_name,
+                "product_price": order_item.price,
+            }
+        ]
+
+        # Act
+        return1 = ReturnService.create_return(
+            order=order,
+            user=user,
+            type="refund",
+            reason="change_of_mind",
+            reason_detail="테스트",
+            return_items_data=return_items_data,
+            refund_account_bank="신한은행",
+            refund_account_number="110-123-456789",
+            refund_account_holder="홍길동",
+        )
+
+        return2 = ReturnService.create_return(
+            order=order,
+            user=user,
+            type="refund",
+            reason="change_of_mind",
+            reason_detail="테스트",
+            return_items_data=return_items_data,
+            refund_account_bank="신한은행",
+            refund_account_number="110-123-456789",
+            refund_account_holder="홍길동",
+        )
+
+        # Assert
+        assert return1.return_number != return2.return_number
+
+    def test_create_return_logging(self, caplog):
+        """교환/환불 신청 생성 시 로깅 확인"""
+        import logging
+
+        caplog.set_level(logging.INFO, logger="shopping.services.return_service")
+
+        # Arrange
+        order = OrderFactory.delivered()
+        order_item = OrderItemFactory(order=order)
+        user = order.user
+
+        return_items_data = [
+            {
+                "order_item": order_item,
+                "quantity": 1,
+                "product_name": order_item.product_name,
+                "product_price": order_item.price,
+            }
+        ]
+
+        # Act
+        return_obj = ReturnService.create_return(
+            order=order,
+            user=user,
+            type="refund",
+            reason="change_of_mind",
+            reason_detail="테스트",
+            return_items_data=return_items_data,
+            refund_account_bank="신한은행",
+            refund_account_number="110-123-456789",
+            refund_account_holder="홍길동",
+        )
+
+        # Assert
+        log_messages = [record.message for record in caplog.records]
+        assert any("교환/환불 신청 생성" in msg for msg in log_messages)
+        assert any(f"return_number={return_obj.return_number}" in msg for msg in log_messages)
+
+
+@pytest.mark.django_db
+class TestApproveReturn:
+    """교환/환불 승인 테스트"""
+
+    def test_approve_return_success(self):
+        """승인 성공"""
+        # Arrange
+        return_obj = ReturnFactory.requested()
+
+        # Act
+        result = ReturnService.approve_return(return_obj)
+
+        # Assert
+        assert result.status == "approved"
+        assert result.approved_at is not None
+
+    def test_approve_return_with_memo(self):
+        """관리자 메모 포함 승인"""
+        # Arrange
+        return_obj = ReturnFactory.requested()
+        admin_memo = "승인 처리합니다"
+
+        # Act
+        result = ReturnService.approve_return(return_obj, admin_memo=admin_memo)
+
+        # Assert
+        assert result.admin_memo == admin_memo
+
+    def test_approve_return_notification_sent(self):
+        """승인 시 알림 발송 확인"""
+        # Arrange
+        return_obj = ReturnFactory.requested()
+
+        # Act
+        ReturnService.approve_return(return_obj)
+
+        # Assert
+        from shopping.models import Notification
+
+        assert Notification.objects.filter(
+            user=return_obj.user, notification_type="return"
+        ).exists()
+
+    def test_approve_return_invalid_status(self):
+        """잘못된 상태에서 승인 시도 (ValueError)"""
+        # Arrange
+        return_obj = ReturnFactory.approved()  # 이미 승인됨
+
+        # Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            ReturnService.approve_return(return_obj)
+
+        assert "신청 상태에서만 승인할 수 있습니다" in str(exc_info.value)
+
+    def test_approve_return_logging(self, caplog):
+        """승인 시 로깅 확인"""
+        import logging
+
+        caplog.set_level(logging.INFO, logger="shopping.services.return_service")
+
+        # Arrange
+        return_obj = ReturnFactory.requested()
+
+        # Act
+        ReturnService.approve_return(return_obj)
+
+        # Assert
+        log_messages = [record.message for record in caplog.records]
+        assert any("교환/환불 승인" in msg for msg in log_messages)
+
+
+@pytest.mark.django_db
+class TestRejectReturn:
+    """교환/환불 거부 테스트"""
+
+    def test_reject_return_success(self):
+        """거부 성공"""
+        # Arrange
+        return_obj = ReturnFactory.requested()
+        reason = "상품 하자가 아님"
+
+        # Act
+        result = ReturnService.reject_return(return_obj, reason=reason)
+
+        # Assert
+        assert result.status == "rejected"
+        assert result.rejected_reason == reason
+
+    def test_reject_return_notification_sent(self):
+        """거부 시 알림 발송 확인"""
+        # Arrange
+        return_obj = ReturnFactory.requested()
+
+        # Act
+        ReturnService.reject_return(return_obj, reason="테스트")
+
+        # Assert
+        from shopping.models import Notification
+
+        assert Notification.objects.filter(
+            user=return_obj.user, notification_type="return"
+        ).exists()
+
+    def test_reject_return_invalid_status(self):
+        """잘못된 상태에서 거부 시도 (ValueError)"""
+        # Arrange
+        return_obj = ReturnFactory.approved()
+
+        # Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            ReturnService.reject_return(return_obj, reason="테스트")
+
+        assert "신청 상태에서만 거부할 수 있습니다" in str(exc_info.value)
+
+
+@pytest.mark.django_db
+class TestConfirmReceiveReturn:
+    """반품 도착 확인 테스트"""
+
+    def test_confirm_receive_success(self):
+        """수령 확인 성공"""
+        # Arrange
+        return_obj = ReturnFactory.shipping()
+
+        # Act
+        result = ReturnService.confirm_receive_return(return_obj)
+
+        # Assert
+        assert result.status == "received"
+
+    def test_confirm_receive_notification_sent(self):
+        """수령 확인 시 알림 발송 확인"""
+        # Arrange
+        return_obj = ReturnFactory.shipping()
+
+        # Act
+        ReturnService.confirm_receive_return(return_obj)
+
+        # Assert
+        from shopping.models import Notification
+
+        assert Notification.objects.filter(
+            user=return_obj.user, notification_type="return"
+        ).exists()
+
+    def test_confirm_receive_invalid_status(self):
+        """잘못된 상태에서 수령 확인 시도 (ValueError)"""
+        # Arrange
+        return_obj = ReturnFactory.requested()
+
+        # Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            ReturnService.confirm_receive_return(return_obj)
+
+        assert "배송 중 상태에서만 수령 확인할 수 있습니다" in str(exc_info.value)
+
+
+@pytest.mark.django_db
+class TestCompleteRefund:
+    """환불 완료 테스트"""
+
+    def test_complete_refund_success(self):
+        """환불 완료 성공"""
+        # Arrange
+        return_obj = ReturnFactory.received(type="refund")
+        order = return_obj.order
+        PaymentFactory(order=order, status="done", payment_key="test_key_123")
+
+        # Mock 토스 API
+        with patch("shopping.utils.toss_payment.TossPaymentClient") as mock_toss:
+            mock_instance = mock_toss.return_value
+            mock_instance.cancel_payment.return_value = {
+                "paymentKey": "test_key_123",
+                "status": "CANCELED",
+                "canceledAmount": int(return_obj.refund_amount),
+            }
+
+            # Act
+            result = ReturnService.complete_refund(return_obj)
+
+            # Assert
+            assert result.status == "completed"
+            assert result.completed_at is not None
+
+    def test_complete_refund_stock_restored(self):
+        """환불 완료 시 재고 복구 확인"""
+        # Arrange
+        product = ProductFactory(stock=10)
+        order = OrderFactory.delivered()
+        order_item = OrderItemFactory(order=order, product=product, quantity=2)
+
+        return_obj = ReturnFactory.received(type="refund", order=order)
+        ReturnItemFactory(return_request=return_obj, order_item=order_item, quantity=2)
+        PaymentFactory(order=order, status="done", payment_key="test_key_123")
+
+        initial_stock = product.stock
+
+        # Mock 토스 API
+        with patch("shopping.utils.toss_payment.TossPaymentClient") as mock_toss:
+            mock_instance = mock_toss.return_value
+            mock_instance.cancel_payment.return_value = {
+                "paymentKey": "test_key",
+                "status": "CANCELED",
+            }
+
+            # Act
+            ReturnService.complete_refund(return_obj)
+
+            # Assert
+            product.refresh_from_db()
+            assert product.stock == initial_stock + 2
+
+    def test_complete_refund_with_account(self):
+        """계좌 환불 (복호화 테스트)"""
+        # Arrange - 실제 환불 시나리오처럼 OrderItem과 ReturnItem 생성
+        product = ProductFactory(stock=10)
+        order = OrderFactory.delivered()
+        order_item = OrderItemFactory(order=order, product=product, price=Decimal("50000"), quantity=1)
+
+        return_obj = ReturnFactory.received(
+            type="refund",
+            order=order,
+            refund_account_bank="신한은행",
+            refund_account_number="110-123-456789",
+            refund_account_holder="홍길동",
+        )
+        # ReturnItem 생성 시 refund_amount가 자동 계산됨
+        ReturnItemFactory(return_request=return_obj, order_item=order_item, quantity=1)
+
+        # refund_amount 업데이트 (실제 create_return에서 하는 것처럼)
+        return_obj.refund_amount = ReturnService.calculate_refund_amount(return_obj.return_items.all())
+        return_obj.save()
+
+        PaymentFactory(order=order, status="done", payment_key="test_key_123")
+
+        # Mock 토스 API
+        with patch("shopping.utils.toss_payment.TossPaymentClient") as mock_toss:
+            mock_instance = mock_toss.return_value
+
+            # Act
+            ReturnService.complete_refund(return_obj)
+
+            # Assert - 복호화된 계좌번호가 API에 전달되었는지 확인
+            call_args = mock_instance.cancel_payment.call_args
+
+            # cancel_payment가 호출되었는지 확인
+            assert call_args is not None, "cancel_payment가 호출되지 않았습니다"
+
+            refund_account = call_args.kwargs.get("refund_account")
+
+            # 계좌 정보가 올바르게 전달되었는지 확인
+            assert refund_account is not None, "refund_account가 전달되지 않았습니다"
+            assert refund_account["bank"] == "신한은행"
+            assert refund_account["holderName"] == "홍길동"
+            # accountNumber는 복호화된 값이어야 함
+            assert "accountNumber" in refund_account
+
+    def test_complete_refund_notification_sent(self):
+        """환불 완료 시 알림 발송 확인"""
+        # Arrange
+        return_obj = ReturnFactory.received(type="refund")
+        PaymentFactory(order=return_obj.order, status="done", payment_key="test_key_123")
+
+        # Mock 토스 API
+        with patch("shopping.utils.toss_payment.TossPaymentClient"):
+            # Act
+            ReturnService.complete_refund(return_obj)
+
+            # Assert
+            from shopping.models import Notification
+
+            assert Notification.objects.filter(
+                user=return_obj.user, notification_type="return"
+            ).exists()
+
+    def test_complete_refund_zero_amount(self):
+        """환불 금액 0원 (배송비만 차감)"""
+        # Arrange
+        return_obj = ReturnFactory.received(
+            type="refund", refund_amount=Decimal("0"), return_shipping_fee=Decimal("3000")
+        )
+        PaymentFactory(order=return_obj.order, status="done", payment_key="test_key_123")
+
+        # Mock 토스 API
+        with patch("shopping.utils.toss_payment.TossPaymentClient") as mock_toss:
+            mock_instance = mock_toss.return_value
+
+            # Act
+            ReturnService.complete_refund(return_obj)
+
+            # Assert - 토스 API 호출되지 않아야 함 (환불 금액이 0원 이하)
+            assert not mock_instance.cancel_payment.called
+
+    def test_complete_refund_wrong_type(self):
+        """교환 타입에서 환불 완료 호출 (ValueError)"""
+        # Arrange
+        return_obj = ReturnFactory.received(type="exchange")
+
+        # Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            ReturnService.complete_refund(return_obj)
+
+        assert "환불 타입에서만 사용 가능합니다" in str(exc_info.value)
+
+    def test_complete_refund_invalid_status(self):
+        """잘못된 상태에서 환불 완료 시도 (ValueError)"""
+        # Arrange
+        return_obj = ReturnFactory.requested(type="refund")
+
+        # Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            ReturnService.complete_refund(return_obj)
+
+        assert "반품 도착 상태에서만 환불 처리할 수 있습니다" in str(exc_info.value)
+
+    def test_complete_refund_logging(self, caplog):
+        """환불 완료 시 로깅 확인"""
+        import logging
+
+        caplog.set_level(logging.INFO, logger="shopping.services.return_service")
+
+        # Arrange
+        return_obj = ReturnFactory.received(type="refund")
+        PaymentFactory(order=return_obj.order, status="done", payment_key="test_key_123")
+
+        # Mock 토스 API
+        with patch("shopping.utils.toss_payment.TossPaymentClient"):
+            # Act
+            ReturnService.complete_refund(return_obj)
+
+            # Assert
+            log_messages = [record.message for record in caplog.records]
+            assert any("환불 완료" in msg for msg in log_messages)
+
+
+
+@pytest.mark.django_db
+class TestCompleteExchange:
+    """교환 완료 테스트"""
+
+    def test_complete_exchange_success(self):
+        """교환 완료 성공"""
+        # Arrange
+        exchange_product = ProductFactory(stock=10)
+        return_obj = ReturnFactory.received(type="exchange", exchange_product=exchange_product)
+
+        # Act
+        result = ReturnService.complete_exchange(
+            return_obj,
+            exchange_tracking_number="987654321098",
+            exchange_shipping_company="CJ대한통운",
+        )
+
+        # Assert
+        assert result.status == "completed"
+        assert result.completed_at is not None
+        assert result.exchange_tracking_number == "987654321098"
+        assert result.exchange_shipping_company == "CJ대한통운"
+
+    def test_complete_exchange_stock_adjusted(self):
+        """교환 완료 시 재고 조정 확인 (반품 +1, 교환 -1)"""
+        # Arrange
+        original_product = ProductFactory(stock=10)
+        exchange_product = ProductFactory(stock=5)
+
+        order = OrderFactory.delivered()
+        order_item = OrderItemFactory(order=order, product=original_product, quantity=1)
+
+        return_obj = ReturnFactory.received(type="exchange", order=order, exchange_product=exchange_product)
+        ReturnItemFactory(return_request=return_obj, order_item=order_item, quantity=1)
+
+        initial_original_stock = original_product.stock
+        initial_exchange_stock = exchange_product.stock
+
+        # Act
+        ReturnService.complete_exchange(
+            return_obj,
+            exchange_tracking_number="987654321098",
+            exchange_shipping_company="CJ대한통운",
+        )
+
+        # Assert
+        original_product.refresh_from_db()
+        exchange_product.refresh_from_db()
+
+        assert original_product.stock == initial_original_stock + 1  # 반품 재고 증가
+        assert exchange_product.stock == initial_exchange_stock - 1  # 교환 재고 감소
+
+    def test_complete_exchange_notification_sent(self):
+        """교환 완료 시 알림 발송 확인"""
+        # Arrange
+        return_obj = ReturnFactory.received(type="exchange")
+
+        # Act
+        ReturnService.complete_exchange(
+            return_obj,
+            exchange_tracking_number="987654321098",
+            exchange_shipping_company="CJ대한통운",
+        )
+
+        # Assert
+        from shopping.models import Notification
+
+        assert Notification.objects.filter(
+            user=return_obj.user, notification_type="return"
+        ).exists()
+
+    def test_complete_exchange_wrong_type(self):
+        """환불 타입에서 교환 완료 호출 (ValueError)"""
+        # Arrange
+        return_obj = ReturnFactory.received(type="refund")
+
+        # Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            ReturnService.complete_exchange(
+                return_obj,
+                exchange_tracking_number="987654321098",
+                exchange_shipping_company="CJ대한통운",
+            )
+
+        assert "교환 타입에서만 사용 가능합니다" in str(exc_info.value)
+
+    def test_complete_exchange_invalid_status(self):
+        """잘못된 상태에서 교환 완료 시도 (ValueError)"""
+        # Arrange
+        return_obj = ReturnFactory.requested(type="exchange")
+
+        # Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            ReturnService.complete_exchange(
+                return_obj,
+                exchange_tracking_number="987654321098",
+                exchange_shipping_company="CJ대한통운",
+            )
+
+        assert "반품 도착 상태에서만 교환 처리할 수 있습니다" in str(exc_info.value)

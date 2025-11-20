@@ -1090,6 +1090,157 @@ class PaymentRequestBuilder:
 # ==========================================
 
 
+# ==========================================
+# Return Factories
+# ==========================================
+
+
+class ReturnFactory(DjangoModelFactory):
+    """
+    Return factory
+
+    교환/환불 신청을 생성합니다.
+    기본값은 requested 상태의 환불 신청입니다.
+
+    사용 예시:
+        return_obj = ReturnFactory()  # 환불 신청 (requested)
+        return_obj = ReturnFactory.refund()  # 환불
+        return_obj = ReturnFactory.exchange()  # 교환
+        return_obj = ReturnFactory.approved()  # 승인됨
+        return_obj = ReturnFactory.with_items([order_item1, order_item2])
+    """
+
+    class Meta:
+        model = "shopping.Return"
+
+    order = factory.SubFactory(OrderFactory, status="delivered")
+    user = factory.LazyAttribute(lambda obj: obj.order.user)
+    return_number = factory.Sequence(
+        lambda n: f"RET{timezone.now().strftime('%Y%m%d')}{n:03d}"
+    )
+    type = "refund"
+    status = "requested"
+    reason = "change_of_mind"
+    reason_detail = "단순 변심으로 인한 환불 요청"
+
+    # 환불 정보
+    refund_amount = Decimal("0")
+    refund_account_bank = "신한은행"
+    refund_account_number = "110-123-456789"
+    refund_account_holder = "홍길동"
+
+    # 반품 배송 정보
+    return_shipping_fee = Decimal("0")
+
+    @classmethod
+    def refund(cls, **kwargs):
+        """환불 신청 (기본값)"""
+        kwargs.setdefault("type", "refund")
+        kwargs.setdefault("refund_account_bank", "신한은행")
+        kwargs.setdefault("refund_account_number", "110-123-456789")
+        kwargs.setdefault("refund_account_holder", "홍길동")
+        return cls(**kwargs)
+
+    @classmethod
+    def exchange(cls, **kwargs):
+        """교환 신청"""
+        kwargs.setdefault("type", "exchange")
+        kwargs.setdefault("exchange_product", factory.SubFactory(ProductFactory))
+        # 교환은 계좌 정보 불필요
+        kwargs.setdefault("refund_account_bank", "")
+        kwargs.setdefault("refund_account_number", "")
+        kwargs.setdefault("refund_account_holder", "")
+        return cls(**kwargs)
+
+    @classmethod
+    def requested(cls, **kwargs):
+        """신청 상태 (기본값)"""
+        kwargs.setdefault("status", "requested")
+        return cls(**kwargs)
+
+    @classmethod
+    def approved(cls, **kwargs):
+        """승인 상태"""
+        kwargs.setdefault("status", "approved")
+        kwargs.setdefault("approved_at", timezone.now())
+        return cls(**kwargs)
+
+    @classmethod
+    def rejected(cls, **kwargs):
+        """거부 상태"""
+        kwargs.setdefault("status", "rejected")
+        kwargs.setdefault("rejected_reason", "상품 하자가 아님")
+        return cls(**kwargs)
+
+    @classmethod
+    def shipping(cls, **kwargs):
+        """반품 배송중 상태"""
+        kwargs.setdefault("status", "shipping")
+        kwargs.setdefault("approved_at", timezone.now())
+        kwargs.setdefault("return_shipping_company", "CJ대한통운")
+        kwargs.setdefault("return_tracking_number", "123456789012")
+        return cls(**kwargs)
+
+    @classmethod
+    def received(cls, **kwargs):
+        """반품 도착 상태"""
+        kwargs.setdefault("status", "received")
+        kwargs.setdefault("approved_at", timezone.now() - timedelta(days=2))
+        kwargs.setdefault("return_shipping_company", "CJ대한통운")
+        kwargs.setdefault("return_tracking_number", "123456789012")
+        return cls(**kwargs)
+
+    @classmethod
+    def completed(cls, **kwargs):
+        """완료 상태"""
+        kwargs.setdefault("status", "completed")
+        kwargs.setdefault("approved_at", timezone.now() - timedelta(days=3))
+        kwargs.setdefault("completed_at", timezone.now())
+        return cls(**kwargs)
+
+    @classmethod
+    def with_items(cls, order_items=None, **kwargs):
+        """ReturnItem이 포함된 Return"""
+        return_obj = cls(**kwargs)
+        if order_items:
+            for order_item in order_items:
+                ReturnItemFactory(return_request=return_obj, order_item=order_item)
+        else:
+            # 기본적으로 1개의 아이템 생성
+            ReturnItemFactory(return_request=return_obj)
+        return return_obj
+
+    @classmethod
+    def with_shipping_fee(cls, fee=Decimal("3000"), **kwargs):
+        """반품 배송비가 있는 Return"""
+        kwargs.setdefault("return_shipping_fee", fee)
+        return cls(**kwargs)
+
+
+class ReturnItemFactory(DjangoModelFactory):
+    """
+    ReturnItem factory
+
+    교환/환불 상품 항목을 생성합니다.
+    """
+
+    class Meta:
+        model = "shopping.ReturnItem"
+
+    return_request = factory.SubFactory(ReturnFactory)
+    order_item = factory.LazyAttribute(
+        lambda obj: OrderItemFactory(order=obj.return_request.order)
+    )
+    quantity = 1
+    product_name = factory.LazyAttribute(lambda obj: obj.order_item.product_name)
+    product_price = factory.LazyAttribute(lambda obj: obj.order_item.price)
+
+
+# ==========================================
+# Utilities
+# ==========================================
+
+
 class SKUGenerator:
     """
     SKU 생성기

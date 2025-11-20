@@ -18,7 +18,7 @@ from shopping.models.cart import Cart, CartItem
 from shopping.models.order import Order, OrderItem
 from shopping.models.payment import Payment
 from shopping.models.point import PointHistory
-from shopping.models.product import Category, Product
+from shopping.models.product import Category, Product, ProductImage
 from shopping.models.product_qa import ProductAnswer, ProductQuestion
 from shopping.models.user import User
 
@@ -392,6 +392,32 @@ class ProductFactory(DjangoModelFactory):
     def with_long_name(cls, **kwargs):
         """긴 이름의 상품"""
         kwargs.setdefault("name", "아주 긴 상품명 테스트 " * 10)
+        return cls(**kwargs)
+
+
+
+class ProductImageFactory(DjangoModelFactory):
+    """
+    ProductImage factory
+
+    사용 예시:
+        image = ProductImageFactory()
+        image = ProductImageFactory.primary()
+    """
+
+    class Meta:
+        model = ProductImage
+
+    product = factory.SubFactory(ProductFactory)
+    image = factory.django.ImageField(color="blue")
+    alt_text = factory.Sequence(lambda n: f"테스트 이미지 {n}")
+    is_primary = False
+    order = 0
+
+    @classmethod
+    def primary(cls, **kwargs):
+        """대표 이미지"""
+        kwargs.setdefault("is_primary", True)
         return cls(**kwargs)
 
 

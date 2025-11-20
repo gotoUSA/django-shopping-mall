@@ -280,15 +280,12 @@ class ProductImage(models.Model):
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """
-        저장 시 자동 처리:
-        대표 이미지 설정은 ProductService를 통해 처리
+        모델 저장
+
+        Note: 대표 이미지 설정은 ProductService.set_primary_image()를 통해 처리해야 합니다.
+              이 메서드에서는 단순 저장만 수행합니다.
         """
         super().save(*args, **kwargs)
-
-        # 대표 이미지로 설정된 경우, 다른 이미지들 해제
-        if self.is_primary:
-            from shopping.services import ProductService
-            ProductService.set_primary_image(self)
 
 
 class ProductReview(models.Model):

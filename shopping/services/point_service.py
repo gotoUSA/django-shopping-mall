@@ -344,13 +344,17 @@ class PointService:
             # 메타데이터 업데이트
             if "used_amount" not in point_history.metadata:
                 point_history.metadata["used_amount"] = 0
+            if "usage_history" not in point_history.metadata:
+                point_history.metadata["usage_history"] = []
+
             metadata = point_history.metadata.copy()
             metadata["used_amount"] = metadata.get("used_amount", 0) + use_from_this
 
             # 사용 내역 추가
-            if "usage_history" not in point_history.metadata:
-                point_history.metadata["usage_history"] = []
-            point_history.metadata["usage_history"].append({"amount": use_from_this, "used_at": timezone.now().isoformat()})
+            metadata["usage_history"].append({
+                "amount": use_from_this,
+                "used_at": timezone.now().isoformat()
+            })
 
             point_history.metadata = metadata
             point_history.save()

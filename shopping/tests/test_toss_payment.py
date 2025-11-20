@@ -604,3 +604,214 @@ class TestPaymentWorkflow:
             cancel_reason="고객 변심",
         )
         assert cancel_result["status"] == "CANCELED"
+
+
+@pytest.mark.django_db
+class TestCreateBillingKey:
+    """빌링키 발급 API 테스트 (정기 결제용)"""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        """각 테스트마다 자동 실행되는 설정"""
+        self.client = TossPaymentClient()
+
+    def test_create_billing_key_success(self, mocker):
+        """정상적인 빌링키 발급"""
+        # Arrange
+        mock_response_data = {
+            "billingKey": "BIL_KEY_20250120_12345",
+            "customerKey": "CUST_001",
+            "authenticatedAt": "2025-01-20T10:00:00+09:00",
+            "card": {
+                "company": "신한카드",
+                "number": "1234****",
+                "cardType": "신용",
+            },
+        }
+
+        mock_response = Mock()
+        mock_response.status_code = status.HTTP_200_OK
+        mock_response.json.return_value = mock_response_data
+        mock_post = mocker.patch("requests.post", return_value=mock_response)
+
+        # Act
+        result = self.client.create_billing_key(
+            customer_key="CUST_001",
+            auth_key="AUTH_KEY_123",
+        )
+
+        # Assert
+        assert result == mock_response_data
+        assert result["billingKey"] == "BIL_KEY_20250120_12345"
+        assert result["customerKey"] == "CUST_001"
+
+        # API 호출 검증
+        mock_post.assert_called_once()
+        call_kwargs = mock_post.call_args[1]
+        assert call_kwargs["json"]["customerKey"] == "CUST_001"
+        assert call_kwargs["json"]["authKey"] == "AUTH_KEY_123"
+        assert "/v1/billing/authorizations/issue" in mock_post.call_args[0][0]
+
+    def test_create_billing_key_empty_customer_key(self, mocker):
+        """빈 customer_key 전달 시 API 에러 응답"""
+        # Arrange
+        mock_error_data = {
+            "code": "INVALID_REQUEST",
+            "message": "customerKey는 필수 값입니다.",
+        }
+
+        mock_response = Mock()
+        mock_response.status_code = status.HTTP_400_BAD_REQUEST
+        mock_response.json.return_value = mock_error_data
+        mocker.patch("requests.post", return_value=mock_response)
+
+        # Act & Assert
+        with pytest.raises(TossPaymentError) as exc_info:
+            self.client.create_billing_key(
+                customer_key="",
+                auth_key="AUTH_KEY_123",
+            )
+
+        error = exc_info.value
+        assert error.code == "INVALID_REQUEST"
+        assert error.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_create_billing_key_special_characters(self, mocker):
+        """특수문자가 포함된 키 정상 처리"""
+        # Arrange
+        mock_response_data = {
+            "billingKey": "BIL_KEY_SPECIAL",
+            "customerKey": "CUST_특수문자_001",
+            "authenticatedAt": "2025-01-20T10:00:00+09:00",
+        }
+
+        mock_response = Mock()
+        mock_response.status_code = status.HTTP_200_OK
+        mock_response.json.return_value = mock_response_data
+        mock_post = mocker.patch("requests.post", return_value=mock_response)
+
+        # Act
+        result = self.client.create_billing_key(
+            customer_key="CUST_특수문자_001",
+            auth_key="AUTH_KEY_!@#$%",
+        )
+
+        # Assert
+        assert result["customerKey"] == "CUST_특수문자_001"
+
+        # JSON 인코딩 확인
+        call_kwargs = mock_post.call_args[1]
+        assert call_kwargs["json"]["customerKey"] == "CUST_특수문자_001"
+        assert call_kwargs["json"]["authKey"] == "AUTH_KEY_!@#$%"
+
+    def test_create_billing_key_api_error_400(self, mocker):
+        """Toss API 에러 응답 (400 Bad Request)"""
+        # Arrange
+        mock_error_data = {
+            "code": "INVALID_REQUEST",
+            "message": "잘못된 요청입니다.",
+        }
+
+        mock_response = Mock()
+        mock_response.status_code = status.HTTP_400_BAD_REQUEST
+        mock_response.json.return_value = mock_error_data
+        mocker.patch("requests.post", return_value=mock_response)
+
+        # Act & Assert
+        with pytest.raises(TossPaymentError) as exc_info:
+            self.client.create_billing_key(
+                customer_key="CUST_001",
+                auth_key="INVALID_AUTH_KEY",
+            )
+
+        error = exc_info.value
+        assert error.code == "INVALID_REQUEST"
+        assert error.message == "잘못된 요청입니다."
+        assert error.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_create_billing_key_api_error_401(self, mocker):
+        """인증 실패 응답 (401 Unauthorized)"""
+        # Arrange
+        mock_error_data = {
+            "code": "INVALID_API_KEY",
+            "message": "API 키가 유효하지 않습니다.",
+        }
+
+        mock_response = Mock()
+        mock_response.status_code = status.HTTP_401_UNAUTHORIZED
+        mock_response.json.return_value = mock_error_data
+        mocker.patch("requests.post", return_value=mock_response)
+
+        # Act & Assert
+        with pytest.raises(TossPaymentError) as exc_info:
+            self.client.create_billing_key(
+                customer_key="CUST_001",
+                auth_key="AUTH_KEY_123",
+            )
+
+        error = exc_info.value
+        assert error.code == "INVALID_API_KEY"
+        assert error.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_create_billing_key_network_error(self, mocker):
+        """네트워크 오류 처리"""
+        # Arrange
+        mocker.patch(
+            "requests.post",
+            side_effect=requests.exceptions.ConnectionError("Connection refused"),
+        )
+
+        # Act & Assert
+        with pytest.raises(TossPaymentError) as exc_info:
+            self.client.create_billing_key(
+                customer_key="CUST_001",
+                auth_key="AUTH_KEY_123",
+            )
+
+        error = exc_info.value
+        assert error.code == "NETWORK_ERROR"
+        assert "네트워크 오류" in error.message
+        assert error.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+
+    def test_create_billing_key_timeout_error(self, mocker):
+        """요청 타임아웃 처리"""
+        # Arrange
+        mocker.patch(
+            "requests.post",
+            side_effect=requests.exceptions.Timeout("Request timeout after 30s"),
+        )
+
+        # Act & Assert
+        with pytest.raises(TossPaymentError) as exc_info:
+            self.client.create_billing_key(
+                customer_key="CUST_001",
+                auth_key="AUTH_KEY_123",
+            )
+
+        error = exc_info.value
+        assert error.code == "NETWORK_ERROR"
+        assert error.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+
+    def test_create_billing_key_missing_error_code(self, mocker):
+        """Toss API 응답에 code 필드가 없는 경우"""
+        # Arrange
+        mock_error_data = {
+            "message": "알 수 없는 에러가 발생했습니다.",
+        }
+
+        mock_response = Mock()
+        mock_response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        mock_response.json.return_value = mock_error_data
+        mocker.patch("requests.post", return_value=mock_response)
+
+        # Act & Assert
+        with pytest.raises(TossPaymentError) as exc_info:
+            self.client.create_billing_key(
+                customer_key="CUST_001",
+                auth_key="AUTH_KEY_123",
+            )
+
+        error = exc_info.value
+        assert error.code == "UNKNOWN"  # 기본값
+        assert error.message == "알 수 없는 에러가 발생했습니다."
+        assert error.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR

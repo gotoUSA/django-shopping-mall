@@ -311,10 +311,13 @@ class PointService:
                 "message": "포인트가 부족합니다.",
             }
 
-        # 사용 기록 반영을 위해 이미 만료된 적 있는 적립 건도 포함해 조회
+        # 사용 가능한 포인트만 조회: 만료되지 않은 적립 포인트
+        # 1. metadata에 expired=True가 없고
+        # 2. 만료일이 아직 지나지 않은 것만
+        now = timezone.now()
         available_points = (
             PointHistory.objects.select_for_update()
-            .filter(user=user, type="earn")
+            .filter(user=user, type="earn", expires_at__gt=now)
             .exclude(metadata__contains={"expired": True})
             .order_by("expires_at", "created_at")
         )

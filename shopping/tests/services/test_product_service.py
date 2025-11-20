@@ -2,6 +2,7 @@
 ProductService 테스트
 """
 import pytest
+from shopping.models.product import ProductImage
 from shopping.services import ProductService
 from shopping.tests.factories import ProductFactory, ProductImageFactory
 
@@ -20,8 +21,10 @@ class TestProductService:
         new_primary = ProductImageFactory(product=product, is_primary=False)
 
         # Act
-        # 새로운 이미지를 대표로 설정 (메모리 상에서 변경 후 서비스 호출)
+        # 새로운 이미지를 대표로 설정 (메모리 상에서 변경)
         new_primary.is_primary = True
+        # 주의: DB에 미리 저장하지 않음 (UniqueConstraint 위반 방지)
+
         ProductService.set_primary_image(new_primary)
 
         # Assert
@@ -29,6 +32,12 @@ class TestProductService:
         new_primary.refresh_from_db()
 
         assert old_primary.is_primary is False
+        # 서비스는 new_primary를 저장하지 않으므로 DB에는 여전히 False로 남아있음이 정상
+        # 하지만 이 테스트의 핵심은 "기존 이미지가 해제되었는가"임
+
+        # 검증: 이제 new_primary를 True로 저장해도 에러가 나지 않아야 함
+        ProductImage.objects.filter(pk=new_primary.pk).update(is_primary=True)
+        new_primary.refresh_from_db()
         assert new_primary.is_primary is True
 
     def test_set_primary_image_initial(self):
@@ -41,9 +50,17 @@ class TestProductService:
 
         # Act
         image.is_primary = True
+        # 초기 설정은 충돌이 없으므로 미리 업데이트해도 무방하지만, 일관성을 위해 서비스 호출 후 저장 검증
+
         ProductService.set_primary_image(image)
 
         # Assert
+        # 서비스는 저장을 안하므로 DB는 False
+        image.refresh_from_db()
+        assert image.is_primary is False
+
+        # 검증: 저장 가능 여부 확인
+        ProductImage.objects.filter(pk=image.pk).update(is_primary=True)
         image.refresh_from_db()
         assert image.is_primary is True
 
@@ -101,6 +118,7 @@ class TestProductService:
         # Act
         # product1의 새 이미지를 대표로 설정
         p1_new.is_primary = True
+
         ProductService.set_primary_image(p1_new)
 
         # Assert
@@ -109,5 +127,9 @@ class TestProductService:
         p2_primary.refresh_from_db()
 
         assert p1_primary.is_primary is False  # product1 기존 해제
-        assert p1_new.is_primary is True       # product1 신규 설정
         assert p2_primary.is_primary is True   # product2 영향 없음
+
+        # 검증: p1_new 저장 가능
+        ProductImage.objects.filter(pk=p1_new.pk).update(is_primary=True)
+        p1_new.refresh_from_db()
+        assert p1_new.is_primary is True

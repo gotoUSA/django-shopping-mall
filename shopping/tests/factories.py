@@ -19,6 +19,7 @@ from shopping.models.order import Order, OrderItem
 from shopping.models.payment import Payment
 from shopping.models.point import PointHistory
 from shopping.models.product import Category, Product
+from shopping.models.product_qa import ProductAnswer, ProductQuestion
 from shopping.models.user import User
 
 
@@ -1258,6 +1259,48 @@ class ReturnItemFactory(DjangoModelFactory):
     quantity = 1
     product_name = factory.LazyAttribute(lambda obj: obj.order_item.product_name)
     product_price = factory.LazyAttribute(lambda obj: obj.order_item.price)
+
+
+# ==========================================
+# Product QA Factories
+# ==========================================
+
+
+class ProductQuestionFactory(DjangoModelFactory):
+    """ProductQuestion factory"""
+
+    class Meta:
+        model = ProductQuestion
+
+    product = factory.SubFactory(ProductFactory)
+    user = factory.SubFactory(UserFactory)
+    title = factory.Sequence(lambda n: f"상품 문의 {n}")
+    content = "상품에 대해 궁금한 점이 있습니다."
+    is_secret = False
+    is_answered = False
+
+    @classmethod
+    def secret(cls, **kwargs):
+        """비밀글"""
+        kwargs.setdefault("is_secret", True)
+        return cls(**kwargs)
+
+    @classmethod
+    def answered(cls, **kwargs):
+        """답변 완료된 문의"""
+        kwargs.setdefault("is_answered", True)
+        return cls(**kwargs)
+
+
+class ProductAnswerFactory(DjangoModelFactory):
+    """ProductAnswer factory"""
+
+    class Meta:
+        model = ProductAnswer
+
+    question = factory.SubFactory(ProductQuestionFactory, is_answered=True)
+    seller = factory.LazyAttribute(lambda obj: obj.question.product.seller)
+    content = "문의하신 내용에 대한 답변입니다."
 
 
 # ==========================================

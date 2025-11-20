@@ -73,10 +73,7 @@ class PointService:
             metadata=metadata or {},
         )
 
-        logger.info(
-            f"포인트 추가: user_id={user.id}, amount={amount}, "
-            f"type={type}, description={description}"
-        )
+        logger.info(f"포인트 추가: user_id={user.id}, amount={amount}, " f"type={type}, description={description}")
 
         return True
 
@@ -112,10 +109,7 @@ class PointService:
         locked_user = User.objects.select_for_update().get(pk=user.pk)
 
         if locked_user.points < amount:
-            logger.warning(
-                f"포인트 부족: user_id={user.id}, "
-                f"required={amount}, available={locked_user.points}"
-            )
+            logger.warning(f"포인트 부족: user_id={user.id}, " f"required={amount}, available={locked_user.points}")
             return False
 
         # F() 객체로 안전하게 차감
@@ -135,10 +129,7 @@ class PointService:
             metadata=metadata or {},
         )
 
-        logger.info(
-            f"포인트 차감: user_id={user.id}, amount={amount}, "
-            f"type={type}, description={description}"
-        )
+        logger.info(f"포인트 차감: user_id={user.id}, amount={amount}, " f"type={type}, description={description}")
 
         return True
 
@@ -221,9 +212,7 @@ class PointService:
                         continue
 
                     # F() 객체로 안전하게 차감 (Greatest로 0 이하 방지)
-                    User.objects.filter(pk=user.pk).update(
-                        points=Greatest(F("points") - remaining, 0)
-                    )
+                    User.objects.filter(pk=user.pk).update(points=Greatest(F("points") - remaining, 0))
 
                     # F() 객체로 업데이트 후 최신 값 가져오기
                     user.refresh_from_db()
@@ -250,9 +239,7 @@ class PointService:
 
                     expired_count += 1
 
-                    logger.info(
-                        f"포인트 만료 처리: User={user.username}, " f"Amount={remaining}, HistoryID={current_ph.id}"
-                    )
+                    logger.info(f"포인트 만료 처리: User={user.username}, " f"Amount={remaining}, HistoryID={current_ph.id}")
 
             except Exception as e:
                 logger.error(f"포인트 만료 처리 실패: HistoryID={point_history.id}, " f"Error={str(e)}")
@@ -324,14 +311,10 @@ class PointService:
                 "message": "포인트가 부족합니다.",
             }
 
-        # 사용 가능한 포인트 조회 (만료일 순서, select_for_update로 락 획득)
+        # 사용 기록 반영을 위해 이미 만료된 적 있는 적립 건도 포함해 조회
         available_points = (
             PointHistory.objects.select_for_update()
-            .filter(
-                user=user,
-                type="earn",
-                expires_at__gt=timezone.now(),  # 만료되지 않은 것만
-            )
+            .filter(user=user, type="earn")
             .exclude(metadata__contains={"expired": True})
             .order_by("expires_at", "created_at")
         )
@@ -363,10 +346,7 @@ class PointService:
             # usage_history 업데이트
             if "usage_history" not in metadata:
                 metadata["usage_history"] = []
-            metadata["usage_history"].append({
-                "amount": use_from_this,
-                "used_at": timezone.now().isoformat()
-            })
+            metadata["usage_history"].append({"amount": use_from_this, "used_at": timezone.now().isoformat()})
 
             # 전체 metadata 재할당 (Django가 변경 감지하도록)
             point_history.metadata = metadata

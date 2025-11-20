@@ -353,22 +353,24 @@ class PointService:
             use_from_this = min(available, remaining_to_use)
 
             # 메타데이터 업데이트
-            if "used_amount" not in point_history.metadata:
-                point_history.metadata["used_amount"] = 0
-            if "usage_history" not in point_history.metadata:
-                point_history.metadata["usage_history"] = []
+            # JSONField는 in-place 수정이 save()에서 감지되지 않을 수 있으므로
+            # 전체 dict를 복사하고 재할당해야 함
+            metadata = point_history.metadata.copy() if point_history.metadata else {}
 
-            metadata = point_history.metadata.copy()
+            # used_amount 업데이트
             metadata["used_amount"] = metadata.get("used_amount", 0) + use_from_this
 
-            # 사용 내역 추가
+            # usage_history 업데이트
+            if "usage_history" not in metadata:
+                metadata["usage_history"] = []
             metadata["usage_history"].append({
                 "amount": use_from_this,
                 "used_at": timezone.now().isoformat()
             })
 
+            # 전체 metadata 재할당 (Django가 변경 감지하도록)
             point_history.metadata = metadata
-            point_history.save()
+            point_history.save(update_fields=["metadata"])
 
             used_details.append(
                 {

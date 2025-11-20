@@ -135,11 +135,18 @@ class CartBasicTestCase(TestCase):
         self.assertIsNotNone(cart)
 
     def test_cart_requires_authentication(self):
-        """비로그인 사용자 접근 차단 테스트"""
-        # 인증 없이 장바구니 접근 시도
+        """비로그인 사용자 익명 장바구니 접근 테스트"""
+        # 인증 없이 장바구니 접근 시도 (익명 장바구니 허용)
         response = self.client.get(self.cart_url)
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # 익명 사용자도 세션 기반 장바구니 사용 가능
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # 빈 장바구니가 생성되었는지 확인
+        data = response.json()
+        self.assertIn("id", data)
+        self.assertEqual(data["total_amount"], "0")
+        self.assertEqual(data["total_quantity"], 0)
 
     def test_user_has_only_one_active_cart(self):
         """사용자당 활성 장바구니는 하나만 존재"""

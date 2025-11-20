@@ -425,7 +425,7 @@ class TestPaymentCancelNormalCase:
             user=user,
             points=earned_points,
             balance=user.points,
-            type="purchase",
+            type="earn",
             order=paid_order,
             description="결제 완료 적립",
         )

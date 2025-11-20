@@ -448,6 +448,60 @@ class TestPaymentPointsException:
         user.refresh_from_db()
         assert user.points == 1000
 
+    def test_insufficient_unexpired_points_with_expired_balance(self, user_factory):
+        """만료된 포인트가 잔액에 포함된 경우 회수 실패"""
+        # Arrange
+        user = user_factory(
+            username="expired_balance_user",
+            email="expired_balance@test.com",
+            phone_number="010-9999-8888",
+        )
+
+        now = timezone.now()
+        point_service = PointService()
+
+        # 만료된 포인트 1500P (배치 미실행)
+        PointHistoryFactory(
+            user=user,
+            points=1500,
+            balance=1500,
+            type="earn",
+            description="만료된 적립",
+            expires_at=now - timedelta(days=10),
+        )
+
+        # 유효한 포인트 500P만 존재
+        PointHistoryFactory(
+            user=user,
+            points=500,
+            balance=2000,
+            type="earn",
+            description="유효한 적립",
+            expires_at=now + timedelta(days=30),
+        )
+
+        user.points = 2000  # 1500(만료) + 500(유효)
+        user.save()
+
+        # Act - 1000P 회수 시도 (잔액은 2000이지만 유효 포인트는 500만)
+        result = point_service.use_points_fifo(
+            user=user,
+            amount=1000,
+            type="cancel_deduct",
+            description="만료 포함 잔액 테스트",
+        )
+
+        # Assert - 유효한 포인트 부족으로 실패
+        assert result["success"] is False
+        assert "유효한 포인트가 부족" in result["message"]
+        assert "필요: 1000" in result["message"]
+        assert "사용 가능: 500" in result["message"]
+
+        # 포인트 변동 없음 (롤백되어야 함)
+        user.refresh_from_db()
+        assert user.points == 2000
+
+
     def test_expired_points_cannot_be_deducted(self, user_factory):
         """만료된 포인트 회수 불가 - 만료 처리 후"""
         # Arrange

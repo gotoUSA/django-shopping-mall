@@ -40,6 +40,7 @@ jobs:
     # 환경변수 설정 (job 레벨)
     env:
       DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+      ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
       DJANGO_DEBUG: False
       DATABASE_ENGINE: django.db.backends.postgresql
       DATABASE_NAME: shopping_db
@@ -84,15 +85,20 @@ jobs:
     - name: Run tests with coverage
       run: |
         pip install coverage pytest-cov
-        # --cov-fail-under를 0으로 오버라이드해서 실패 방지
+        echo "🔍 CPU 정보:"
+        nproc
+        echo "📦 pytest-xdist 버전:"
+        pip show pytest-xdist | grep Version
+        echo "🚀 테스트 시작 (병렬 실행)..."
+        # -n auto는 pyproject.toml에 설정되어 있음 (사용 가능한 모든 코어 사용)
         pytest shopping/tests/ \
           --reuse-db \
-          -n 2 \
           --cov=shopping \
           --cov-report=term-missing \
           --cov-report=xml \
           --cov-fail-under=0 \
-          -vv
+          -vv \
+          --dist loadscope
 
     # 코드 스타일 체크 (선택사항)
     - name: Lint with flake8

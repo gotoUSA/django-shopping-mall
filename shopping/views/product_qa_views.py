@@ -164,10 +164,6 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         """
         question = self.get_object()
 
-        # 판매자 권한 확인
-        if not request.user.is_seller:
-            return Response({"error": "판매자만 답변을 작성할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
-
         # 해당 상품의 판매자인지 확인
         if question.product.seller != request.user:
             return Response({"error": "본인 상품의 문의에만 답변할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)

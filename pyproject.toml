@@ -50,6 +50,7 @@ python_functions = ["test_*"]
 addopts = """
     --reuse-db
     --nomigrations
+    -n auto
     --cov=shopping
     --cov-report=html
     --cov-report=term-missing:skip-covered
@@ -81,6 +82,9 @@ omit = [
     "myproject/asgi.py",
 ]
 branch = true
+# 병렬 테스트 지원 (pytest-xdist)
+parallel = true
+concurrency = ["thread", "multiprocessing"]
 
 [tool.coverage.report]
 exclude_lines = [

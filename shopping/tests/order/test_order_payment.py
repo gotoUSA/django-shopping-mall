@@ -36,7 +36,8 @@ class TestOrderPaymentIntegration:
         order_response = authenticated_client.post("/api/orders/", order_data, format="json")
         assert order_response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user_with_points).order_by("-created_at").first()
+        order_id = order_response.data["order_id"]
+        order = Order.objects.get(id=order_id)
 
         # Act - 결제 요청 (Payment 생성)
         payment_request_response = authenticated_client.post(
@@ -112,7 +113,8 @@ class TestOrderPaymentIntegration:
         order_response = authenticated_client.post("/api/orders/", shipping_data, format="json")
         assert order_response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order_id = order_response.data["order_id"]
+        order = Order.objects.get(id=order_id)
         assert order.used_points == 0
         expected_amount = order.total_amount + order.shipping_fee
 
@@ -176,7 +178,8 @@ class TestOrderPaymentIntegration:
 
         # Assert - 주문 생성 성공
         assert order_response.status_code == status.HTTP_202_ACCEPTED
-        order = Order.objects.filter(user=user_with_high_points).order_by("-created_at").first()
+        order_id = order_response.data["order_id"]
+        order = Order.objects.get(id=order_id)
         assert order.used_points == 13000
         assert order.final_amount == Decimal("0")
 
@@ -212,7 +215,8 @@ class TestOrderPaymentIntegration:
 
         # Act - 주문 생성
         order_response = authenticated_client.post("/api/orders/", order_data, format="json")
-        order = Order.objects.filter(user=user_with_points).order_by("-created_at").first()
+        order_id = order_response.data["order_id"]
+        order = Order.objects.get(id=order_id)
 
         # Act - 결제 요청
         payment_request_response = authenticated_client.post(
@@ -246,7 +250,8 @@ class TestOrderPaymentIntegration:
 
         # Act
         order_response = authenticated_client.post("/api/orders/", order_data, format="json")
-        order = Order.objects.filter(user=user_with_points).order_by("-created_at").first()
+        order_id = order_response.data["order_id"]
+        order = Order.objects.get(id=order_id)
 
         payment_request_response = authenticated_client.post(
             "/api/payments/request/",
@@ -280,7 +285,8 @@ class TestOrderPaymentIntegration:
 
         # Act
         order_response = authenticated_client.post("/api/orders/", order_data, format="json")
-        order = Order.objects.filter(user=user_with_points).order_by("-created_at").first()
+        order_id = order_response.data["order_id"]
+        order = Order.objects.get(id=order_id)
 
         payment_request_response = authenticated_client.post(
             "/api/payments/request/",
@@ -313,7 +319,8 @@ class TestOrderPaymentIntegration:
 
         # Act - 주문 생성
         order_response = authenticated_client.post("/api/orders/", shipping_data, format="json")
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order_id = order_response.data["order_id"]
+        order = Order.objects.get(id=order_id)
 
         # Act - 결제 요청 및 승인
         authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
@@ -367,7 +374,8 @@ class TestOrderPaymentIntegration:
 
             # Act - 주문 생성
             order_response = authenticated_client.post("/api/orders/", shipping_data, format="json")
-            order = Order.objects.filter(user=user).order_by("-created_at").first()
+            order_id = order_response.data["order_id"]
+            order = Order.objects.get(id=order_id)
 
             # Act - 결제 승인
             authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
@@ -418,7 +426,8 @@ class TestOrderPaymentIntegration:
         authenticated_client.force_authenticate(user=user_with_points)
 
         order_response = authenticated_client.post("/api/orders/", order_data, format="json")
-        order = Order.objects.filter(user=user_with_points).order_by("-created_at").first()
+        order_id = order_response.data["order_id"]
+        order = Order.objects.get(id=order_id)
 
         authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
@@ -487,7 +496,8 @@ class TestOrderPaymentIntegration:
         authenticated_client.force_authenticate(user=user)
 
         order_response = authenticated_client.post("/api/orders/", shipping_data, format="json")
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order_id = order_response.data["order_id"]
+        order = Order.objects.get(id=order_id)
 
         authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 

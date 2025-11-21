@@ -67,11 +67,15 @@ def process_order_heavy_tasks(
                     # 주문 실패 처리
                     order.status = "failed"
 <<<<<<< HEAD
+<<<<<<< HEAD
                     order.save(update_fields=["status", "updated_at"])
 =======
                     order.failure_reason = f"{product.name} 재고 부족"
                     order.save(update_fields=["status", "failure_reason", "updated_at"])
 >>>>>>> f476632 (feat: implement hybrid order processing with async task queue)
+=======
+                    order.save(update_fields=["status", "updated_at"])
+>>>>>>> d6e9224 (refactor: update order tests for async processing and remove invalid field references)
 
                     return {
                         "status": "failed",
@@ -122,11 +126,15 @@ def process_order_heavy_tasks(
 
                     order.status = "failed"
 <<<<<<< HEAD
+<<<<<<< HEAD
                     order.save(update_fields=["status", "updated_at"])
 =======
                     order.failure_reason = f"포인트 사용 실패: {result['message']}"
                     order.save(update_fields=["status", "failure_reason", "updated_at"])
 >>>>>>> f476632 (feat: implement hybrid order processing with async task queue)
+=======
+                    order.save(update_fields=["status", "updated_at"])
+>>>>>>> d6e9224 (refactor: update order tests for async processing and remove invalid field references)
 
                     return {
                         "status": "failed",

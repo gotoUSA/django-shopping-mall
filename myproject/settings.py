@@ -146,9 +146,7 @@ DATABASES = {
         # PostgreSQL-specific options for better connection management
         "OPTIONS": {
             "connect_timeout": 10,
-            # statement_timeout: 전체 쿼리 실행 시간 제한 (30초)
-            # lock_timeout: 락 대기 시간 제한 (5초) - 동시성 테스트에서 무한 대기 방지
-            "options": "-c statement_timeout=30000 -c lock_timeout=5000",
+            "options": "-c statement_timeout=30000",  # 30 second query timeout
         },
     }
 }

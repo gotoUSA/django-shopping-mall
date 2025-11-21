@@ -128,6 +128,7 @@ def send_email_notification(email: str, subject: str, message: str, html_message
 @shared_task(
     name="shopping.tasks.add_points_after_payment",
     queue="points",
+    priority=5,  # 낮은 우선순위
     max_retries=5,
     default_retry_delay=60,
 )

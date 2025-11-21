@@ -618,7 +618,7 @@ class TestPaymentValidationException:
         )
 
         # Assert - int → Decimal 변환 허용
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
         payment.refresh_from_db()
         assert isinstance(payment.amount, Decimal)

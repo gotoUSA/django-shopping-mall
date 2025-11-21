@@ -60,7 +60,7 @@ class TestPaymentPointsEarnNormalCase:
         )
 
         # Assert
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
         point_history = PointHistory.objects.filter(
             user=user,
@@ -110,7 +110,7 @@ class TestPaymentPointsEarnNormalCase:
         )
 
         # Assert
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
         point_history = PointHistory.objects.filter(
             user=user,
@@ -321,7 +321,7 @@ class TestPaymentPointsCancelNormalCase:
         )
 
         # Assert
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
         # 환불 이력 (type="cancel_refund")
         refund_history = PointHistory.objects.filter(

@@ -123,3 +123,117 @@ def send_email_notification(email: str, subject: str, message: str, html_message
 
         # 재시도
         raise send_email_notification.retry(exc=e)
+
+
+@shared_task(
+    name="shopping.tasks.add_points_after_payment",
+    queue="points",
+    max_retries=5,
+    default_retry_delay=60,
+)
+def add_points_after_payment(user_id: int, order_id: int) -> dict[str, Any]:
+    """
+    결제 완료 후 포인트 적립 처리 (비동기)
+
+    Args:
+        user_id: 사용자 ID
+        order_id: 주문 ID
+
+    Returns:
+        처리 결과 딕셔너리
+    """
+    from decimal import Decimal
+
+    from shopping.models.order import Order
+    from shopping.models.payment import PaymentLog
+    from shopping.models.user import User
+    from shopping.services.point_service import PointService
+
+    logger.info(f"포인트 적립 처리 시작: user_id={user_id}, order_id={order_id}")
+
+    try:
+        user = User.objects.get(pk=user_id)
+        order = Order.objects.get(pk=order_id)
+
+        # 포인트 적립 계산
+        # 포인트로만 결제한 경우는 적립하지 않음
+        if order.final_amount <= 0:
+            logger.info(f"포인트 전액 결제로 적립 없음: order_id={order_id}")
+            return {
+                "status": "skipped",
+                "message": "포인트 전액 결제로 적립하지 않음",
+                "order_id": order_id,
+            }
+
+        # 등급별 적립률 적용
+        earn_rate = user.get_earn_rate()  # 1, 2, 3, 5 (%)
+        points_to_add = int(order.final_amount * Decimal(earn_rate) / Decimal("100"))
+
+        if points_to_add <= 0:
+            logger.info(f"적립할 포인트 없음: order_id={order_id}, final_amount={order.final_amount}")
+            return {
+                "status": "skipped",
+                "message": "적립할 포인트 없음",
+                "order_id": order_id,
+            }
+
+        logger.info(
+            f"포인트 적립: user_id={user.id}, order_id={order.id}, "
+            f"points={points_to_add}, earn_rate={earn_rate}%"
+        )
+
+        # 포인트 적립
+        PointService.add_points(
+            user=user,
+            amount=points_to_add,
+            type="earn",
+            order=order,
+            description=f"주문 #{order.order_number} 구매 적립",
+            metadata={
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "payment_amount": str(order.final_amount),
+                "earn_rate": f"{earn_rate}%",
+                "membership_level": user.membership_level,
+            },
+        )
+
+        # 주문에 적립 포인트 기록
+        order.earned_points = points_to_add
+        order.save(update_fields=["earned_points"])
+
+        # 포인트 적립 로그
+        # Order와 Payment는 OneToOne 관계이므로 .payment로 접근
+        if hasattr(order, 'payment'):
+            PaymentLog.objects.create(
+                payment=order.payment,
+                log_type="approve",
+                message=f"포인트 {points_to_add}점 적립",
+                data={"points": points_to_add},
+            )
+
+        logger.info(f"포인트 적립 완료: user_id={user.id}, order_id={order.id}, points={points_to_add}")
+
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "order_id": order_id,
+            "points_added": points_to_add,
+            "message": f"{points_to_add} 포인트가 적립되었습니다.",
+        }
+
+    except (User.DoesNotExist, Order.DoesNotExist) as e:
+        logger.error(f"포인트 적립 실패 - 데이터 없음: {str(e)}")
+        return {
+            "status": "failed",
+            "message": str(e),
+            "user_id": user_id,
+            "order_id": order_id,
+        }
+
+    except Exception as e:
+        logger.error(f"포인트 적립 처리 실패: user_id={user_id}, order_id={order_id}, error={str(e)}")
+
+        # 재시도
+        raise add_points_after_payment.retry(exc=e)
+

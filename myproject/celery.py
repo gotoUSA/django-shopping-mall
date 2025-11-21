@@ -123,10 +123,25 @@ app.conf.update(
             "exchange_type": "direct",
             "routing_key": "default",
         },
+        "payment_critical": {  # 결제 관련 작업 (최우선)
+            "exchange": "payment_critical",
+            "exchange_type": "direct",
+            "routing_key": "payment.critical",
+        },
+        "order_processing": {  # 주문 처리
+            "exchange": "order_processing",
+            "exchange_type": "direct",
+            "routing_key": "order.process",
+        },
+        "external_api": {  # 외부 API 호출
+            "exchange": "external_api",
+            "exchange_type": "direct",
+            "routing_key": "external.api",
+        },
         "points": {  # 포인트 관련 작업 전용 큐
             "exchange": "points",
             "exchange_type": "direct",
-            "routing_key": "points",
+            "routing_key": "points.earn",
         },
         "notifications": {  # 알림 전용 큐
             "exchange": "notifications",
@@ -136,6 +151,27 @@ app.conf.update(
     },
     # 라우팅 설정
     task_routes={
+        # 결제 관련 (최우선)
+        "shopping.tasks.payment_tasks.*": {
+            "queue": "payment_critical",
+            "routing_key": "payment.critical",
+        },
+        # 주문 처리
+        "shopping.tasks.order_tasks.*": {
+            "queue": "order_processing",
+            "routing_key": "order.process",
+        },
+        # 외부 API 호출
+        "shopping.tasks.external_api_tasks.*": {
+            "queue": "external_api",
+            "routing_key": "external.api",
+        },
+        # 포인트 (낮은 우선순위)
+        "shopping.tasks.point_tasks.*": {
+            "queue": "points",
+            "routing_key": "points.earn",
+        },
+        # 기존 태스크 라우팅 (하위호환성)
         "shopping.tasks.expire_points_task": {"queue": "points"},
         "shopping.tasks.send_expiry_notification_task": {"queue": "notifications"},
     },

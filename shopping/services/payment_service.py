@@ -94,9 +94,9 @@ class PaymentService:
 
     @staticmethod
     @transaction.atomic
-    def confirm_payment(payment: Payment, payment_key: str, order_id: str, amount: int, user) -> dict[str, Any]:
+    def confirm_payment_sync(payment: Payment, payment_key: str, order_id: str, amount: int, user) -> dict[str, Any]:
         """
-        결제 승인 처리
+        결제 승인 처리 (동기 버전 - 롤백용)
 
         Args:
             payment: 결제 객체
@@ -245,6 +245,72 @@ class PaymentService:
             "payment": payment,
             "points_earned": points_to_add,
             "receipt_url": payment.receipt_url,
+        }
+
+    @staticmethod
+    def confirm_payment_async(
+        payment: Payment,
+        payment_key: str,
+        order_id: str,
+        amount: int,
+        user
+    ) -> dict[str, Any]:
+        """
+        결제 승인 처리 (비동기 버전)
+
+        1. Toss API 호출 태스크 실행
+        2. 즉시 응답 반환 (processing 상태)
+        3. 백그라운드에서 결제 최종 처리
+
+        Args:
+            payment: 결제 객체
+            payment_key: 토스페이먼츠 결제 키
+            order_id: 주문 번호
+            amount: 결제 금액
+            user: 요청한 사용자
+
+        Returns:
+            {'status': 'processing', 'payment_id': ..., 'task_id': ...}
+
+        Raises:
+            PaymentConfirmError: 결제 승인 실패
+        """
+        from celery import chain
+
+        from ..tasks.payment_tasks import call_toss_confirm_api, finalize_payment_confirm
+
+        logger.info(f"비동기 결제 승인 시작: payment_id={payment.id}")
+
+        # 1. Payment 상태 확인 (간단한 트랜잭션)
+        with transaction.atomic():
+            payment = Payment.objects.select_for_update().get(pk=payment.pk)
+
+            if payment.is_paid:
+                raise PaymentConfirmError("이미 완료된 결제입니다.")
+
+            if payment.status in ["expired", "canceled", "aborted"]:
+                raise PaymentConfirmError(f"유효하지 않은 결제 상태입니다: {payment.get_status_display()}")
+
+            # 처리 중 상태로 변경
+            payment.status = "in_progress"
+            payment.save(update_fields=["status"])
+
+        # 2. Celery Chain: Toss API 호출 → 최종 처리
+        task_chain = chain(
+            call_toss_confirm_api.s(payment_key, order_id, amount),
+            finalize_payment_confirm.s(payment.id, user.id)
+        )
+
+        result = task_chain.apply_async()
+
+        logger.info(f"결제 승인 태스크 실행: payment_id={payment.id}, task_id={result.id}")
+
+        # 3. 즉시 응답 (사용자는 결과를 WebSocket/Polling으로 확인)
+        return {
+            "status": "processing",
+            "payment_id": payment.id,
+            "task_id": result.id,
+            "message": "결제 처리 중입니다. 잠시만 기다려주세요.",
         }
 
     @staticmethod

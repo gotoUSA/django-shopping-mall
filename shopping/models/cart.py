@@ -134,19 +134,46 @@ class Cart(models.Model):
     def get_or_create_active_cart(
         cls, user: User | None = None, session_key: str | None = None
     ) -> tuple[Cart, bool]:
-        """회원/비회원 활성 장바구니 가져오기 또는 생성"""
+        """
+        회원/비회원 활성 장바구니 가져오기 또는 생성
+
+        IntegrityError retry 패턴으로 동시성 문제를 완벽하게 방지합니다.
+        동시에 여러 요청이 들어와도 안전하게 처리됩니다.
+        """
+        from django.core.exceptions import ValidationError
+        from django.db import IntegrityError, transaction
+
         if user and user.is_authenticated:
-            # 회원 장바구니
-            cart, created = cls.objects.get_or_create(user=user, is_active=True, defaults={"user": user})
+            lookup_kwargs = {"user": user, "is_active": True}
+            defaults = {"user": user}
         elif session_key:
-            # 비회원 장바구니
-            cart, created = cls.objects.get_or_create(
-                session_key=session_key, is_active=True, defaults={"session_key": session_key}
-            )
+            lookup_kwargs = {"session_key": session_key, "is_active": True}
+            defaults = {"session_key": session_key}
         else:
             raise ValueError("user 또는 session_key 중 하나는 필수입니다.")
 
-        return cart, created
+        # IntegrityError Retry Pattern (PostgreSQL 호환)
+        # 1. 먼저 조회 시도
+        try:
+            with transaction.atomic():
+                cart = cls.objects.select_for_update().get(**lookup_kwargs)
+                return cart, False
+        except cls.DoesNotExist:
+            pass
+
+        # 2. 없으면 생성 시도
+        try:
+            with transaction.atomic():
+                cart = cls.objects.create(**{**lookup_kwargs, **defaults})
+                return cart, True
+        except (IntegrityError, ValidationError):
+            # 3. 다른 트랜잭션이 동시에 생성함 → 다시 조회
+            # PostgreSQL에서는 IntegrityError 발생 시 트랜잭션이 broken 상태가 되므로
+            # 새로운 트랜잭션에서 다시 조회해야 함
+            # Cart.save()가 full_clean()을 호출하므로 ValidationError도 발생할 수 있음
+            with transaction.atomic():
+                cart = cls.objects.select_for_update().get(**lookup_kwargs)
+                return cart, False
 
     @classmethod
     def merge_anonymous_cart(cls, user: User, session_key: str) -> Cart:

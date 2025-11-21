@@ -28,6 +28,7 @@ class ProductService:
         트랜잭션 내에서 동시성을 제어하며 완전한 저장까지 수행합니다.
 
         동시성 안전성:
+            - PostgreSQL lock_timeout으로 락 대기 시간 제한 (5초)
             - 같은 product의 모든 이미지에 잠금을 걸어 race condition 방지
             - 모든 이미지를 False로 초기화 후 타겟만 True로 설정하여 원자성 보장
 

@@ -158,7 +158,10 @@ def webhook_data_builder():
 
         # PAYMENT.FAILED 이벤트
         elif event_type == "PAYMENT.FAILED":
-            webhook_data["data"]["failReason"] = fail_reason or "카드 한도 초과"
+            # fail_reason이 None일 때만 기본값 사용 (빈 문자열은 유지)
+            webhook_data["data"]["failReason"] = (
+                "카드 한도 초과" if fail_reason is None else fail_reason
+            )
 
         # 추가 필드 병합
         webhook_data["data"].update(kwargs)

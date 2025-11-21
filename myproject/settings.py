@@ -55,7 +55,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",  # 토큰 블랙리스트 앱
-    "drf_yasg",
+    "drf_spectacular",
     "django_celery_beat",
     # 소셜 로그인 필수 앱
     "django.contrib.sites",  # allauth 필수
@@ -280,6 +280,16 @@ else:
         # Special case throttles
         "webhook": "100/min",  # 웹훅: 1분당 100회 (외부 서비스용)
     }
+
+# drf-spectacular 설정
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Django 쇼핑몰 API",
+    "DESCRIPTION": "쇼핑몰 프로젝트 API 문서",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
+}
+
 
 # JWT 설정
 from datetime import timedelta

@@ -34,7 +34,7 @@ known_third_party = [
     "mptt",
     "allauth",
     "dj_rest_auth",
-    "drf_yasg"
+    "drf_spectacular"
 ]
 known_first_party = ["shopping", "myproject"]
 sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
@@ -63,6 +63,11 @@ testpaths = ["shopping/tests"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
+]
+filterwarnings = [
+    # Ignore dj-rest-auth deprecation warnings (library internal, cannot fix)
+    "ignore:app_settings.USERNAME_REQUIRED is deprecated:UserWarning:dj_rest_auth.registration.serializers",
+    "ignore:app_settings.EMAIL_REQUIRED is deprecated:UserWarning:dj_rest_auth.registration.serializers",
 ]
 
 # ==========================================

@@ -194,6 +194,14 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             # 2. 품절 체크
             if product.stock == 0:
                 errors.append(f"'{product.name}'은(는) 품절되었습니다.")
+                continue
+
+            # 3. 재고 부족 체크 (동기 검증 - 주문 수락 전 확인)
+            if product.stock < item.quantity:
+                errors.append(
+                    f"'{product.name}'의 재고가 부족합니다. "
+                    f"(요청: {item.quantity}개, 재고: {product.stock}개)"
+                )
 
         # 에러가 있으면 모두 반환
         if errors:

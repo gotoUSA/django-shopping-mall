@@ -86,6 +86,13 @@ class PaymentRequestView(EmailVerificationRequiredMixin, APIView):
 
             # 주문명 생성 (첫 상품명 + 나머지 개수)
             order_items = list(order.order_items.all())  # prefetch된 데이터 사용
+
+            if not order_items:
+                return Response(
+                    {"error": "주문 항목이 아직 생성되지 않았습니다. 잠시 후 다시 시도해주세요."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             first_item = order_items[0]
 
             if len(order_items) > 1:

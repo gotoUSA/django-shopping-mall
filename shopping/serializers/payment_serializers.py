@@ -91,13 +91,21 @@ class PaymentRequestSerializer(serializers.Serializer):
         except Order.DoesNotExist:
             raise serializers.ValidationError("주문을 찾을 수 없습니다.")
 
-        # 이미 결제된 주문인지 확인
-        if hasattr(order, "payment") and order.payment.is_paid:
-            raise serializers.ValidationError("이미 결제된 주문입니다.")
+        # 이미 결제 완료된 주문인지 확인
+        if hasattr(order, "payment"):
+            existing_payment = order.payment
+            if existing_payment.is_paid:
+                raise serializers.ValidationError("이미 결제된 주문입니다.")
+            # Payment가 존재하지만 미결제 상태면 재사용 가능하도록 저장
+            self.existing_payment = existing_payment
+        else:
+            self.existing_payment = None
 
-        # 주문 상태 확인
-        if order.status != "pending":
-            raise serializers.ValidationError(f"결제할 수 없는 주문 상태입니다: {order.get_status_display()}")
+        # 주문 상태 확인 (재고 확보 완료된 주문만 결제 가능)
+        if order.status != "confirmed":
+            raise serializers.ValidationError(
+                f"주문 처리가 완료되지 않았습니다. 잠시 후 다시 시도해주세요. (현재 상태: {order.get_status_display()})"
+            )
 
         # 주문 금액이 0원인지 확인 (포인트 전액 결제 허용)
         # final_amount가 0원이어도 허용 (포인트 전액 결제)
@@ -109,6 +117,10 @@ class PaymentRequestSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         """결제 정보 생성 (PaymentService 사용)"""
+        # 이미 미결제 Payment가 있으면 재사용
+        if hasattr(self, 'existing_payment') and self.existing_payment:
+            return self.existing_payment
+
         from ..services.payment_service import PaymentService
 
         order = self.order

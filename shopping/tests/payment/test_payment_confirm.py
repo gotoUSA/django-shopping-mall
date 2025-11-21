@@ -650,11 +650,11 @@ class TestPaymentConfirmException:
         assert payment.status == "aborted"
 
         # Assert - 에러 로그 기록
-        error_log = PaymentLog.objects.filter(
+        error_logs = PaymentLog.objects.filter(
             payment=payment,
             log_type="error",
-        ).first()
-        assert error_log is not None
+        )
+        assert error_logs.exists()
 
     def test_transaction_rollback_on_error(
         self,

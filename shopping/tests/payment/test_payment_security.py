@@ -560,11 +560,11 @@ class TestPaymentSecurityException:
             format="json",
         )
 
-        # Assert
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "error" in response.data
+        # Assert - 비동기이므로 먼저 202 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.data["status"] == "processing"
 
-        # Assert - Payment 실패 처리
+        # Assert - Celery eager mode에서 태스크가 즉시 실행되어 실패 처리됨
         payment.refresh_from_db()
         assert payment.status == "aborted"
 
@@ -627,11 +627,11 @@ class TestPaymentSecurityException:
             format="json",
         )
 
-        # Assert
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "error" in response.data
+        # Assert - 비동기이므로 먼저 202 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.data["status"] == "processing"
 
-        # Assert - 두 결제 모두 상태 변경 없음 (payment1만 aborted)
+        # Assert - Celery eager mode에서 태스크가 즉시 실행되어 실패 처리됨 (payment1만 aborted)
         payment1.refresh_from_db()
         payment2.refresh_from_db()
         assert payment1.status == "aborted"

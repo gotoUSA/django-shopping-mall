@@ -52,6 +52,21 @@ def call_toss_confirm_api(payment_key: str, order_id: str, amount: int) -> dict:
     except TossPaymentError as e:
         logger.error(f"Toss API 호출 실패: order_id={order_id}, error={e.message}")
 
+        # 에러 로그 기록 (Payment는 order_id로 찾아야 함)
+        try:
+            payment = Payment.objects.get(toss_order_id=order_id)
+            payment.status = "aborted"
+            payment.save(update_fields=["status"])
+
+            PaymentLog.objects.create(
+                payment=payment,
+                log_type="error",
+                message=f"Toss API 호출 실패: {e.message}",
+                data={"error_code": e.code, "error_message": e.message},
+            )
+        except Exception as log_error:
+            logger.error(f"에러 로그 기록 실패: {str(log_error)}")
+
         # 재시도 (네트워크 오류 등)
         if e.code in ["NETWORK_ERROR", "TIMEOUT"]:
             raise call_toss_confirm_api.retry(exc=e)

@@ -321,7 +321,7 @@ class TestPaymentPointsCancelNormalCase:
         )
 
         # Assert
-        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.status_code == status.HTTP_200_OK
 
         # 환불 이력 (type="cancel_refund")
         refund_history = PointHistory.objects.filter(

@@ -24,12 +24,12 @@ class TestOrderCreateHappyPath:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         assert order is not None
         assert order.user == user
-        assert order.status == "pending"
+        assert order.status == "confirmed"
         assert order.total_amount == product.price
         assert order.used_points == 0
         assert order.order_items.count() == 1
@@ -47,9 +47,9 @@ class TestOrderCreateHappyPath:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.order_items.count() == 3
         assert order.total_amount == sum(p.price for p in multiple_products)
 
@@ -63,9 +63,9 @@ class TestOrderCreateHappyPath:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         order_item = order.order_items.first()
         assert order_item.quantity == 3
         assert order.total_amount == product.price * 3
@@ -84,9 +84,9 @@ class TestOrderCreateHappyPath:
         response = authenticated_client.post(url, order_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user_with_points).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.used_points == 2000
 
         user_with_points.refresh_from_db()
@@ -112,9 +112,9 @@ class TestOrderCreateHappyPath:
         response = authenticated_client.post(url, order_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user_with_high_points).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.used_points == 23000
         assert order.final_amount == Decimal("0")
 
@@ -131,9 +131,9 @@ class TestOrderCreateHappyPath:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.order_number is not None
         assert len(order.order_number) == 14
         assert order.order_number.startswith(timezone.now().strftime("%Y%m%d"))
@@ -150,9 +150,9 @@ class TestOrderCreateHappyPath:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("20000")
         assert order.shipping_fee == Decimal("3000")
         assert order.final_amount == Decimal("23000")
@@ -169,9 +169,9 @@ class TestOrderCreateHappyPath:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("35000")
         assert order.shipping_fee == Decimal("0")
         assert order.is_free_shipping is True
@@ -191,9 +191,9 @@ class TestOrderCreateHappyPath:
         response = authenticated_client.post(url, remote_shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.is_free_shipping is True
         assert order.shipping_fee == Decimal("0")
         assert order.additional_shipping_fee == Decimal("3000")
@@ -210,7 +210,7 @@ class TestOrderCreateHappyPath:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
         # 주문 후 장바구니 상태 확인
         # 구현에 따라 비활성화 또는 아이템 삭제될 수 있음
@@ -231,9 +231,9 @@ class TestOrderCreateHappyPath:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         order_item = order.order_items.first()
         assert order_item.product_name == original_name
         assert order_item.price == original_price
@@ -255,9 +255,9 @@ class TestOrderCreateBoundary:
         response = authenticated_client.post(url, order_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.used_points == 0
 
     def test_create_order_use_all_points(
@@ -274,7 +274,7 @@ class TestOrderCreateBoundary:
         response = authenticated_client.post(url, order_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
         user_with_points.refresh_from_db()
         assert user_with_points.points == 0
@@ -291,9 +291,9 @@ class TestOrderCreateBoundary:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.order_items.count() == 1
 
     def test_create_order_minimum_amount(self, authenticated_client, user, product, add_to_cart_helper, shipping_data):
@@ -308,9 +308,9 @@ class TestOrderCreateBoundary:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("1")
 
     def test_create_order_exact_free_shipping_threshold(
@@ -327,9 +327,9 @@ class TestOrderCreateBoundary:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.is_free_shipping is True
         assert order.shipping_fee == Decimal("0")
 
@@ -347,9 +347,9 @@ class TestOrderCreateBoundary:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.is_free_shipping is False
         assert order.shipping_fee == Decimal("3000")
 
@@ -365,9 +365,9 @@ class TestOrderCreateBoundary:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         order_item = order.order_items.first()
         assert order_item.quantity == 10
 
@@ -387,9 +387,9 @@ class TestOrderCreateBoundary:
         response = authenticated_client.post(url, order_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
-        order = Order.objects.filter(user=user_with_points).order_by("-created_at").first()
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.used_points == 5000
 
 
@@ -460,8 +460,12 @@ class TestOrderCreateException:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        # Assert - 비동기 처리로 인해 202 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+
+        # 비동기 태스크에서 재고 부족으로 실패 확인
+        order = Order.objects.get(id=response.data["order_id"])
+        assert order.status == "failed"
 
     def test_create_order_exceeds_points(
         self, authenticated_client, user_with_points, product, add_to_cart_helper, shipping_data
@@ -589,4 +593,4 @@ class TestOrderCreateException:
 
         # Assert
         # 0원 상품 허용 여부는 비즈니스 로직에 따라 다름
-        assert response.status_code in [status.HTTP_400_BAD_REQUEST, status.HTTP_201_CREATED]
+        assert response.status_code in [status.HTTP_400_BAD_REQUEST, status.HTTP_202_ACCEPTED]

@@ -66,8 +66,7 @@ def process_order_heavy_tasks(
 
                     # 주문 실패 처리
                     order.status = "failed"
-                    order.failure_reason = f"{product.name} 재고 부족"
-                    order.save(update_fields=["status", "failure_reason", "updated_at"])
+                    order.save(update_fields=["status", "updated_at"])
 
                     return {
                         "status": "failed",
@@ -117,8 +116,7 @@ def process_order_heavy_tasks(
                         )
 
                     order.status = "failed"
-                    order.failure_reason = f"포인트 사용 실패: {result['message']}"
-                    order.save(update_fields=["status", "failure_reason", "updated_at"])
+                    order.save(update_fields=["status", "updated_at"])
 
                     return {
                         "status": "failed",

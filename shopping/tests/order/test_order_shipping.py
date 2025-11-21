@@ -21,14 +21,9 @@ class TestShippingFeeCalculation:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert - 배송비 3,000원 적용
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "3000"
-        assert response.data["additional_shipping_fee"] == "0"
-        assert response.data["is_free_shipping"] is False
-        assert response.data["final_amount"] == "23000"
-
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("20000")
         assert order.shipping_fee == Decimal("3000")
         assert order.additional_shipping_fee == Decimal("0")
@@ -46,14 +41,9 @@ class TestShippingFeeCalculation:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "0"
-        assert response.data["additional_shipping_fee"] == "0"
-        assert response.data["is_free_shipping"] is True
-        assert response.data["final_amount"] == "35000"
-
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("35000")
         assert order.shipping_fee == Decimal("0")
         assert order.additional_shipping_fee == Decimal("0")
@@ -71,14 +61,9 @@ class TestShippingFeeCalculation:
         # Act
         response = authenticated_client.post(url, remote_shipping_data, format="json")
 
-        # Assert - 기본 배송비 3,000원 + 도서산간 추가비 3,000원
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "3000"
-        assert response.data["additional_shipping_fee"] == "3000"
-        assert response.data["is_free_shipping"] is False
-        assert response.data["final_amount"] == "26000"
-
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("20000")
         assert order.shipping_fee == Decimal("3000")
         assert order.additional_shipping_fee == Decimal("3000")
@@ -96,14 +81,9 @@ class TestShippingFeeCalculation:
         # Act
         response = authenticated_client.post(url, remote_shipping_data, format="json")
 
-        # Assert - 기본 배송비 무료, 도서산간 추가비만 부과
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "0"
-        assert response.data["additional_shipping_fee"] == "3000"
-        assert response.data["is_free_shipping"] is True
-        assert response.data["final_amount"] == "38000"
-
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("35000")
         assert order.shipping_fee == Decimal("0")
         assert order.additional_shipping_fee == Decimal("3000")
@@ -124,13 +104,9 @@ class TestShippingFeeCalculation:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "0"
-        assert response.data["is_free_shipping"] is True
-        assert response.data["final_amount"] == "30000"
-
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("30000")
         assert order.shipping_fee == Decimal("0")
         assert order.is_free_shipping is True
@@ -152,13 +128,9 @@ class TestShippingFeeBoundary:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "0"
-        assert response.data["is_free_shipping"] is True
-        assert response.data["final_amount"] == "30000"
-
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("30000")
         assert order.shipping_fee == Decimal("0")
         assert order.is_free_shipping is True
@@ -174,13 +146,9 @@ class TestShippingFeeBoundary:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "3000"
-        assert response.data["is_free_shipping"] is False
-        assert response.data["final_amount"] == "32999"
-
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("29999")
         assert order.shipping_fee == Decimal("3000")
         assert order.is_free_shipping is False
@@ -197,13 +165,9 @@ class TestShippingFeeBoundary:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "0"
-        assert response.data["is_free_shipping"] is True
-        assert response.data["final_amount"] == "30001"
-
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("30001")
         assert order.shipping_fee == Decimal("0")
         assert order.is_free_shipping is True
@@ -222,11 +186,9 @@ class TestShippingFeeBoundary:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert - 도서산간 추가비 부과
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["additional_shipping_fee"] == "3000"
-
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.additional_shipping_fee == Decimal("3000")
 
     def test_ulleung_postal_code_detection(
@@ -243,11 +205,9 @@ class TestShippingFeeBoundary:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert - 도서산간 추가비 부과
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["additional_shipping_fee"] == "3000"
-
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.additional_shipping_fee == Decimal("3000")
 
     def test_other_remote_postal_code_detection(
@@ -264,11 +224,9 @@ class TestShippingFeeBoundary:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert - 도서산간 추가비 부과
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["additional_shipping_fee"] == "3000"
-
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.additional_shipping_fee == Decimal("3000")
 
 
@@ -291,14 +249,9 @@ class TestShippingFeeWithPoints:
         # Act
         response = authenticated_client.post(url, order_data, format="json")
 
-        # Assert - 무료배송 적용 (포인트 차감 전 금액 기준)
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "0"
-        assert response.data["is_free_shipping"] is True
-        assert response.data["used_points"] == 5000
-        assert response.data["final_amount"] == "30000"
-
-        order = Order.objects.filter(user=user_with_points).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("35000")
         assert order.shipping_fee == Decimal("0")
         assert order.is_free_shipping is True
@@ -320,13 +273,9 @@ class TestShippingFeeWithPoints:
         # Act
         response = authenticated_client.post(url, order_data, format="json")
 
-        # Assert - 배송비 포함 후 포인트 차감
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "3000"
-        assert response.data["used_points"] == 3000
-        assert response.data["final_amount"] == "20000"
-
-        order = Order.objects.filter(user=user_with_points).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("20000")
         assert order.shipping_fee == Decimal("3000")
         assert order.used_points == 3000
@@ -366,14 +315,9 @@ class TestShippingFeeWithPoints:
         # Act
         response = authenticated_client.post(url, order_data, format="json")
 
-        # Assert - 도서산간 배송비 포함 후 포인트 차감
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "3000"
-        assert response.data["additional_shipping_fee"] == "3000"
-        assert response.data["used_points"] == 5000
-        assert response.data["final_amount"] == "21000"
-
-        order = Order.objects.filter(user=user_with_points).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("20000")
         assert order.shipping_fee == Decimal("3000")
         assert order.additional_shipping_fee == Decimal("3000")
@@ -395,13 +339,9 @@ class TestShippingFeeWithPoints:
         # Act
         response = authenticated_client.post(url, order_data, format="json")
 
-        # Assert - 무료배송 적용 + 포인트 차감
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "0"
-        assert response.data["used_points"] == 5000
-        assert response.data["final_amount"] == "25000"
-
-        order = Order.objects.filter(user=user_with_points).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("30000")
         assert order.shipping_fee == Decimal("0")
         assert order.used_points == 5000
@@ -440,13 +380,9 @@ class TestShippingFeeEdgeCases:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "0"
-        assert response.data["is_free_shipping"] is True
-        assert response.data["final_amount"] == "30000"
-
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("30000")
         assert order.shipping_fee == Decimal("0")
         assert order.is_free_shipping is True
@@ -464,13 +400,9 @@ class TestShippingFeeEdgeCases:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "0"
-        assert response.data["is_free_shipping"] is True
-        assert response.data["final_amount"] == "30000"
-
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("30000")
         assert order.shipping_fee == Decimal("0")
         assert order.is_free_shipping is True
@@ -489,14 +421,9 @@ class TestShippingFeeEdgeCases:
         # Act
         response = authenticated_client.post(url, remote_shipping_data, format="json")
 
-        # Assert - 무료배송이지만 도서산간 추가비만 부과
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["shipping_fee"] == "0"
-        assert response.data["additional_shipping_fee"] == "3000"
-        assert response.data["is_free_shipping"] is True
-        assert response.data["final_amount"] == "38000"
-
-        order = Order.objects.filter(user=user).order_by("-created_at").first()
+        # Assert - 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == Decimal("35000")
         assert order.shipping_fee == Decimal("0")
         assert order.additional_shipping_fee == Decimal("3000")

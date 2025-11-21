@@ -24,7 +24,8 @@ class TestOrderStockDecrease:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert "order_id" in response.data
 
         product.refresh_from_db()
         assert product.stock == initial_stock - order_quantity
@@ -46,7 +47,8 @@ class TestOrderStockDecrease:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert "order_id" in response.data
 
         for product in multiple_products:
             product.refresh_from_db()
@@ -67,7 +69,8 @@ class TestOrderStockDecrease:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert "order_id" in response.data
 
         product.refresh_from_db()
         assert product.stock == 0
@@ -86,7 +89,8 @@ class TestOrderStockDecrease:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert "order_id" in response.data
 
         product.refresh_from_db()
         assert product.stock == 1

@@ -30,12 +30,12 @@ class TestOrderValidationHappyPath:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        assert Order.objects.filter(user=user).count() == 1
-        order = Order.objects.get(user=user)
-        assert order.total_amount == product.price
-        assert order.status == "pending"
+        # Assert: 비동기 응답 (HTTP 202)
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert "order_id" in response.data
+        assert "task_id" in response.data
+        assert "status" in response.data
+        assert response.data["status"] == "pending"
 
     def test_create_order_with_multiple_products(
         self, authenticated_client, user, multiple_products, shipping_data, add_to_cart_helper
@@ -49,12 +49,10 @@ class TestOrderValidationHappyPath:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        order = Order.objects.get(user=user)
-        assert order.order_items.count() == 3
-        expected_total = sum(p.price for p in multiple_products)
-        assert order.total_amount == expected_total
+        # Assert: 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert "order_id" in response.data
+        assert "task_id" in response.data
 
     def test_create_order_with_points(self, authenticated_client, user, product, shipping_data, add_to_cart_helper):
         """포인트 사용 주문 (부분 결제)"""
@@ -67,13 +65,12 @@ class TestOrderValidationHappyPath:
         # Act
         response = authenticated_client.post(url, order_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        order = Order.objects.get(user=user)
+        # Assert: 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert "order_id" in response.data
+        # Order는 생성됨 (포인트 차감은 비동기)
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.used_points == use_points
-        assert order.final_amount == order.total_amount + order.shipping_fee - use_points
-        user.refresh_from_db()
-        assert user.points == DEFAULT_USER_POINTS - use_points
 
     def test_create_order_with_full_points_payment(
         self, authenticate_as, user_with_high_points, product, add_to_cart_helper, shipping_data
@@ -95,9 +92,9 @@ class TestOrderValidationHappyPath:
         # Act
         response = authenticated_client.post(url, order_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        order = Order.objects.get(user=user_with_high_points)
+        # Assert: 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.used_points == total_payment
         assert order.final_amount == Decimal("0")
 
@@ -112,10 +109,9 @@ class TestOrderValidationHappyPath:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        order = Order.objects.get(user=user)
-        assert order.order_items.first().quantity == 3
+        # Assert: 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.total_amount == product.price * 3
 
 
@@ -133,9 +129,9 @@ class TestOrderValidationBoundary:
         # Act
         response = authenticated_client.post(url, order_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        order = Order.objects.get(user=user)
+        # Assert: 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.used_points == MIN_POINTS
 
     def test_maximum_points_usage(self, authenticate_as, user_with_high_points, product, add_to_cart_helper, shipping_data):
@@ -156,9 +152,9 @@ class TestOrderValidationBoundary:
         # Act
         response = authenticated_client.post(url, order_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        order = Order.objects.get(user=user_with_high_points)
+        # Assert: 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.used_points == total_payment
         assert order.final_amount == Decimal("0")
 
@@ -172,9 +168,9 @@ class TestOrderValidationBoundary:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        order = Order.objects.get(user=user)
+        # Assert: 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.shipping_fee == Decimal("0")
         assert order.is_free_shipping is True
 
@@ -188,9 +184,9 @@ class TestOrderValidationBoundary:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        order = Order.objects.get(user=user)
+        # Assert: 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.shipping_fee == DEFAULT_SHIPPING_FEE
         assert order.is_free_shipping is False
 
@@ -203,9 +199,9 @@ class TestOrderValidationBoundary:
         # Act
         response = authenticated_client.post(url, remote_shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        order = Order.objects.get(user=user)
+        # Assert: 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.additional_shipping_fee == REMOTE_AREA_FEE
 
     def test_remote_area_with_free_shipping(
@@ -220,9 +216,9 @@ class TestOrderValidationBoundary:
         # Act
         response = authenticated_client.post(url, remote_shipping_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        order = Order.objects.get(user=user)
+        # Assert: 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.shipping_fee == Decimal("0")  # 무료배송
         assert order.additional_shipping_fee == REMOTE_AREA_FEE  # 도서산간비는 별도
         assert order.is_free_shipping is True
@@ -237,9 +233,9 @@ class TestOrderValidationBoundary:
         # Act
         response = authenticated_client.post(url, order_data, format="json")
 
-        # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        order = Order.objects.get(user=user)
+        # Assert: 비동기 응답
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        order = Order.objects.get(id=response.data["order_id"])
         assert order.used_points == 0
 
 

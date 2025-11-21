@@ -119,8 +119,32 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # 이메일 인증이 완료되었다면 정상적으로 주문 생성
-        return super().create(request, *args, **kwargs)
+
+        # Validate and create order using hybrid method
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Use hybrid method for async processing
+        order, task_id = serializer.create_hybrid(serializer.validated_data)
+
+        logger.info(
+            f"주문 하이브리드 생성: order_id={order.id}, order_number={order.order_number}, "
+            f"task_id={task_id}, user_id={request.user.id}"
+        )
+
+        # Return HTTP 202 Accepted with task tracking info
+        return Response(
+            {
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "status": "pending",
+                "task_id": task_id,
+                "message": "주문 처리 중입니다. 잠시 후 주문 내역에서 확인해주세요.",
+                "status_url": f"/api/orders/{order.id}/",
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+
 
     @action(detail=True, methods=["post"])
     def cancel(self, request: Request, pk: int | None = None) -> Response:

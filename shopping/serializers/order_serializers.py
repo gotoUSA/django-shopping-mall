@@ -194,6 +194,14 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             # 2. 품절 체크
             if product.stock == 0:
                 errors.append(f"'{product.name}'은(는) 품절되었습니다.")
+                continue
+
+            # 3. 재고 부족 체크 (동기 검증 - 주문 수락 전 확인)
+            if product.stock < item.quantity:
+                errors.append(
+                    f"'{product.name}'의 재고가 부족합니다. "
+                    f"(요청: {item.quantity}개, 재고: {product.stock}개)"
+                )
 
         # 에러가 있으면 모두 반환
         if errors:
@@ -251,6 +259,34 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             return order
         except OrderServiceError as e:
             raise serializers.ValidationError(str(e))
+
+    def create_hybrid(self, validated_data: dict[str, Any]) -> tuple[Order, str]:
+        """
+        주문 생성 (하이브리드 방식 - 비동기 처리)
+
+        Order 레코드만 생성하고 무거운 작업은 비동기로 처리
+        """
+        user = self.context["request"].user
+        cart = self.cart
+        use_points = validated_data.pop("use_points", 0)
+
+        try:
+            # OrderService의 하이브리드 메서드 호출
+            order, task_id = OrderService.create_order_hybrid(
+                user=user,
+                cart=cart,
+                shipping_name=validated_data["shipping_name"],
+                shipping_phone=validated_data["shipping_phone"],
+                shipping_postal_code=validated_data["shipping_postal_code"],
+                shipping_address=validated_data["shipping_address"],
+                shipping_address_detail=validated_data.get("shipping_address_detail", ""),
+                order_memo=validated_data.get("order_memo", ""),
+                use_points=use_points,
+            )
+            return order, task_id
+        except OrderServiceError as e:
+            raise serializers.ValidationError(str(e))
+
 
     def to_representation(self, instance: Order) -> dict[str, Any]:
         """

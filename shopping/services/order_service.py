@@ -182,6 +182,101 @@ class OrderService:
         return order
 
     @staticmethod
+    def create_order_hybrid(
+        user,
+        cart: Cart,
+        shipping_name: str,
+        shipping_phone: str,
+        shipping_postal_code: str,
+        shipping_address: str,
+        shipping_address_detail: str,
+        order_memo: str = "",
+        use_points: int = 0,
+    ) -> tuple[Order, str]:
+        """
+        주문 생성 (하이브리드 방식)
+
+        1. Order 레코드만 빠르게 생성 (동기, 즉시 응답)
+        2. 재고/포인트 처리는 비동기 태스크로 위임
+
+        Args:
+            user: 주문 사용자
+            cart: 장바구니
+            shipping_name: 수령인 이름
+            shipping_phone: 수령인 전화번호
+            shipping_postal_code: 우편번호
+            shipping_address: 주소
+            shipping_address_detail: 상세주소
+            order_memo: 배송 요청사항
+            use_points: 사용할 포인트
+
+        Returns:
+            (Order, task_id) 튜플
+
+        Raises:
+            OrderServiceError: 장바구니 비어있음, 포인트 부족 등
+        """
+        logger.info(f"하이브리드 주문 생성 시작: user_id={user.id}, cart_id={cart.id}")
+
+        # 1. 사전 검증 (동기)
+        if not cart.items.exists():
+            raise OrderServiceError("장바구니가 비어있습니다.")
+
+        total_amount = cart.get_total_amount()
+
+        # 2. 배송비 계산
+        shipping_result = ShippingService.calculate_fee(
+            total_amount=total_amount,
+            postal_code=shipping_postal_code
+        )
+
+        # 3. 포인트 사용 검증 (실제 차감은 나중에)
+        total_payment_amount = (
+            total_amount +
+            shipping_result["shipping_fee"] +
+            shipping_result["additional_fee"]
+        )
+        OrderService._validate_point_usage(user, use_points, total_payment_amount)
+
+        # 4. 최종 결제 금액
+        final_amount = max(Decimal("0"), total_payment_amount - Decimal(str(use_points)))
+
+        # 5. Order 레코드 생성 (트랜잭션 짧게)
+        with transaction.atomic():
+            order = Order.objects.create(
+                user=user,
+                status="pending",  # 아직 미확정
+                total_amount=total_amount,
+                shipping_fee=shipping_result["shipping_fee"],
+                additional_shipping_fee=shipping_result["additional_fee"],
+                is_free_shipping=shipping_result["is_free_shipping"],
+                used_points=use_points,
+                final_amount=final_amount,
+                shipping_name=shipping_name,
+                shipping_phone=shipping_phone,
+                shipping_postal_code=shipping_postal_code,
+                shipping_address=shipping_address,
+                shipping_address_detail=shipping_address_detail,
+                order_memo=order_memo,
+            )
+
+        logger.info(f"Order 레코드 생성 완료: order_id={order.id}, order_number={order.order_number}")
+
+        # 6. 무거운 작업은 비동기로 (재고, 포인트)
+        from ..tasks.order_tasks import process_order_heavy_tasks
+
+        task_result = process_order_heavy_tasks.delay(
+            order_id=order.id,
+            cart_id=cart.id,
+            use_points=use_points
+        )
+
+        logger.info(f"주문 비동기 처리 시작: order_id={order.id}, task_id={task_result.id}")
+
+        return order, task_result.id
+
+
+    @staticmethod
     def _create_order_items_and_decrease_stock(order: Order, cart: Cart) -> None:
         """
         주문 아이템 생성 및 재고 차감

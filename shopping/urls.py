@@ -45,6 +45,7 @@ from shopping.views.payment_views import (
     PaymentFailView,
     PaymentListView,
     PaymentRequestView,
+    PaymentStatusView,
     payment_fail,
     payment_success,
     payment_test_page,
@@ -219,6 +220,7 @@ urlpatterns = [
     # 결제 조회
     path("payments/", PaymentListView.as_view(), name="payment-list"),
     path("payments/<int:payment_id>/", PaymentDetailView.as_view(), name="payment-detail"),
+    path("payments/<int:payment_id>/status/", PaymentStatusView.as_view(), name="payment-status"),
     # 포인트 관련 URL
     path("points/my/", point_views.MyPointView.as_view(), name="my_points"),
     path(

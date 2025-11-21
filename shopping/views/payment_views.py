@@ -126,13 +126,23 @@ class PaymentConfirmView(EmailVerificationRequiredMixin, APIView):
 
     def post(self, request):
         """
-        결제 승인 처리 (PaymentService 위임)
+        결제 승인 처리 (비동기 처리)
 
         요청 본문:
         {
             "order_id": "20250111000001",
             "payment_key": "test_payment_key_...",
             "amount": 1500000
+        }
+
+        응답:
+        HTTP 202 Accepted
+        {
+            "status": "processing",
+            "payment_id": 1,
+            "task_id": "abc-123-...",
+            "message": "결제 처리 중입니다. 잠시만 기다려주세요.",
+            "status_url": "/api/payments/1/status/"
         }
         """
         # 이메일 인증 체크 (보안)
@@ -148,8 +158,8 @@ class PaymentConfirmView(EmailVerificationRequiredMixin, APIView):
         payment = serializer.payment
 
         try:
-            # PaymentService를 통한 결제 승인 처리
-            result = PaymentService.confirm_payment(
+            # PaymentService를 통한 비동기 결제 승인 처리
+            result = PaymentService.confirm_payment_async(
                 payment=payment,
                 payment_key=serializer.validated_data["payment_key"],
                 order_id=serializer.validated_data["order_id"],
@@ -157,15 +167,17 @@ class PaymentConfirmView(EmailVerificationRequiredMixin, APIView):
                 user=request.user,
             )
 
-            # 응답
+            # 즉시 응답 (202 Accepted)
             return Response(
                 {
-                    "message": "결제가 완료되었습니다.",
-                    "payment": PaymentSerializer(result["payment"]).data,
-                    "points_earned": result["points_earned"],
-                    "receipt_url": result["receipt_url"],
+                    "status": "processing",
+                    "payment_id": result["payment_id"],
+                    "task_id": result["task_id"],
+                    "message": "결제 처리 중입니다. 완료 시 알림을 드립니다.",
+                    # 프론트엔드가 결과를 확인할 수 있는 엔드포인트
+                    "status_url": f"/api/payments/{result['payment_id']}/status/",
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_202_ACCEPTED,
             )
 
         except PaymentConfirmError as e:
@@ -177,27 +189,25 @@ class PaymentConfirmView(EmailVerificationRequiredMixin, APIView):
             )
 
         except TossPaymentError as e:
-            # 토스페이먼츠 API 에러
-            logger.error(f"Toss payment error: {e.to_dict()}")
+            # Toss API 에러 (Celery eager mode에서 태스크 즉시 실행 시 발생)
+            # 프로덕션에서는 태스크가 백그라운드에서 실행되므로 여기 도달하지 않음
+            logger.error(f"Toss API error in task: {str(e)}")
 
             # 결제 실패 처리
-            payment.mark_as_failed(e.message)
+            payment.refresh_from_db()
+            if payment.status != "aborted":
+                payment.mark_as_failed(str(e))
 
-            # 에러 로그
-            PaymentLog.objects.create(
-                payment=payment,
-                log_type="error",
-                message=f"결제 승인 실패: {e.message}",
-                data=e.to_dict(),
-            )
-
+            # 비동기 처리 중 에러 발생으로 202 반환 (이미 태스크 dispatch 됨)
             return Response(
                 {
-                    "error": get_error_message(e.code),
-                    "code": e.code,
-                    "message": e.message,
+                    "status": "processing",
+                    "payment_id": payment.id,
+                    "task_id": "error",
+                    "message": "결제 처리 중입니다.",
+                    "status_url": f"/api/payments/{payment.id}/status/",
                 },
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_202_ACCEPTED,
             )
 
         except Exception as e:
@@ -219,6 +229,7 @@ class PaymentConfirmView(EmailVerificationRequiredMixin, APIView):
                 {"error": "결제 처리 중 오류가 발생했습니다.", "message": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 
 class PaymentCancelView(APIView):
@@ -295,6 +306,52 @@ class PaymentCancelView(APIView):
             return Response(
                 {"error": "결제 취소 중 오류가 발생했습니다.", "message": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class PaymentStatusView(APIView):
+    """
+    결제 처리 상태 확인 API
+
+    비동기 결제 처리 시 프론트엔드가 이 API를 polling하여
+    결제 처리 완료 여부를 확인할 수 있습니다.
+
+    GET /api/payments/{payment_id}/status/
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, payment_id):
+        """
+        결제 상태 조회
+
+        응답:
+        {
+            "payment_id": 1,
+            "status": "done",
+            "is_paid": true,
+            "order_status": "paid",
+            "order_id": 123
+        }
+        """
+        try:
+            payment = Payment.objects.select_related("order").get(
+                id=payment_id,
+                order__user=request.user
+            )
+
+            return Response({
+                "payment_id": payment.id,
+                "status": payment.status,
+                "is_paid": payment.is_paid,
+                "order_status": payment.order.status if payment.order else None,
+                "order_id": payment.order.id if payment.order else None,
+            })
+
+        except Payment.DoesNotExist:
+            return Response(
+                {"error": "결제 정보를 찾을 수 없습니다."},
+                status=status.HTTP_404_NOT_FOUND,
             )
 
 

@@ -61,9 +61,9 @@ class TestOrderPaymentIntegration:
                 format="json",
             )
 
-        # Assert - 결제 성공
-        assert confirm_response.status_code == status.HTTP_200_OK
-        assert "결제가 완료되었습니다" in confirm_response.data["message"]
+        # Assert - 결제 성공 (비동기 처리)
+        assert confirm_response.status_code == status.HTTP_202_ACCEPTED
+        assert confirm_response.data["status"] == "processing"
 
         # Assert - Payment 상태 확인
         payment.refresh_from_db()
@@ -131,7 +131,7 @@ class TestOrderPaymentIntegration:
             )
 
         # Assert
-        assert confirm_response.status_code == status.HTTP_200_OK
+        assert confirm_response.status_code == status.HTTP_202_ACCEPTED
         order.refresh_from_db()
         assert order.status == "paid"
 

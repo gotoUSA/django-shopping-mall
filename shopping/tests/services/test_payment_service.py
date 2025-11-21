@@ -130,7 +130,7 @@ class TestPaymentServiceConfirmPayment:
         )
 
         # Act
-        result = PaymentService.confirm_payment(
+        result = PaymentService.confirm_payment_sync(
             payment=payment,
             payment_key="test_payment_key_123",
             order_id=order.order_number,
@@ -187,7 +187,7 @@ class TestPaymentServiceConfirmPayment:
         )
 
         # Act
-        result = PaymentService.confirm_payment(
+        result = PaymentService.confirm_payment_sync(
             payment=payment,
             payment_key="test_payment_key_123",
             order_id=order.order_number,
@@ -218,7 +218,7 @@ class TestPaymentServiceConfirmPayment:
         )
 
         # Act
-        PaymentService.confirm_payment(
+        PaymentService.confirm_payment_sync(
             payment=payment,
             payment_key="test_payment_key_123",
             order_id=order.order_number,
@@ -270,7 +270,7 @@ class TestPaymentServiceCancelPayment:
             amount=int(order.final_amount),
         )
 
-        PaymentService.confirm_payment(
+        PaymentService.confirm_payment_sync(
             payment=payment,
             payment_key="test_payment_key_123",
             order_id=order.order_number,
@@ -341,7 +341,7 @@ class TestPaymentServiceCancelPayment:
             amount=int(order.final_amount),
         )
 
-        PaymentService.confirm_payment(
+        PaymentService.confirm_payment_sync(
             payment=payment,
             payment_key="test_payment_key_123",
             order_id=order.order_number,
@@ -393,7 +393,7 @@ class TestPaymentServiceCancelPayment:
             amount=int(order.final_amount),
         )
 
-        PaymentService.confirm_payment(
+        PaymentService.confirm_payment_sync(
             payment=payment,
             payment_key="test_payment_key_123",
             order_id=order.order_number,
@@ -456,7 +456,7 @@ class TestPaymentServiceCancelPayment:
             amount=int(order.final_amount),
         )
 
-        PaymentService.confirm_payment(
+        PaymentService.confirm_payment_sync(
             payment=payment,
             payment_key="test_payment_key_123",
             order_id=order.order_number,
@@ -499,7 +499,7 @@ class TestPaymentServiceCancelPayment:
             amount=int(order.final_amount),
         )
 
-        PaymentService.confirm_payment(
+        PaymentService.confirm_payment_sync(
             payment=payment,
             payment_key="test_payment_key_123",
             order_id=order.order_number,

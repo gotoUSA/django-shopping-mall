@@ -142,8 +142,8 @@ class TestPaymentValidationNormalCase:
             format="json",
         )
 
-        assert confirm_response.status_code == status.HTTP_200_OK
-        assert confirm_response.data["points_earned"] == 0
+        assert confirm_response.status_code == status.HTTP_202_ACCEPTED
+        assert confirm_response.data["status"] == "processing"
 
     def test_partial_points_usage(
         self,
@@ -618,7 +618,7 @@ class TestPaymentValidationException:
         )
 
         # Assert - int → Decimal 변환 허용
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
         payment.refresh_from_db()
         assert isinstance(payment.amount, Decimal)

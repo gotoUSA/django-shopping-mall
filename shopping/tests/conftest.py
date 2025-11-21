@@ -637,7 +637,7 @@ def order(db, user, product):
 
     order = Order.objects.create(
         user=user,
-        status="pending",
+        status="confirmed",
         total_amount=product.price,
         final_amount=product.price,  # 포인트 적립을 위해 final_amount 설정
         shipping_name="홍길동",

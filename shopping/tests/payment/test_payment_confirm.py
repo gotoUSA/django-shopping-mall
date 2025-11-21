@@ -143,7 +143,7 @@ class TestPaymentConfirm:
             order_data,
             format="json",
         )
-        assert order_response.status_code == status.HTTP_201_CREATED
+        assert order_response.status_code == status.HTTP_202_ACCEPTED
 
         order = Order.objects.filter(user=user).order_by("-created_at").first()
         assert order.used_points == 2000
@@ -291,7 +291,7 @@ class TestPaymentConfirmBoundary:
             order_data,
             format="json",
         )
-        assert order_response.status_code == status.HTTP_201_CREATED
+        assert order_response.status_code == status.HTTP_202_ACCEPTED
 
         order = Order.objects.filter(user=user).order_by("-created_at").first()
         assert order.final_amount == 0

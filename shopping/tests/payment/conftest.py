@@ -56,7 +56,7 @@ def order_with_multiple_items(db, user, category):
     total = sum(p.price for p in products)
     order = Order.objects.create(
         user=user,
-        status="pending",
+        status="confirmed",
         total_amount=total,
         final_amount=total,
         shipping_name="홍길동",
@@ -90,7 +90,7 @@ def order_with_points(db, user, product):
     """
     order = Order.objects.create(
         user=user,
-        status="pending",
+        status="confirmed",
         total_amount=product.price,
         used_points=2000,
         final_amount=product.price - Decimal("2000"),
@@ -134,7 +134,7 @@ def order_with_long_product_name(db, user, category):
 
     order = Order.objects.create(
         user=user,
-        status="pending",
+        status="confirmed",
         total_amount=product.price,
         final_amount=product.price,
         shipping_name="홍길동",
@@ -243,7 +243,7 @@ def order_with_existing_payment(db, user, product):
     """
     order = Order.objects.create(
         user=user,
-        status="pending",
+        status="confirmed",
         total_amount=product.price,
         final_amount=product.price,
         shipping_name="홍길동",
@@ -306,7 +306,7 @@ def other_user_order(db, other_user, product):
     """
     order = Order.objects.create(
         user=other_user,
-        status="pending",
+        status="confirmed",
         total_amount=product.price,
         final_amount=product.price,
         shipping_name="김철수",
@@ -554,7 +554,7 @@ def create_order(db, default_shipping_info):
         product=None,
         products=None,
         quantities=None,
-        status="pending",
+        status="confirmed",
         used_points=0,
         earned_points=0,
         payment_method=None,

@@ -182,3 +182,17 @@ app.conf.update(
 def debug_task(self) -> None:
     """디버그용 태스크"""
     print(f"Request: {self.request!r}")
+
+
+from celery.signals import task_failure
+from celery.utils.log import get_task_logger
+
+logger = get_task_logger(__name__)
+
+
+@task_failure.connect
+def task_failure_handler(sender, task_id, exception, **kwargs):
+    """
+    Log failed tasks
+    """
+    logger.error(f"Task failed: {sender.name}, task_id={task_id}, error={exception}")

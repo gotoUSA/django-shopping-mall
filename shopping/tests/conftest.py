@@ -633,7 +633,10 @@ def order(db, user, product):
 
     - 상태: confirmed (주문 확정 - 결제 가능 상태)
     - 상품 1개 포함
+    - 재고 차감 완료 (비동기 처리 완료 상태 시뮬레이션)
     """
+    from django.db.models import F
+
     from shopping.models.order import Order, OrderItem
 
     order = Order.objects.create(
@@ -657,7 +660,14 @@ def order(db, user, product):
         price=product.price,
     )
 
+    # 비동기 처리 완료 시뮬레이션: confirmed 상태는 재고가 이미 차감된 상태
+    from shopping.models.product import Product
+
+    Product.objects.filter(pk=product.pk).update(stock=F("stock") - 1)
+    product.refresh_from_db()
+
     return order
+
 
 
 @pytest.fixture
@@ -718,12 +728,12 @@ def order_with_multiple_items(db, user, multiple_products):
 
     - multiple_products fixture의 상품 3개 사용
     - 총 금액: 60,000원 (10,000 + 20,000 + 30,000)
-    - confirmed 상태 (결제 가능 상태)
+    - pending 상태 (비동기 처리 진행 중)
     """
     total = sum(p.price for p in multiple_products)
     order = Order.objects.create(
         user=user,
-        status="confirmed",
+        status="pending",
         total_amount=total,
         final_amount=total,
         shipping_name="홍길동",
@@ -746,13 +756,14 @@ def order_with_multiple_items(db, user, multiple_products):
     return order
 
 
+
 @pytest.fixture
 def pending_order(db, user, product):
     """
     pending 상태 주문 (취소 및 재고 테스트용)
 
     - 상태: pending (결제대기)
-    - 상품 1개 포함 (수량: 2)
+    - 상품 1개 포함 (수량: 1)
     - 재고 차감된 상태로 시뮬레이션
     """
     from django.db.models import F
@@ -760,8 +771,8 @@ def pending_order(db, user, product):
     order = Order.objects.create(
         user=user,
         status="pending",
-        total_amount=product.price * 2,
-        final_amount=product.price * 2,
+        total_amount=product.price,
+        final_amount=product.price,
         shipping_name="홍길동",
         shipping_phone="010-1234-5678",
         shipping_postal_code="12345",
@@ -774,12 +785,12 @@ def pending_order(db, user, product):
         order=order,
         product=product,
         product_name=product.name,
-        quantity=2,
+        quantity=1,
         price=product.price,
     )
 
     # 재고 차감 시뮬레이션 (주문 생성 시 차감된 상태)
-    Product.objects.filter(pk=product.pk).update(stock=F("stock") - 2)
+    Product.objects.filter(pk=product.pk).update(stock=F("stock") - 1)
     product.refresh_from_db()
 
     return order

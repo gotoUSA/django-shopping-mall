@@ -460,12 +460,9 @@ class TestOrderCreateException:
         # Act
         response = authenticated_client.post(url, shipping_data, format="json")
 
-        # Assert - 비동기 처리로 인해 202 응답
-        assert response.status_code == status.HTTP_202_ACCEPTED
-
-        # 비동기 태스크에서 재고 부족으로 실패 확인
-        order = Order.objects.get(id=response.data["order_id"])
-        assert order.status == "failed"
+        # Assert - serializer validation should catch stock shortage
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "재고가 부족합니다" in str(response.data)
 
     def test_create_order_exceeds_points(
         self, authenticated_client, user_with_points, product, add_to_cart_helper, shipping_data

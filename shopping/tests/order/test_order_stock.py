@@ -338,13 +338,13 @@ class TestOrderStockRestore:
         # 삭제된 상품은 복구 불가
         assert not Product.objects.filter(id=product_id).exists()
 
-    def test_already_canceled_order_no_double_restore(self, authenticated_client, order, product):
+    def test_already_canceled_order_no_double_restore(self, authenticated_client, pending_order, product):
         """이미 취소된 주문 재취소 시 재고 중복 복구 방지"""
         # Arrange
         product.stock
 
         # 첫 번째 취소
-        url = reverse("order-cancel", kwargs={"pk": order.id})
+        url = reverse("order-cancel", kwargs={"pk": pending_order.id})
         response1 = authenticated_client.post(url)
         assert response1.status_code == status.HTTP_200_OK
 

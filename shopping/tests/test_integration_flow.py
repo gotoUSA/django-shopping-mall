@@ -87,7 +87,7 @@ class UserIntegrationTest(TestCase):
         }
 
         response = self.client.post(self.order_list_url, order_data, format="json")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
         order = Order.objects.get(user=user)
         self.assertEqual(order.status, "pending")
@@ -209,7 +209,7 @@ class UserIntegrationTest(TestCase):
             "shipping_address_detail": "101동 202호",
         }
         response = self.client.post(self.order_list_url, order_data, format="json")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
         order = Order.objects.get(user=user)
 

@@ -444,7 +444,7 @@ class OrderFactory(DjangoModelFactory):
         model = Order
 
     user = factory.SubFactory(UserFactory, is_email_verified=True)
-    status = "pending"
+    status = "confirmed"
     total_amount = TestConstants.DEFAULT_PRODUCT_PRICE
     shipping_fee = TestConstants.DEFAULT_SHIPPING_FEE
     final_amount = factory.LazyAttribute(

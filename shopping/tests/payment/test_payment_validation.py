@@ -60,7 +60,7 @@ class TestPaymentValidationNormalCase:
             sku=sku_generator("LARGE"),
         )
 
-        order = create_order(user=user, product=large_product, status="pending")
+        order = create_order(user=user, product=large_product, status="confirmed")
 
         request_data = {"order_id": order.id}
 
@@ -100,7 +100,7 @@ class TestPaymentValidationNormalCase:
             order_data,
             format="json",
         )
-        assert order_response.status_code == status.HTTP_201_CREATED
+        assert order_response.status_code == status.HTTP_202_ACCEPTED
 
         order = Order.objects.filter(user=user).order_by("-created_at").first()
         assert order is not None
@@ -169,7 +169,7 @@ class TestPaymentValidationNormalCase:
         )
 
         # Act
-        assert order_response.status_code == status.HTTP_201_CREATED
+        assert order_response.status_code == status.HTTP_202_ACCEPTED
 
         order = Order.objects.filter(user=user).order_by("-created_at").first()
         assert order is not None
@@ -367,7 +367,7 @@ class TestPaymentValidationBoundary:
         )
 
         # Act
-        assert order_response.status_code == status.HTTP_201_CREATED
+        assert order_response.status_code == status.HTTP_202_ACCEPTED
 
         order = Order.objects.filter(user=user).order_by("-created_at").first()
         assert order is not None
@@ -779,7 +779,7 @@ class TestPaymentValidationException:
             shipping_data,
             format="json",
         )
-        assert order_response.status_code == status.HTTP_201_CREATED
+        assert order_response.status_code == status.HTTP_202_ACCEPTED
 
         order = Order.objects.filter(user=user).order_by("-created_at").first()
         assert order is not None

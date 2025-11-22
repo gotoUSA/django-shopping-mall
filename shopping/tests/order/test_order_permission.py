@@ -30,8 +30,8 @@ class TestOrderAuthentication:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
-        assert "id" in response.data
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert "order_id" in response.data
         assert response.data["status"] == "pending"
 
     def test_authenticated_user_can_view_order_list(
@@ -134,7 +134,7 @@ class TestOrderEmailVerification:
         response = authenticated_client.post(url, shipping_data, format="json")
 
         # Assert
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
 
     def test_unverified_user_cannot_create_order(
         self, unverified_user: User, product: pytest.fixture, shipping_data: dict, login_helper

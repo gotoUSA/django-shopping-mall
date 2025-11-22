@@ -160,10 +160,10 @@ class TestPaymentFailNormalCase:
         assert payment.status == "aborted"
 
     def test_order_status_remains_pending(self, authenticated_client, payment):
-        """주문 상태는 pending 유지"""
+        """주문 상태는 confirmed 유지"""
         # Arrange
         order = payment.order
-        assert order.status == "pending"
+        assert order.status == "confirmed"
 
         request_data = {
             "code": "USER_CANCEL",
@@ -182,7 +182,7 @@ class TestPaymentFailNormalCase:
         assert response.status_code == status.HTTP_200_OK
 
         order.refresh_from_db()
-        assert order.status == "pending"  # 주문 상태는 변경되지 않음
+        assert order.status == "confirmed"  # 주문 상태는 변경되지 않음
 
     def test_fail_log_created(self, authenticated_client, payment):
         """실패 로그 기록 확인"""

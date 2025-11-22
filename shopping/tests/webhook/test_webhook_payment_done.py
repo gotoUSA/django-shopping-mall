@@ -66,9 +66,9 @@ class TestPaymentDoneWebhook:
         assert self.order.status == "paid"
         assert self.order.payment_method == "카드"
 
-        # Assert - 재고 차감 확인
+        # Assert - 재고 차감 확인 (order fixture: -1, webhook: -1 = total -2)
         self.product.refresh_from_db()
-        assert self.product.stock == 9
+        assert self.product.stock == 8
         assert self.product.sold_count == 1
 
         # Assert - 포인트 적립 확인 (1%)

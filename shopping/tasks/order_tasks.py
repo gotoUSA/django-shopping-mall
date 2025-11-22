@@ -65,6 +65,7 @@ def process_order_heavy_tasks(
                     )
 
                     # 주문 실패 처리
+                    order.status = "failed"
                     order.failure_reason = (
                         f"재고 부족: {product.name} "
                         f"(요청: {cart_item.quantity}개, 재고: {product.stock}개)"

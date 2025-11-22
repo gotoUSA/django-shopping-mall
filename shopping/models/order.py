@@ -56,6 +56,14 @@ class Order(models.Model):
         verbose_name="주문상태",
     )
 
+    # 주문 실패 사유 (status='failed'일 때만 사용)
+    failure_reason = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="실패 사유",
+        help_text="주문 실패 시 상세 사유 (재고 부족, 포인트 부족 등)",
+    )
+
     # 배송 정보
     shipping_name = models.CharField(
         max_length=100,

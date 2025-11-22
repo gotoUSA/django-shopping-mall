@@ -37,6 +37,8 @@ class PasswordResetToken(models.Model):
         max_length=64,  # SHA-256 hex digest length
         unique=True,
         editable=False,
+        null=True,       # 기존 row 처리
+    blank=True,      # admin/form 허용
         verbose_name="토큰 해시",
         help_text="토큰의 SHA-256 해시값 (보안을 위해 평문 저장하지 않음)",
     )

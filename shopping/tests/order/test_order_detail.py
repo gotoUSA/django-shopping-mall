@@ -15,17 +15,17 @@ from .conftest import TEST_ADMIN_PASSWORD, TEST_USER_PASSWORD
 class TestOrderDetailHappyPath:
     """주문 상세 조회 성공 시나리오"""
 
-    def test_retrieve_own_order_success(self, authenticated_client, user, order):
+    def test_retrieve_own_order_success(self, authenticated_client, user, pending_order):
         """본인의 주문 상세 조회 성공"""
         # Arrange
-        url = reverse("order-detail", kwargs={"pk": order.id})
+        url = reverse("order-detail", kwargs={"pk": pending_order.id})
 
         # Act
         response = authenticated_client.get(url)
 
         # Assert
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["id"] == order.id
+        assert response.data["id"] == pending_order.id
         assert response.data["user"] == user.id
         assert response.data["user_username"] == user.username
         assert response.data["status"] == "pending"
@@ -110,10 +110,10 @@ class TestOrderDetailHappyPath:
         assert response.data["shipping_address"] == order.shipping_address
         assert response.data["shipping_address_detail"] == order.shipping_address_detail
 
-    def test_status_display_included(self, authenticated_client, user, order):
+    def test_status_display_included(self, authenticated_client, user, pending_order):
         """주문 상태 display 값 포함 확인"""
         # Arrange
-        url = reverse("order-detail", kwargs={"pk": order.id})
+        url = reverse("order-detail", kwargs={"pk": pending_order.id})
 
         # Act
         response = authenticated_client.get(url)
@@ -124,10 +124,10 @@ class TestOrderDetailHappyPath:
         assert response.data["status"] == "pending"
         assert response.data["status_display"] == "결제대기"
 
-    def test_can_cancel_flag(self, authenticated_client, user, order):
+    def test_can_cancel_flag(self, authenticated_client, user, pending_order):
         """주문 취소 가능 여부 플래그 확인"""
         # Arrange
-        url = reverse("order-detail", kwargs={"pk": order.id})
+        url = reverse("order-detail", kwargs={"pk": pending_order.id})
 
         # Act
         response = authenticated_client.get(url)

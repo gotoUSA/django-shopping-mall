@@ -87,10 +87,11 @@ class UserIntegrationTest(TestCase):
         }
 
         response = self.client.post(self.order_list_url, order_data, format="json")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
         order = Order.objects.get(user=user)
-        self.assertEqual(order.status, "pending")
+        # Celery EAGER 모드에서 비동기 태스크가 즉시 완료되어 confirmed 상태가 됨
+        self.assertEqual(order.status, "confirmed")
         self.assertEqual(order.total_amount, Decimal("1000000"))
 
         # 6. 결제 요청 (성공)
@@ -209,7 +210,7 @@ class UserIntegrationTest(TestCase):
             "shipping_address_detail": "101동 202호",
         }
         response = self.client.post(self.order_list_url, order_data, format="json")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
         order = Order.objects.get(user=user)
 

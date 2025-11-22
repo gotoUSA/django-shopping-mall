@@ -56,7 +56,7 @@ def order_with_multiple_items(db, user, category):
     total = sum(p.price for p in products)
     order = Order.objects.create(
         user=user,
-        status="pending",
+        status="confirmed",
         total_amount=total,
         final_amount=total,
         shipping_name="홍길동",
@@ -90,7 +90,7 @@ def order_with_points(db, user, product):
     """
     order = Order.objects.create(
         user=user,
-        status="pending",
+        status="confirmed",
         total_amount=product.price,
         used_points=2000,
         final_amount=product.price - Decimal("2000"),
@@ -134,7 +134,7 @@ def order_with_long_product_name(db, user, category):
 
     order = Order.objects.create(
         user=user,
-        status="pending",
+        status="confirmed",
         total_amount=product.price,
         final_amount=product.price,
         shipping_name="홍길동",
@@ -202,6 +202,66 @@ def paid_order_with_payment(db, user, product):
 
 
 @pytest.fixture
+def paid_payment(db, paid_order):
+    """
+    결제 완료된 Payment (취소 테스트용)
+
+    - Payment: done 상태, is_paid=True
+    - Order: paid 상태 (재고 차감, sold_count 증가 완료)
+    - earned_points 설정 (1% 적립)
+    - User에게 포인트 실제 적립
+    - PointHistory 생성 (FIFO 차감을 위해 필수)
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    from shopping.models.point import PointHistory
+
+    # earned_points 계산 및 설정 (1% 적립)
+    earned_points = int(paid_order.total_amount * Decimal("0.01"))
+    paid_order.earned_points = earned_points
+    paid_order.save()
+
+    # User에게 포인트 실제 적립 (취소 시 차감 가능하도록)
+    user = paid_order.user
+    user.points += earned_points
+    user.save()
+
+    # PointHistory 생성 (FIFO 차감을 위해 필수)
+    # 실제 결제 승인 flow에서 생성되는 것과 동일한 형태로 생성
+    PointHistory.objects.create(
+        user=user,
+        points=earned_points,
+        balance=user.points,
+        type="earn",
+        order=paid_order,
+        description=f"주문 #{paid_order.order_number} 구매 적립",
+        expires_at=timezone.now() + timedelta(days=365),
+        metadata={
+            "order_id": paid_order.id,
+            "order_number": paid_order.order_number,
+            "payment_amount": str(paid_order.total_amount),
+            "earn_rate": "1%",
+        },
+    )
+
+    # Payment 생성
+    payment = Payment.objects.create(
+        order=paid_order,
+        amount=paid_order.total_amount,
+        status="done",
+        toss_order_id=paid_order.order_number,
+        payment_key="test_payment_key_paid",
+        method="카드",
+        approved_at=timezone.now(),
+        card_company="신한카드",
+        card_number="1234****",
+    )
+
+    return payment
+
+
+
+@pytest.fixture
 def canceled_order(db, user, product):
     """
     취소된 주문
@@ -243,7 +303,7 @@ def order_with_existing_payment(db, user, product):
     """
     order = Order.objects.create(
         user=user,
-        status="pending",
+        status="confirmed",
         total_amount=product.price,
         final_amount=product.price,
         shipping_name="홍길동",
@@ -306,7 +366,7 @@ def other_user_order(db, other_user, product):
     """
     order = Order.objects.create(
         user=other_user,
-        status="pending",
+        status="confirmed",
         total_amount=product.price,
         final_amount=product.price,
         shipping_name="김철수",
@@ -554,7 +614,7 @@ def create_order(db, default_shipping_info):
         product=None,
         products=None,
         quantities=None,
-        status="pending",
+        status="confirmed",
         used_points=0,
         earned_points=0,
         payment_method=None,

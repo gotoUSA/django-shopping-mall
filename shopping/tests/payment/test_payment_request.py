@@ -183,7 +183,7 @@ class TestPaymentRequestBoundary:
     """경계값 테스트"""
 
     def test_existing_payment_deletion_and_recreation(self, authenticated_client, order_with_existing_payment):
-        """기존 Payment 삭제 후 재생성 (재시도)"""
+        """기존 Payment 재사용 (재시도)"""
         # Arrange
         order = order_with_existing_payment
         old_payment_id = Payment.objects.get(order=order).id
@@ -199,13 +199,13 @@ class TestPaymentRequestBoundary:
         # Assert
         assert response.status_code == status.HTTP_201_CREATED
 
-        # Assert - 기존 Payment 삭제 확인
-        assert not Payment.objects.filter(id=old_payment_id).exists()
+        # Assert - 기존 Payment 재사용 확인 (삭제되지 않음)
+        assert Payment.objects.filter(id=old_payment_id).exists()
 
-        # Assert - 새 Payment 생성 확인
-        new_payment = Payment.objects.get(order=order)
-        assert new_payment.id != old_payment_id
-        assert new_payment.status == "ready"
+        # Assert - 동일한 Payment 객체 반환 확인
+        payment = Payment.objects.get(order=order)
+        assert payment.id == old_payment_id
+        assert payment.status == "ready"
 
     def test_payment_with_points(self, authenticated_client, order_with_points):
         """포인트 사용 주문 - final_amount로 결제"""
@@ -338,7 +338,7 @@ class TestPaymentRequestException:
         assert "이미 결제된 주문입니다" in str(response.json())
 
     def test_non_pending_status_order(self, authenticated_client, canceled_order):
-        """pending이 아닌 상태 주문"""
+        """confirmed가 아닌 상태 주문"""
         # Arrange
         request_data = {"order_id": canceled_order.id}
 
@@ -352,7 +352,7 @@ class TestPaymentRequestException:
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         error_message = str(response.json())
-        assert "결제할 수 없는 주문 상태입니다" in error_message
+        assert "주문 처리가 완료되지 않았습니다" in error_message
 
     def test_zero_amount_order(self, authenticated_client, user, category):
         """주문 금액 0원 이하"""
@@ -367,7 +367,7 @@ class TestPaymentRequestException:
 
         order = OrderFactory(
             user=user,
-            status="pending",
+            status="confirmed",
             total_amount=Decimal("0"),  # 0원
         )
 

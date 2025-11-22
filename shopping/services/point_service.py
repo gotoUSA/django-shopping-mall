@@ -294,11 +294,22 @@ class PointService:
                 'message': str
             }
         """
+        # 최소 포인트 사용 정책 (100포인트 미만 사용 불가)
+        MINIMUM_USE_AMOUNT = 100
+
         if amount <= 0:
             return {
                 "success": False,
                 "used_details": [],
                 "message": "사용할 포인트는 0보다 커야 합니다.",
+            }
+
+        # 최소 사용 금액 검증 (일반 사용일 때만)
+        if type == "use" and amount < MINIMUM_USE_AMOUNT:
+            return {
+                "success": False,
+                "used_details": [],
+                "message": f"포인트는 최소 {MINIMUM_USE_AMOUNT}포인트 이상 사용 가능합니다.",
             }
 
         # 동시성 제어: select_for_update로 락 획득

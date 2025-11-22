@@ -234,39 +234,37 @@ class TestEmailVerificationOnSignup:
 class TestEmailVerificationBoundary:
     """경계값 테스트"""
 
-    def test_token_expiry_exactly_24_hours(self, api_client, unverified_user):
+    def test_token_expiry_exactly_24_hours(self, api_client, unverified_user, mock_time):
         """토큰이 정확히 24시간 후에 만료됨"""
         # Arrange - 정확히 24시간 전 토큰 생성
         base_time = datetime(2025, 1, 28, 10, 0, 0, tzinfo=dt_timezone.utc)
-        token = EmailVerificationToken.objects.create(user=unverified_user)
-        token.created_at = base_time
-        token.save()
+
+        with mock_time(base_time):
+            token = EmailVerificationToken.objects.create(user=unverified_user)
+
         url = reverse("email-verification-verify")
 
-        # Act - View에서 is_expired()를 호출하므로,
-        # View가 실행되는 시점을 24시간 1초 후라고 가정하고 테스트해야 함
-        # 하지만 View는 now 파라미터를 전달하지 않으므로,
-        # created_at을 24시간 1초 전으로 설정
-        token.created_at = timezone.now() - timedelta(hours=24, seconds=1)
-        token.save()
-
-        # Act
-        response = api_client.get(url, {"token": str(token.token)})
+        # Act - 24시간 1초 후 시점으로 시간 고정하여 요청
+        with mock_time(base_time + timedelta(hours=24, seconds=1)):
+            response = api_client.get(url, {"token": str(token.token)})
 
         # Assert - 만료되어야 함
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "만료" in (response.data["token"][0])
 
-    def test_token_valid_before_24_hours(self, api_client, unverified_user):
+    def test_token_valid_before_24_hours(self, api_client, unverified_user, mock_time):
         """24시간 전이면 아직 유효함"""
-        # Arrange - 23시간 전 토큰
-        token = EmailVerificationToken.objects.create(user=unverified_user)
-        token.created_at = timezone.now() - timedelta(hours=23, minutes=59, seconds=59)
-        token.save()
+        # Arrange
+        base_time = datetime(2025, 1, 28, 10, 0, 0, tzinfo=dt_timezone.utc)
+
+        with mock_time(base_time):
+            token = EmailVerificationToken.objects.create(user=unverified_user)
+
         url = reverse("email-verification-verify")
 
-        # Act
-        response = api_client.get(url, {"token": str(token.token)})
+        # Act - 23시간 59분 59초 후 시점으로 시간 고정하여 요청
+        with mock_time(base_time + timedelta(hours=23, minutes=59, seconds=59)):
+            response = api_client.get(url, {"token": str(token.token)})
 
         # Assert - 성공해야 함
         assert response.status_code == status.HTTP_200_OK

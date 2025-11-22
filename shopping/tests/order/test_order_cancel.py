@@ -11,11 +11,11 @@ from shopping.models.product import Product
 class TestOrderCancelHappyPath:
     """주문 취소 - 정상 케이스"""
 
-    def test_cancel_pending_order(self, authenticated_client, order, product):
+    def test_cancel_pending_order(self, authenticated_client, pending_order, product):
         """pending 상태 주문 취소 성공"""
         # Arrange
         initial_stock = product.stock
-        url = reverse("order-cancel", kwargs={"pk": order.id})
+        url = reverse("order-cancel", kwargs={"pk": pending_order.id})
 
         # Act
         response = authenticated_client.post(url)
@@ -24,8 +24,8 @@ class TestOrderCancelHappyPath:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["message"] == "주문이 취소되었습니다."
 
-        order.refresh_from_db()
-        assert order.status == "canceled"
+        pending_order.refresh_from_db()
+        assert pending_order.status == "canceled"
 
         product.refresh_from_db()
         assert product.stock == initial_stock + 1
@@ -103,11 +103,11 @@ class TestOrderCancelHappyPath:
             product.refresh_from_db()
             assert product.stock == initial_stocks[product.id] + 2
 
-    def test_cancel_order_status_changed_to_canceled(self, authenticated_client, order):
+    def test_cancel_order_status_changed_to_canceled(self, authenticated_client, pending_order):
         """주문 취소 후 상태가 canceled로 변경"""
         # Arrange
-        assert order.status == "pending"
-        url = reverse("order-cancel", kwargs={"pk": order.id})
+        assert pending_order.status == "pending"
+        url = reverse("order-cancel", kwargs={"pk": pending_order.id})
 
         # Act
         response = authenticated_client.post(url)
@@ -115,9 +115,9 @@ class TestOrderCancelHappyPath:
         # Assert
         assert response.status_code == status.HTTP_200_OK
 
-        order.refresh_from_db()
-        assert order.status == "canceled"
-        assert order.can_cancel is False
+        pending_order.refresh_from_db()
+        assert pending_order.status == "canceled"
+        assert pending_order.can_cancel is False
 
 
 @pytest.mark.django_db
@@ -183,11 +183,11 @@ class TestOrderCancelBoundary:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "취소할 수 없는 주문" in response.data["error"]
 
-    def test_cancel_order_immediately_after_cancel(self, authenticated_client, order, product):
+    def test_cancel_order_immediately_after_cancel(self, authenticated_client, pending_order, product):
         """취소 직후 다시 취소 시도"""
         # Arrange
         initial_stock = product.stock
-        url = reverse("order-cancel", kwargs={"pk": order.id})
+        url = reverse("order-cancel", kwargs={"pk": pending_order.id})
 
         # 첫 번째 취소
         response1 = authenticated_client.post(url)

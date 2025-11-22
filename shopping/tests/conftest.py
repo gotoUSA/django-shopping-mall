@@ -8,6 +8,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from shopping.models.cart import Cart, CartItem
+from shopping.models.order import Order, OrderItem
 from shopping.models.product import Category, Product
 from shopping.models.user import User
 from shopping.services.order_service import OrderService
@@ -628,16 +629,19 @@ def freeze_time(mocker):
 @pytest.fixture
 def order(db, user, product):
     """
-    기본 주문 (pending 상태)
+    기본 주문 (confirmed 상태 - 결제 테스트용)
 
-    - 상태: pending (결제 대기)
+    - 상태: confirmed (주문 확정 - 결제 가능 상태)
     - 상품 1개 포함
+    - 재고 차감 완료 (비동기 처리 완료 상태 시뮬레이션)
     """
+    from django.db.models import F
+
     from shopping.models.order import Order, OrderItem
 
     order = Order.objects.create(
         user=user,
-        status="pending",
+        status="confirmed",
         total_amount=product.price,
         final_amount=product.price,  # 포인트 적립을 위해 final_amount 설정
         shipping_name="홍길동",
@@ -645,6 +649,7 @@ def order(db, user, product):
         shipping_postal_code="12345",
         shipping_address="서울시 강남구 테스트로 123",
         shipping_address_detail="101동 202호",
+        order_number="20250122000001",  # 고유 주문번호
     )
 
     OrderItem.objects.create(
@@ -655,7 +660,14 @@ def order(db, user, product):
         price=product.price,
     )
 
+    # 비동기 처리 완료 시뮬레이션: confirmed 상태는 재고가 이미 차감된 상태
+    from shopping.models.product import Product
+
+    Product.objects.filter(pk=product.pk).update(stock=F("stock") - 1)
+    product.refresh_from_db()
+
     return order
+
 
 
 @pytest.fixture
@@ -682,6 +694,7 @@ def paid_order(db, user, product):
         shipping_postal_code="12345",
         shipping_address="서울시 강남구 테스트로 123",
         shipping_address_detail="101동 202호",
+        order_number="20250122000002",  # 고유 주문번호
     )
 
     OrderItem.objects.create(
@@ -711,25 +724,24 @@ def paid_order(db, user, product):
 @pytest.fixture
 def order_with_multiple_items(db, user, multiple_products):
     """
-    여러 상품이 포함된 주문
+    여러 상품이 포함된 주문 (주문명 테스트용)
 
-    - 상품 3개 포함
+    - multiple_products fixture의 상품 3개 사용
     - 총 금액: 60,000원 (10,000 + 20,000 + 30,000)
+    - pending 상태 (비동기 처리 진행 중)
     """
-    from shopping.models.order import Order, OrderItem
-
     total = sum(p.price for p in multiple_products)
-
     order = Order.objects.create(
         user=user,
         status="pending",
         total_amount=total,
-        final_amount=total,  # 포인트 적립을 위해 final_amount 설정
+        final_amount=total,
         shipping_name="홍길동",
-        shipping_phone="010-9999-8888",
+        shipping_phone="010-1234-5678",
         shipping_postal_code="12345",
         shipping_address="서울시 강남구 테스트로 123",
         shipping_address_detail="101동 202호",
+        order_number="20250115000001",
     )
 
     for product in multiple_products:
@@ -744,13 +756,53 @@ def order_with_multiple_items(db, user, multiple_products):
     return order
 
 
+
+@pytest.fixture
+def pending_order(db, user, product):
+    """
+    pending 상태 주문 (취소 및 재고 테스트용)
+
+    - 상태: pending (결제대기)
+    - 상품 1개 포함 (수량: 1)
+    - 재고 차감된 상태로 시뮬레이션
+    """
+    from django.db.models import F
+
+    order = Order.objects.create(
+        user=user,
+        status="pending",
+        total_amount=product.price,
+        final_amount=product.price,
+        shipping_name="홍길동",
+        shipping_phone="010-1234-5678",
+        shipping_postal_code="12345",
+        shipping_address="서울시 강남구 테스트로 123",
+        shipping_address_detail="101동 202호",
+        order_number="20250122000003",  # 고유 주문번호
+    )
+
+    OrderItem.objects.create(
+        order=order,
+        product=product,
+        product_name=product.name,
+        quantity=1,
+        price=product.price,
+    )
+
+    # 재고 차감 시뮬레이션 (주문 생성 시 차감된 상태)
+    Product.objects.filter(pk=product.pk).update(stock=F("stock") - 1)
+    product.refresh_from_db()
+
+    return order
+
+
 @pytest.fixture
 def payment(db, order):
     """
-    기본 결제 (ready 상태)
+    결제 준비 상태 Payment (fail 테스트용)
 
     - 상태: ready (결제 준비)
-    - 주문과 연결됨
+    - Order: confirmed 상태
     """
     from shopping.models.payment import Payment
 
@@ -759,31 +811,6 @@ def payment(db, order):
         amount=order.total_amount,
         status="ready",
         toss_order_id=order.order_number,
-    )
-
-
-@pytest.fixture
-def paid_payment(db, paid_order):
-    """
-    결제 완료된 Payment
-
-    - 상태: done (결제 완료)
-    - 토스 결제 정보 포함
-    """
-    from django.utils import timezone
-
-    from shopping.models.payment import Payment
-
-    return Payment.objects.create(
-        order=paid_order,
-        amount=paid_order.total_amount,
-        status="done",
-        toss_order_id=paid_order.order_number,
-        payment_key="test_payment_key_123",
-        method="카드",
-        approved_at=timezone.now(),
-        card_company="신한카드",
-        card_number="1234****",
     )
 
 
@@ -802,78 +829,34 @@ def canceled_payment(db, order):
         order=order,
         amount=order.total_amount,
         status="canceled",
-        is_canceled=True,
         toss_order_id=order.order_number,
-        payment_key="test_payment_key_canceled",
         canceled_at=timezone.now(),
-        cancel_reason="사용자 요청",
     )
 
 
-@pytest.fixture
-def payment_factory(db):
-    """
-    Payment Factory - 유연한 결제 생성
-
-    사용 예시:
-        payment1 = payment_factory(order=order)  # 기본값
-        payment2 = payment_factory(order=order, status="done", payment_key="key123")
-    """
-    from shopping.models.payment import Payment
-
-    def _create_payment(order, **kwargs):
-        defaults = {
-            "amount": order.total_amount,
-            "status": "pending",
-            "toss_order_id": order.order_number,
-        }
-        defaults.update(kwargs)
-
-        return Payment.objects.create(order=order, **defaults)
-
-    return _create_payment
-
-
 # ==========================================
-# 10. 장바구니 상품 추가 헬퍼 함수
+# 10. 테스트 헬퍼 Fixture
 # ==========================================
 
 
 @pytest.fixture
 def add_to_cart_helper(db):
     """
-    장바구니에 상품을 추가하는 헬퍼 함수
-
-    테스트용이므로 재고 검증을 완전히 우회합니다.
-    bulk_create를 사용하여 save() 메서드를 호출하지 않습니다.
+    장바구니에 상품 추가 헬퍼 함수
 
     사용 예시:
         add_to_cart_helper(user, product, quantity=2)
     """
 
     def _add_to_cart(user, product, quantity=1):
-        from django.db import transaction
-        from django.utils import timezone
-
-        with transaction.atomic():
-            cart, created = Cart.objects.get_or_create(user=user, is_active=True)
-
-            # 기존 아이템이 있는지 확인
-            try:
-                cart_item = CartItem.objects.get(cart=cart, product=product)
-                # update()를 사용하여 full_clean() 우회
-                cart_item.quantity += quantity
-                CartItem.objects.filter(pk=cart_item.pk).update(quantity=cart_item.quantity, updated_at=timezone.now())
-                cart_item.refresh_from_db()
-            except CartItem.DoesNotExist:
-                # bulk_create를 사용하여 save() 및 full_clean() 완전 우회
-                cart_item = CartItem(
-                    cart=cart, product=product, quantity=quantity, added_at=timezone.now(), updated_at=timezone.now()
-                )
-                CartItem.objects.bulk_create([cart_item])
-                # bulk_create 후에는 pk가 설정되므로 다시 조회
-                cart_item = CartItem.objects.get(cart=cart, product=product)
-
-        return cart_item
+        cart, _ = Cart.objects.get_or_create(user=user, is_active=True)
+        cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
+        if not created:
+            cart_item.quantity += quantity
+            cart_item.save()
+        else:
+            cart_item.quantity = quantity
+            cart_item.save()
+        return cart, cart_item
 
     return _add_to_cart

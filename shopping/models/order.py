@@ -20,6 +20,7 @@ class Order(models.Model):
     # 주문 상태 선택지 정의
     STATUS_CHOICES = [
         ("pending", "결제대기"),  # 주문은 했지만 아직 결제 안함
+        ("confirmed", "주문확정"),  # 재고 확보 완료, 결제 가능
         ("paid", "결제완료"),  # 결제까지 완료
         ("preparing", "배송준비중"),  # 상품 포장 중
         ("shipped", "배송중"),  # 택배 발송됨
@@ -53,6 +54,14 @@ class Order(models.Model):
         default="pending",  # 기본값은 '결제대기'
         db_index=True,  # 주문 상태별 조회 성능 최적화
         verbose_name="주문상태",
+    )
+
+    # 주문 실패 사유 (status='failed'일 때만 사용)
+    failure_reason = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="실패 사유",
+        help_text="주문 실패 시 상세 사유 (재고 부족, 포인트 부족 등)",
     )
 
     # 배송 정보
@@ -210,7 +219,7 @@ class Order(models.Model):
     @property
     def can_cancel(self) -> bool:
         """취소 가능 여부"""
-        return self.status in ["pending", "paid"]
+        return self.status in ["pending", "confirmed", "paid"]
 
     def get_total_shipping_fee(self) -> Decimal:
         """전체 배송비 반환 (기본 + 추가)"""

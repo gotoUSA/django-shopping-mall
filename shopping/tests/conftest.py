@@ -8,6 +8,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from shopping.models.cart import Cart, CartItem
+from shopping.models.order import Order, OrderItem
 from shopping.models.product import Category, Product
 from shopping.models.user import User
 from shopping.services.order_service import OrderService
@@ -705,6 +706,80 @@ def paid_order(db, user, product):
     )
 
     # product 객체 갱신
+    product.refresh_from_db()
+
+    return order
+
+
+@pytest.fixture
+def order_with_multiple_items(db, user, multiple_products):
+    """
+    여러 상품이 포함된 주문 (주문명 테스트용)
+
+    - multiple_products fixture의 상품 3개 사용
+    - 총 금액: 60,000원 (10,000 + 20,000 + 30,000)
+    - confirmed 상태 (결제 가능 상태)
+    """
+    total = sum(p.price for p in multiple_products)
+    order = Order.objects.create(
+        user=user,
+        status="confirmed",
+        total_amount=total,
+        final_amount=total,
+        shipping_name="홍길동",
+        shipping_phone="010-1234-5678",
+        shipping_postal_code="12345",
+        shipping_address="서울시 강남구 테스트로 123",
+        shipping_address_detail="101동 202호",
+        order_number="20250115000001",
+    )
+
+    for product in multiple_products:
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            product_name=product.name,
+            quantity=1,
+            price=product.price,
+        )
+
+    return order
+
+
+@pytest.fixture
+def pending_order(db, user, product):
+    """
+    pending 상태 주문 (취소 및 재고 테스트용)
+
+    - 상태: pending (결제대기)
+    - 상품 1개 포함 (수량: 2)
+    - 재고 차감된 상태로 시뮬레이션
+    """
+    from django.db.models import F
+
+    order = Order.objects.create(
+        user=user,
+        status="pending",
+        total_amount=product.price * 2,
+        final_amount=product.price * 2,
+        shipping_name="홍길동",
+        shipping_phone="010-1234-5678",
+        shipping_postal_code="12345",
+        shipping_address="서울시 강남구 테스트로 123",
+        shipping_address_detail="101동 202호",
+        order_number="20250122000003",  # 고유 주문번호
+    )
+
+    OrderItem.objects.create(
+        order=order,
+        product=product,
+        product_name=product.name,
+        quantity=2,
+        price=product.price,
+    )
+
+    # 재고 차감 시뮬레이션 (주문 생성 시 차감된 상태)
+    Product.objects.filter(pk=product.pk).update(stock=F("stock") - 2)
     product.refresh_from_db()
 
     return order

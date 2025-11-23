@@ -22,6 +22,13 @@ from shopping.tests.factories import (
 class TestPaymentTasksHappyPath:
     """결제 태스크 정상 케이스"""
 
+    @pytest.fixture(autouse=True)
+    def force_eager_mode(self, settings):
+        """이 클래스의 모든 테스트에서 Celery eager 모드 강제 활성화"""
+        settings.CELERY_TASK_ALWAYS_EAGER = True
+        settings.CELERY_TASK_EAGER_PROPAGATES = True
+        yield
+
     def test_call_toss_api_task_success(self, mocker):
         """Toss API 호출 태스크가 성공적으로 실행됨"""
         # Arrange
@@ -77,13 +84,9 @@ class TestPaymentTasksHappyPath:
         assert payment.order.status == "paid"
         assert result["status"] == "success"
 
-    def test_payment_chain_integration(self, user_factory, mocker, settings):
+    def test_payment_chain_integration(self, user_factory, mocker):
         """Toss API → 최종 처리 체인이 정상 작동"""
         # Arrange
-        # 테스트 격리를 위해 eager 모드 명시적 설정
-        settings.CELERY_TASK_ALWAYS_EAGER = True
-        settings.CELERY_TASK_EAGER_PROPAGATES = True
-
         user = user_factory()
         order = OrderFactory(user=user)
         payment = PaymentFactory(order=order)

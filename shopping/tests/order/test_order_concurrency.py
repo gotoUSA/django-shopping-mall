@@ -11,10 +11,12 @@ from rest_framework.test import APIClient
 
 from shopping.models import Product
 from shopping.models.cart import Cart, CartItem
+from shopping.models.order import Order
 from shopping.models.user import User
+from shopping.tests.factories import ProductFactory, TestConstants, UserFactory
 
 
-def login_and_get_token(username, password="testpass123"):
+def login_and_get_token(username, password=TestConstants.DEFAULT_PASSWORD):
     """
     로그인하여 JWT 토큰 발급
 
@@ -35,16 +37,45 @@ def login_and_get_token(username, password="testpass123"):
     return client, token, None
 
 
-def create_test_user(username, email, phone_number, points=0, is_verified=True):
-    """테스트 사용자 생성 헬퍼"""
-    return User.objects.create_user(
-        username=username,
-        email=email,
-        password="testpass123",
-        phone_number=phone_number,
-        points=points,
-        is_email_verified=is_verified,
-    )
+# create_test_user 헬퍼 함수는 UserFactory로 대체되었습니다.
+# 이제 UserFactory(username=..., email=..., phone_number=..., points=..., is_email_verified=...)를 사용하세요.
+
+
+def wait_for_order_completion(order_id, max_wait_seconds=5, polling_interval=0.1):
+    """Poll order status until completion or timeout."""
+    start_time = time.time()
+    while time.time() - start_time < max_wait_seconds:
+        try:
+            order = Order.objects.get(id=order_id)
+            if order.status in ['confirmed', 'failed', 'cancelled']:
+                return order
+            time.sleep(polling_interval)
+        except Order.DoesNotExist:
+            time.sleep(polling_interval)
+    return Order.objects.filter(id=order_id).first()
+
+
+def verify_async_order_result(response, expected_success=True):
+    """Verify async order creation result. Returns: (success, order, message)"""
+    if response.status_code == status.HTTP_202_ACCEPTED:
+        data = response.json()
+        order_id = data.get('order_id')
+        if not order_id:
+            return False, None, "No order_id in 202 response"
+        order = wait_for_order_completion(order_id)
+        if not order:
+            return False, None, f"Order {order_id} not found"
+        if expected_success:
+            success = order.status == 'confirmed'
+            msg = f"Order {order.id} status: {order.status}"
+        else:
+            success = order.status in ['failed', 'cancelled']
+            msg = f"Order {order.id} failed as expected: {order.status}"
+        return success, order, msg
+    elif response.status_code == status.HTTP_400_BAD_REQUEST:
+        return False, None, f"400 Bad Request: {response.data}"
+    else:
+        return False, None, f"Unexpected status: {response.status_code}"
 
 
 @pytest.mark.django_db(transaction=True)
@@ -59,7 +90,7 @@ class TestOrderConcurrencyHappyPath:
 
         users = []
         for i in range(5):
-            u = create_test_user(
+            u = UserFactory(
                 username=f"user{i}",
                 email=f"user{i}@test.com",
                 phone_number=f"010-0000-000{i}",
@@ -86,12 +117,16 @@ class TestOrderConcurrencyHappyPath:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 response = client.post("/api/orders/", shipping_data, format="json")
 
+                # 비동기 응답 처리
+                success, order, msg = verify_async_order_result(response, expected_success=True)
+
                 with lock:
                     results.append(
                         {
                             "user": user_obj.username,
                             "status": response.status_code,
-                            "success": response.status_code == status.HTTP_201_CREATED,
+                            "success": success,
+                            "message": msg,
                         }
                     )
             except Exception as e:
@@ -127,7 +162,7 @@ class TestOrderConcurrencyHappyPath:
 
         users = []
         for i in range(3):
-            u = create_test_user(
+            u = UserFactory(
                 username=f"pointuser{i}",
                 email=f"pointuser{i}@test.com",
                 phone_number=f"010-1111-000{i}",
@@ -155,12 +190,16 @@ class TestOrderConcurrencyHappyPath:
                 order_data = {**shipping_data, "use_points": 1000}
                 response = client.post("/api/orders/", order_data, format="json")
 
+                # 비동기 응답 처리
+                success, order, msg = verify_async_order_result(response, expected_success=True)
+
                 with lock:
                     results.append(
                         {
                             "user": user_obj.username,
                             "status": response.status_code,
-                            "success": response.status_code == status.HTTP_201_CREATED,
+                            "success": success,
+                            "message": msg,
                         }
                     )
             except Exception as e:
@@ -203,7 +242,7 @@ class TestOrderConcurrencyBoundary:
 
         users = []
         for i in range(10):
-            u = create_test_user(
+            u = UserFactory(
                 username=f"boundary_user{i}",
                 email=f"boundary{i}@test.com",
                 phone_number=f"010-2222-000{i}",
@@ -229,12 +268,16 @@ class TestOrderConcurrencyBoundary:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 response = client.post("/api/orders/", shipping_data, format="json")
 
+                # 비동기 응답 처리
+                success, order, msg = verify_async_order_result(response, expected_success=True)
+
                 with lock:
                     results.append(
                         {
                             "user": user_obj.username,
                             "status": response.status_code,
-                            "success": response.status_code == status.HTTP_201_CREATED,
+                            "success": success,
+                            "message": msg,
                         }
                     )
             except Exception as e:
@@ -264,7 +307,7 @@ class TestOrderConcurrencyBoundary:
 
         users = []
         for i in range(3):
-            u = create_test_user(
+            u = UserFactory(
                 username=f"boundary_fail{i}",
                 email=f"boundaryfail{i}@test.com",
                 phone_number=f"010-3333-000{i}",
@@ -291,12 +334,16 @@ class TestOrderConcurrencyBoundary:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 response = client.post("/api/orders/", shipping_data, format="json")
 
+                # 비동기 응답 처리 (일부는 재고 부족으로 실패 가능)
+                success, order, msg = verify_async_order_result(response, expected_success=True)
+
                 with lock:
                     results.append(
                         {
                             "user": user_obj.username,
                             "status": response.status_code,
-                            "success": response.status_code == status.HTTP_201_CREATED,
+                            "success": success,
+                            "message": msg,
                         }
                     )
             except Exception as e:
@@ -312,7 +359,7 @@ class TestOrderConcurrencyBoundary:
 
         # Assert - 2명만 성공 (5개 재고 - 2개 - 2개 = 1개 남음, 세 번째는 재고 부족)
         success_count = sum(1 for r in results if r.get("success", False))
-        failed_count = sum(1 for r in results if r.get("status") == status.HTTP_400_BAD_REQUEST or "error" in r)
+        failed_count = len(results) - success_count  # 비동기 처리에서는 success 플래그로 판단
 
         if success_count != 2:
             print(f"\n결과: {results}")
@@ -335,7 +382,7 @@ class TestOrderConcurrencyBoundary:
 
         users = []
         for i in range(2):
-            u = create_test_user(
+            u = UserFactory(
                 username=f"point_boundary{i}",
                 email=f"pointbound{i}@test.com",
                 phone_number=f"010-4444-000{i}",
@@ -363,12 +410,16 @@ class TestOrderConcurrencyBoundary:
                 order_data = {**shipping_data, "use_points": 1000}
                 response = client.post("/api/orders/", order_data, format="json")
 
+                # 비동기 응답 처리
+                success, order, msg = verify_async_order_result(response, expected_success=True)
+
                 with lock:
                     results.append(
                         {
                             "user": user_obj.username,
                             "status": response.status_code,
-                            "success": response.status_code == status.HTTP_201_CREATED,
+                            "success": success,
+                            "message": msg,
                         }
                     )
             except Exception as e:
@@ -412,7 +463,7 @@ class TestOrderConcurrencyException:
 
         users = []
         for i in range(5):
-            u = create_test_user(
+            u = UserFactory(
                 username=f"insuf_stock{i}",
                 email=f"insufstock{i}@test.com",
                 phone_number=f"010-5555-000{i}",
@@ -438,12 +489,16 @@ class TestOrderConcurrencyException:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 response = client.post("/api/orders/", shipping_data, format="json")
 
+                # 비동기 응답 처리 (대부분 재고 부족으로 실패 예상)
+                success, order, msg = verify_async_order_result(response, expected_success=True)
+
                 with lock:
                     results.append(
                         {
                             "user": user_obj.username,
                             "status": response.status_code,
-                            "success": response.status_code == status.HTTP_201_CREATED,
+                            "success": success,
+                            "message": msg,
                         }
                     )
             except Exception as e:
@@ -480,7 +535,7 @@ class TestOrderConcurrencyException:
 
         users = []
         for i in range(3):
-            u = create_test_user(
+            u = UserFactory(
                 username=f"insuf_point{i}",
                 email=f"insufpoint{i}@test.com",
                 phone_number=f"010-6666-000{i}",
@@ -508,12 +563,16 @@ class TestOrderConcurrencyException:
                 order_data = {**shipping_data, "use_points": 1000}
                 response = client.post("/api/orders/", order_data, format="json")
 
+                # 비동기 응답 처리 (포인트 부족으로 실패 예상)
+                success, order, msg = verify_async_order_result(response, expected_success=True)
+
                 with lock:
                     results.append(
                         {
                             "user": user_obj.username,
                             "status": response.status_code,
-                            "success": response.status_code == status.HTTP_201_CREATED,
+                            "success": success,
+                            "message": msg,
                         }
                     )
             except Exception as e:
@@ -529,7 +588,7 @@ class TestOrderConcurrencyException:
 
         # Assert - 모두 실패
         success_count = sum(1 for r in results if r.get("success", False))
-        failed_count = sum(1 for r in results if r.get("status") == status.HTTP_400_BAD_REQUEST)
+        failed_count = len(results) - success_count  # 비동기 처리에서는 success 플래그로 판단
 
         if success_count != 0:
             print(f"\n결과: {results}")
@@ -551,7 +610,7 @@ class TestOrderConcurrencyException:
         client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
         response = client.post("/api/orders/", shipping_data, format="json")
 
-        if response.status_code != status.HTTP_201_CREATED:
+        if response.status_code != status.HTTP_202_ACCEPTED:
             pytest.skip(f"주문 생성 실패: {response.status_code}")
 
         response_data = response.json()
@@ -561,14 +620,17 @@ class TestOrderConcurrencyException:
         if not order_id:
             pytest.skip(f"주문 응답에 id가 없음. 응답 키: {list(response_data.keys())}")
 
+        # 주문 완료 대기 (취소하려면 먼저 confirmed 상태가 되어야 함)
+        order = wait_for_order_completion(order_id, max_wait_seconds=5)
+        if not order or order.status != 'confirmed':
+            pytest.skip(f"주문이 confirmed 상태가 되지 않음: {order.status if order else 'None'}")
+
         results = []
         lock = threading.Lock()
 
         def cancel_order():
             """주문 취소"""
             try:
-                pass
-
                 cancel_client = APIClient()
                 cancel_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 response = cancel_client.post(f"/api/orders/{order_id}/cancel/")
@@ -591,13 +653,15 @@ class TestOrderConcurrencyException:
         for t in threads:
             t.join()
 
-        # Assert - 1번만 성공
+        # Assert - 1번만 성공, 나머지는 실패
         success_count = sum(1 for r in results if r.get("success", False))
+        failed_count = sum(1 for r in results if r.get("status") == status.HTTP_400_BAD_REQUEST)
 
         if success_count != 1:
             print(f"\n결과: {results}")
 
         assert success_count == 1, f"1번만 취소 성공해야 함. 성공: {success_count}"
+        assert failed_count == 4, f"4번은 이미 취소되어 실패해야 함. 실패: {failed_count}"
 
     def test_concurrent_cart_to_order_multiple_times(self, user, product, shipping_data):
         """동일 장바구니로 여러 번 동시 주문 시도"""
@@ -619,17 +683,19 @@ class TestOrderConcurrencyException:
         def create_order_from_same_cart():
             """같은 장바구니로 주문 생성"""
             try:
-                pass
-
                 order_client = APIClient()
                 order_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 response = order_client.post("/api/orders/", shipping_data, format="json")
+
+                # 비동기 응답 처리
+                success, order, msg = verify_async_order_result(response, expected_success=True)
 
                 with lock:
                     results.append(
                         {
                             "status": response.status_code,
-                            "success": response.status_code == status.HTTP_201_CREATED,
+                            "success": success,
+                            "message": msg,
                         }
                     )
             except Exception as e:
@@ -672,17 +738,19 @@ class TestOrderConcurrencyException:
         def create_order():
             """주문 생성"""
             try:
-                pass
-
                 order_client = APIClient()
                 order_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 response = order_client.post("/api/orders/", shipping_data, format="json")
+
+                # 비동기 응답 처리
+                success, order, msg = verify_async_order_result(response, expected_success=True)
 
                 with lock:
                     results.append(
                         {
                             "status": response.status_code,
-                            "success": response.status_code == status.HTTP_201_CREATED,
+                            "success": success,
+                            "message": msg,
                         }
                     )
             except Exception as e:
@@ -716,7 +784,7 @@ class TestOrderConcurrencyAdvanced:
     def test_f_object_stock_decrease_concurrency(self, category):
         """F() 객체를 사용한 재고 차감 동시성 제어"""
         # Arrange - 재고 10개인 상품
-        product = Product.objects.create(
+        product = ProductFactory(
             name="F() 테스트 상품",
             slug="f-test-product",
             category=category,
@@ -771,7 +839,7 @@ class TestOrderConcurrencyAdvanced:
 
         users = []
         for i in range(3):
-            u = create_test_user(
+            u = UserFactory(
                 username=f"sfu_user{i}",
                 email=f"sfu{i}@test.com",
                 phone_number=f"010-7777-000{i}",
@@ -797,12 +865,16 @@ class TestOrderConcurrencyAdvanced:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 response = client.post("/api/orders/", shipping_data, format="json")
 
+                # 비동기 응답 처리
+                success, order, msg = verify_async_order_result(response, expected_success=True)
+
                 with lock:
                     results.append(
                         {
                             "user": user_obj.username,
                             "status": response.status_code,
-                            "success": response.status_code == status.HTTP_201_CREATED,
+                            "success": success,
+                            "message": msg,
                         }
                     )
             except Exception as e:
@@ -836,7 +908,7 @@ class TestOrderConcurrencyAdvanced:
 
         users = []
         for i in range(50):
-            u = create_test_user(
+            u = UserFactory(
                 username=f"mass_user{i}",
                 email=f"mass{i}@test.com",
                 phone_number=f"010-8888-{i:04d}",
@@ -862,12 +934,16 @@ class TestOrderConcurrencyAdvanced:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 response = client.post("/api/orders/", shipping_data, format="json")
 
+                # 비동기 응답 처리
+                success, order, msg = verify_async_order_result(response, expected_success=True)
+
                 with lock:
                     results.append(
                         {
                             "user": user_obj.username,
                             "status": response.status_code,
-                            "success": response.status_code == status.HTTP_201_CREATED,
+                            "success": success,
+                            "message": msg,
                         }
                     )
             except Exception as e:
@@ -901,7 +977,7 @@ class TestOrderConcurrencyAdvanced:
 
         users = []
         for i in range(3):
-            u = create_test_user(
+            u = UserFactory(
                 username=f"race_user{i}",
                 email=f"race{i}@test.com",
                 phone_number=f"010-9999-000{i}",
@@ -929,12 +1005,16 @@ class TestOrderConcurrencyAdvanced:
                 order_data = {**shipping_data, "use_points": 1000}
                 response = client.post("/api/orders/", order_data, format="json")
 
+                # 비동기 응답 처리 (일부는 재고 부족으로 실패 가능)
+                success, order, msg = verify_async_order_result(response, expected_success=True)
+
                 with lock:
                     results.append(
                         {
                             "user": user_obj.username,
                             "status": response.status_code,
-                            "success": response.status_code == status.HTTP_201_CREATED,
+                            "success": success,
+                            "message": msg,
                         }
                     )
             except Exception as e:

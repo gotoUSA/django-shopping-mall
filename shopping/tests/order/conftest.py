@@ -410,3 +410,33 @@ def mock_payment_cancel():
         "status": "CANCELED",
         "canceledAt": "2025-01-15T11:00:00+09:00",
     }
+
+
+# ==========================================
+# 8. 동시성/비동기 테스트 설정 Fixture
+# ==========================================
+
+
+@pytest.fixture
+def async_test_config():
+    """
+    비동기/동시성 테스트 설정값
+
+    모든 동시성 테스트에서 일관된 설정을 사용하기 위한 fixture
+
+    Returns:
+        dict: {
+            'max_wait_seconds': 비동기 작업 최대 대기 시간 (초),
+            'polling_interval': 상태 폴링 간격 (초)
+        }
+
+    사용 예시:
+        def test_async_order(async_test_config):
+            max_wait = async_test_config['max_wait_seconds']
+            interval = async_test_config['polling_interval']
+    """
+    return {
+        "max_wait_seconds": 5,
+        "polling_interval": 0.1,
+    }
+

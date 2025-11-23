@@ -82,16 +82,31 @@ class UserFactory(DjangoModelFactory):
     class Meta:
         model = User
         django_get_or_create = ("username",)
-        skip_postgeneration_save = True
+        skip_postgeneration_save = True  # post_generation에서 명시적으로 save() 호출하므로 자동 저장 비활성화
+
 
     username = factory.Sequence(lambda n: f"testuser{n}")
     email = factory.LazyAttribute(lambda obj: f"{obj.username}@test.com")
     phone_number = factory.Sequence(lambda n: f"010-{1000+n:04d}-{5678+n:04d}")
-    password = factory.PostGenerationMethodCall("set_password", TestConstants.DEFAULT_PASSWORD)
     points = 0
     membership_level = "bronze"
     is_email_verified = True  # 기본값: 인증 완료
     is_active = True
+
+    @factory.post_generation
+    def password(obj, create, extracted, **kwargs):
+        """
+        비밀번호 설정 및 저장
+
+        extracted가 제공되면 해당 비밀번호 사용, 아니면 기본 비밀번호 사용
+        """
+        if not create:
+            # build()로 생성된 경우 (DB 저장 안 함)
+            return
+
+        password_value = extracted if extracted else TestConstants.DEFAULT_PASSWORD
+        obj.set_password(password_value)
+        obj.save()
 
     @classmethod
     def verified(cls, **kwargs):

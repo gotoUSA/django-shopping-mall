@@ -77,9 +77,13 @@ class TestPaymentTasksHappyPath:
         assert payment.order.status == "paid"
         assert result["status"] == "success"
 
-    def test_payment_chain_integration(self, user_factory, mocker):
+    def test_payment_chain_integration(self, user_factory, mocker, settings):
         """Toss API → 최종 처리 체인이 정상 작동"""
         # Arrange
+        # 테스트 격리를 위해 eager 모드 명시적 설정
+        settings.CELERY_TASK_ALWAYS_EAGER = True
+        settings.CELERY_TASK_EAGER_PROPAGATES = True
+
         user = user_factory()
         order = OrderFactory(user=user)
         payment = PaymentFactory(order=order)

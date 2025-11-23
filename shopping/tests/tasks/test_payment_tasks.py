@@ -97,21 +97,19 @@ class TestPaymentTasksHappyPath:
             return_value=mock_toss_response
         )
 
-        # Act
-        from celery import chain
+        # Act - eager 모드에서 직접 실행 (CI 환경 호환성)
         from shopping.tasks.payment_tasks import call_toss_confirm_api, finalize_payment_confirm
 
-        task_chain = chain(
-            call_toss_confirm_api.s("key123", "ORDER_123", 10000),
-            finalize_payment_confirm.s(payment.id, user.id)
-        )
+        # 첫 번째 태스크: Toss API 호출
+        toss_result = call_toss_confirm_api("key123", "ORDER_123", 10000)
 
-        result = task_chain.apply()
+        # 두 번째 태스크: 결제 최종 처리 (toss_result를 첫 번째 인자로 전달)
+        final_result = finalize_payment_confirm(toss_result, payment.id, user.id)
 
         # Assert
         payment.refresh_from_db()
         assert payment.is_paid
-        assert result.successful()
+        assert final_result["status"] == "success"
 
 
 @pytest.mark.django_db(transaction=True)

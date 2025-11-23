@@ -539,6 +539,35 @@ def invalid_shipping_field_factory():
     return _create_invalid_data
 
 
+@pytest.fixture
+def order_factory(db, user):
+    """
+    Order Factory - 유연한 주문 생성
+
+    사용 예시:
+        order1 = order_factory()  # 기본값 (pending 상태)
+        order2 = order_factory(status="confirmed", total_amount=20000)
+        order3 = order_factory(user=other_user, used_points=1000)
+    """
+
+    def _create_order(**kwargs):
+        defaults = {
+            "user": user,
+            "status": "pending",
+            "total_amount": Decimal("10000"),
+            "final_amount": Decimal("10000"),
+            "shipping_name": "홍길동",
+            "shipping_phone": "010-1234-5678",
+            "shipping_postal_code": "12345",
+            "shipping_address": "서울시 강남구",
+            "shipping_address_detail": "101호",
+        }
+        defaults.update(kwargs)
+        return Order.objects.create(**defaults)
+
+    return _create_order
+
+
 # ==========================================
 # 7. 결제 관련 Fixture (Mock)
 # ==========================================

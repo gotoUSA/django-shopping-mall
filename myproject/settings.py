@@ -398,10 +398,6 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE  # Django 시간대와 동일하게 설정
 CELERY_ENABLE_UTC = False  # 로컬 시간대 사용
 
-# 테스트 환경에서 동기 실행
-if TESTING:
-    CELERY_TASK_ALWAYS_EAGER = True
-    CELERY_TASK_EAGER_PROPAGATES = True
 
 # Celery Beat 설정 (데이터베이스 스케줄러 사용)
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
@@ -472,9 +468,8 @@ LOGGING["loggers"]["shopping.tasks"] = {
 }
 
 # 테스트 설정에서 동기 실행 강제
-
-
-if "test" in sys.argv:
+# pytest와 Django test 모두 지원하기 위해 TESTING 변수 사용
+if TESTING:
     CELERY_TASK_ALWAYS_EAGER = True
     CELERY_TASK_EAGER_PROPAGATES = True
     CELERY_BROKER_URL = "memory://"

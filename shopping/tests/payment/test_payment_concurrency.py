@@ -798,9 +798,23 @@ class TestPaymentConcurrencyException:
         for t in threads:
             t.join()
 
-        # Assert - 1명만 성공
-        success_count = sum(1 for r in results if r.get("success", False))
-        assert success_count == 1, f"1명만 성공. 성공: {success_count}"
+        # 비동기 태스크 완료 대기
+        time.sleep(0.5)
+
+        # Assert - HTTP 응답 대신 최종 결제 상태 검증
+        # 1명 성공 (payment.status == 'done'), 4명 실패 (payment.status == 'aborted')
+        success_count = 0
+        failed_count = 0
+
+        for payment in payments:
+            payment.refresh_from_db()
+            if payment.status == "done":
+                success_count += 1
+            elif payment.status == "aborted":
+                failed_count += 1
+
+        assert success_count == 1, f"1명만 성공. 성공: {success_count}, 실패: {failed_count}"
+        assert failed_count == 4, f"4명 실패. 성공: {success_count}, 실패: {failed_count}"
 
     def test_concurrent_duplicate_payment_confirm(self, product, user_factory, create_order, mocker):
         """동일 결제 중복 승인 시도 (1개만 성공, 나머지 실패)"""

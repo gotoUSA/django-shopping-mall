@@ -659,7 +659,7 @@ class TestPaymentConcurrencyBoundary:
                 client, token, error = login_and_get_token(user_obj.username)
                 if error:
                     with lock:
-                        results.append({"error": error})
+                        results.append({"error": error, "payment_id": payment_obj.id})
                     return
 
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
@@ -669,13 +669,14 @@ class TestPaymentConcurrencyBoundary:
                 with lock:
                     results.append(
                         {
-                            "success": response.status_code == status.HTTP_202_ACCEPTED,
+                            "accepted": response.status_code == status.HTTP_202_ACCEPTED,
                             "status": response.status_code,
+                            "payment_id": payment_obj.id,
                         }
                     )
             except Exception as e:
                 with lock:
-                    results.append({"error": str(e)})
+                    results.append({"error": str(e), "payment_id": payment_obj.id})
 
         # Act
         threads = [
@@ -687,9 +688,23 @@ class TestPaymentConcurrencyBoundary:
         for t in threads:
             t.join()
 
-        # Assert - 2명 성공, 1명 실패
-        success_count = sum(1 for r in results if r.get("success", False))
-        assert success_count == 2, f"2명 성공. 성공: {success_count}"
+        # 비동기 태스크 완료 대기
+        time.sleep(0.5)
+
+        # Assert - HTTP 응답 대신 최종 결제 상태 검증
+        # 2명 성공 (payment.status == 'done'), 1명 실패 (payment.status == 'aborted')
+        success_count = 0
+        failed_count = 0
+
+        for payment in payments:
+            payment.refresh_from_db()
+            if payment.status == "done":
+                success_count += 1
+            elif payment.status == "aborted":
+                failed_count += 1
+
+        assert success_count == 2, f"2명 성공. 성공: {success_count}, 실패: {failed_count}"
+        assert failed_count == 1, f"1명 실패. 성공: {success_count}, 실패: {failed_count}"
 
 
 @pytest.mark.django_db(transaction=True)

@@ -846,22 +846,38 @@ class TossResponseBuilder:
     Toss API 응답 빌더
 
     재사용 가능한 Toss API 응답을 생성합니다.
+    동시성 테스트를 위해 기본 payment_key는 UUID로 자동 생성됩니다.
 
     사용 예시:
-        response = TossResponseBuilder.success_response()
+        response = TossResponseBuilder.success_response()  # 고유 UUID 생성
+        response = TossResponseBuilder.success_response(payment_key="custom_key")
         response = TossResponseBuilder.cancel_response()
         response = TossResponseBuilder.error_response("INVALID_REQUEST")
     """
 
     @staticmethod
     def success_response(
-        payment_key="test_payment_key_123",
+        payment_key=None,
         order_id="ORDER_20250115_001",
         amount=13000,
         method="카드",
         approved_at=None,
     ):
-        """결제 승인 성공 응답"""
+        """
+        결제 승인 성공 응답
+
+        Args:
+            payment_key: 결제키 (None이면 UUID 자동 생성)
+            order_id: 주문번호
+            amount: 결제금액
+            method: 결제수단
+            approved_at: 승인시간
+        """
+        import uuid
+
+        if payment_key is None:
+            payment_key = f"test_key_{uuid.uuid4().hex[:16]}"
+
         return {
             "paymentKey": payment_key,
             "orderId": order_id,

@@ -572,63 +572,6 @@ def order_factory(db, user):
 
 
 # ==========================================
-# 7. 결제 관련 Fixture (Mock)
-# ==========================================
-
-
-@pytest.fixture
-def mock_toss_payment_success():
-    """
-    토스 결제 성공 Mock 데이터
-
-    정상적인 결제 승인 응답 데이터
-    """
-    return {
-        "paymentKey": "test_payment_key_123",
-        "orderId": "test_order_123",
-        "status": "DONE",
-        "totalAmount": 13000,
-        "method": "카드",
-        "approvedAt": "2025-01-15T10:00:00+09:00",
-        "card": {
-            "company": "신한카드",
-            "number": "1234****",
-            "installmentPlanMonths": 0,
-            "isInterestFree": False,
-        },
-    }
-
-
-@pytest.fixture
-def mock_toss_payment_failed():
-    """
-    토스 결제 실패 Mock 데이터
-
-    결제 실패 응답 데이터
-    """
-    return {
-        "code": "PAY_PROCESS_CANCELED",
-        "message": "사용자에 의해 결제가 취소되었습니다",
-    }
-
-
-@pytest.fixture
-def mock_toss_client(mocker):
-    """
-    토스 API Mock 클라이언트 (pytest-mock 사용)
-
-    실제 토스 API 호출을 대체하는 Mock 객체
-
-    사용 예시:
-        def test_payment(mock_toss_client):
-            mock_toss_client.confirm_payment.return_value = {...}
-            # 테스트 코드
-    """
-    mock = mocker.patch("shopping.utils.toss_payment.TossPaymentClient")
-    return mock.return_value
-
-
-# ==========================================
 # 8. 기타 유틸리티 Fixture
 # ==========================================
 

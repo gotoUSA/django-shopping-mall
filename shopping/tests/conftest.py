@@ -341,6 +341,9 @@ def category(db):
 
     대부분의 상품 테스트에서 사용
     """
+    # 기존 category가 있다면 삭제 (중복 방지)
+    Category.objects.filter(slug="test-category").delete()
+
     return Category.objects.create(
         name="테스트 카테고리",
         slug="test-category",

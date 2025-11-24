@@ -321,11 +321,17 @@ class TestPaymentConcurrencyHappyPath:
         # 최소 1개는 성공해야 함
         assert success_count >= 1, f"최소 1개 성공. 성공: {success_count}"
 
-        # 기존 Payment는 삭제되었어야 함
-        assert not Payment.objects.filter(id=old_payment_id).exists()
+        # 최종적으로 Payment는 1개만 존재해야 함 (마지막 요청이 이전 것을 삭제)
+        assert Payment.objects.filter(order=order).count() == 1, \
+            f"Payment는 1개만 존재해야 함. 실제: {Payment.objects.filter(order=order).count()}"
 
-        # 새 Payment가 생성되었어야 함
-        assert Payment.objects.filter(order=order).exists()
+        # 새로 생성된 Payment ID 확인 (성공한 요청 중 하나)
+        successful_payment_ids = [r["payment_id"] for r in results if r.get("success") and r.get("payment_id")]
+        if successful_payment_ids:
+            # 최소 하나의 새로운 Payment가 생성되었음
+            final_payment = Payment.objects.get(order=order)
+            assert final_payment.id in successful_payment_ids, \
+                f"최종 Payment ID가 성공한 요청 중 하나여야 함. final={final_payment.id}, successful={successful_payment_ids}"
 
     def test_concurrent_payment_with_points_usage(self, product, user_factory, create_order, toss_response_builder, build_confirm_request, mocker):
         """여러 사용자가 포인트 사용하며 동시 결제"""

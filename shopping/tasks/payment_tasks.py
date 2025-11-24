@@ -52,11 +52,17 @@ def call_toss_confirm_api(payment_key: str, order_id: str, amount: int) -> dict:
     except TossPaymentError as e:
         logger.error(f"Toss API 호출 실패: order_id={order_id}, error={e.message}")
 
-        # 에러 로그 기록 (Payment는 order_id로 찾아야 함)
+        # 에러 로그 기록 및 상태 업데이트 (Payment는 order_id로 찾아야 함)
         try:
             payment = Payment.objects.get(toss_order_id=order_id)
             payment.status = "aborted"
             payment.save(update_fields=["status"])
+
+            # Order 상태도 failed로 변경
+            order = payment.order
+            order.status = "failed"
+            order.failure_reason = f"결제 실패: {e.message}"
+            order.save(update_fields=["status", "failure_reason", "updated_at"])
 
             PaymentLog.objects.create(
                 payment=payment,

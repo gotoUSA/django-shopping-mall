@@ -281,17 +281,24 @@ class PaymentService:
 
         logger.info(f"비동기 결제 승인 시작: payment_id={payment.id}")
 
-        # 1. Payment 상태 확인 (간단한 트랜잭션)
+        # 1. Payment 상태 확인 및 변경 (동시성 제어)
         with transaction.atomic():
+            # DB lock으로 동시 요청 직렬화
             payment = Payment.objects.select_for_update().get(pk=payment.pk)
 
+            # 이미 완료된 결제 확인
             if payment.is_paid:
                 raise PaymentConfirmError("이미 완료된 결제입니다.")
 
+            # 이미 처리 중인 결제 확인 (중복 요청 차단)
+            if payment.status == "in_progress":
+                raise PaymentConfirmError("이미 처리 중인 결제입니다.")
+
+            # 유효하지 않은 상태 확인
             if payment.status in ["expired", "canceled", "aborted"]:
                 raise PaymentConfirmError(f"유효하지 않은 결제 상태입니다: {payment.get_status_display()}")
 
-            # 처리 중 상태로 변경
+            # 처리 중 상태로 변경 (이 시점부터 다른 요청은 차단됨)
             payment.status = "in_progress"
             payment.save(update_fields=["status"])
 

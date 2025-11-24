@@ -303,12 +303,25 @@ class PaymentService:
             payment.save(update_fields=["status"])
 
         # 2. Celery Chain: Toss API 호출 → 최종 처리
-        task_chain = chain(
-            call_toss_confirm_api.s(payment_key, order_id, amount),
-            finalize_payment_confirm.s(payment.id, user.id)
-        )
+        # 테스트 환경(EAGER=True)에서는 chain이 .get()을 호출하여 에러 발생
+        # 따라서 TESTING 모드에서는 직접 순차 호출
+        from django.conf import settings
 
-        result = task_chain.apply_async()
+        if getattr(settings, 'TESTING', False):
+            # 테스트 환경: 직접 순차 호출 (eager 모드 호환)
+            toss_result = call_toss_confirm_api.apply_async(
+                args=(payment_key, order_id, amount)
+            )
+            result = finalize_payment_confirm.apply_async(
+                args=(toss_result.get(), payment.id, user.id)
+            )
+        else:
+            # 프로덕션 환경: chain 사용
+            task_chain = chain(
+                call_toss_confirm_api.s(payment_key, order_id, amount),
+                finalize_payment_confirm.s(payment.id, user.id)
+            )
+            result = task_chain.apply_async()
 
         logger.info(f"결제 승인 태스크 실행: payment_id={payment.id}, task_id={result.id}")
 

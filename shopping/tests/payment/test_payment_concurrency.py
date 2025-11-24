@@ -378,7 +378,7 @@ class TestPaymentConcurrencyHappyPath:
                 response = client.post("/api/payments/confirm/", request_data, format="json")
 
                 with lock:
-                    results.append({"success": response.status_code == status.HTTP_200_OK})
+                    results.append({"success": response.status_code == status.HTTP_202_ACCEPTED})
             except Exception as e:
                 with lock:
                     results.append({"error": str(e)})

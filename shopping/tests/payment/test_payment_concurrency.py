@@ -275,7 +275,7 @@ class TestPaymentConcurrencyHappyPath:
         # Arrange
         user = user_factory(username="retry_user")
 
-        order = create_order(user=user, product=product, status="pending")
+        order = create_order(user=user, product=product, status="confirmed")
 
         # 기존 Payment 생성
         old_payment = PaymentFactory(order=order)
@@ -477,7 +477,7 @@ class TestPaymentConcurrencyBoundary:
             phone_number="010-7000-0001",
         )
 
-        order = create_order(user=user, product=product, status="pending")
+        order = create_order(user=user, product=product, status="confirmed")
 
         results = []
         lock = threading.Lock()

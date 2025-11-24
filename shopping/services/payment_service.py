@@ -307,14 +307,13 @@ class PaymentService:
         # 따라서 TESTING 모드에서는 직접 순차 호출
         from django.conf import settings
 
-        if getattr(settings, 'TESTING', False):
-            # 테스트 환경: 직접 순차 호출 (eager 모드 호환)
-            toss_result = call_toss_confirm_api.apply_async(
-                args=(payment_key, order_id, amount)
-            )
-            result = finalize_payment_confirm.apply_async(
-                args=(toss_result.get(), payment.id, user.id)
-            )
+        if getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', False):
+            # Eager 모드: 직접 함수 호출 (동기 실행)
+            toss_result = call_toss_confirm_api(payment_key, order_id, amount)
+            final_result = finalize_payment_confirm(toss_result, payment.id, user.id)
+
+            # 응답 형식 통일을 위한 더미 AsyncResult
+            result = type('DummyResult', (), {'id': 'sync-execution'})()
         else:
             # 프로덕션 환경: chain 사용
             task_chain = chain(

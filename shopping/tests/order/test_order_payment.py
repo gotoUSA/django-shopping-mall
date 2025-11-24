@@ -53,7 +53,7 @@ class TestOrderPaymentIntegration:
              patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
             mock_confirm.return_value = mock_payment_success(order.final_amount)
 
-            # Mock async to call sync version directly
+            # 비동기 메서드를 모킹하여 동기 버전을 직접 호출
             from shopping.services.payment_service import PaymentService
             mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                 PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
@@ -356,7 +356,7 @@ class TestOrderPaymentIntegration:
         assert earn_history is not None
         assert earn_history.points == expected_earn
 
-    def test_points_earn_rate_fixed_one_percent(
+    def test_points_earn_default_rate_when_level_unspecified(
         self,
         authenticated_client,
         product,
@@ -365,10 +365,74 @@ class TestOrderPaymentIntegration:
         user_factory,
         mock_payment_success,
     ):
-        """포인트 적립률 1% 고정 검증 (현재 구현)"""
-        # Arrange - 여러 사용자 생성 (등급 무관하게 1% 적립)
-        for idx in range(3):
-            user = user_factory(username=f"test_user_{idx}", points=10000)
+        """등급 미지정 시 기본 적립률 1% 검증"""
+        # Arrange - 등급 미지정 사용자 (기본값 적용)
+        user = user_factory(username="test_user_default", points=10000)
+        # membership_level을 명시하지 않음 → 기본값(bronze or None) 적용
+        add_to_cart_helper(user, product, quantity=1)
+        authenticated_client.force_authenticate(user=user)
+
+        # Act - 주문 생성
+        order_response = authenticated_client.post("/api/orders/", shipping_data, format="json")
+        order_id = order_response.data["order_id"]
+        order = Order.objects.get(id=order_id)
+
+        # Act - 결제 요청 및 승인
+        authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
+
+        with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
+             patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+            mock_confirm.return_value = mock_payment_success(order.final_amount)
+
+            from shopping.services.payment_service import PaymentService
+            mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
+                PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
+                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+            )[1]
+
+            confirm_response = authenticated_client.post(
+                "/api/payments/confirm/",
+                {
+                    "order_id": order.order_number,
+                    "payment_key": "test_key",
+                    "amount": int(order.final_amount),
+                },
+                format="json",
+            )
+
+        # Assert - 기본 1% 적립 (final_amount 기준)
+        user.refresh_from_db()
+        expected_earn = int(order.final_amount * Decimal("0.01"))
+        actual_earn = user.points - 10000  # 초기 포인트 차감
+        assert actual_earn == expected_earn
+        # final_amount = 10000 + 3000 = 13000 → 130포인트
+        assert actual_earn == 130
+
+        # Assert - 포인트 이력 확인
+        earn_history = PointHistory.objects.filter(user=user, type="earn", order=order).first()
+        assert earn_history is not None
+        assert earn_history.points == 130
+
+    def test_points_earn_rate_by_membership_level(
+        self,
+        authenticated_client,
+        product,
+        add_to_cart_helper,
+        shipping_data,
+        user_factory,
+        mock_payment_success,
+    ):
+        """등급별 포인트 적립률 통합 검증 (bronze 1%, silver 2%, gold 3%, vip 5%)"""
+        # Arrange - 등급별 사용자 및 기대 적립률
+        membership_levels = ["bronze", "silver", "gold", "vip"]
+        expected_rates = {"bronze": 1, "silver": 2, "gold": 3, "vip": 5}
+
+        for level in membership_levels:
+            user = user_factory(
+                username=f"user_{level}",
+                points=10000,
+                membership_level=level,
+            )
             add_to_cart_helper(user, product, quantity=1)
             authenticated_client.force_authenticate(user=user)
 
@@ -377,7 +441,7 @@ class TestOrderPaymentIntegration:
             order_id = order_response.data["order_id"]
             order = Order.objects.get(id=order_id)
 
-            # Act - 결제 승인
+            # Act - 결제 요청 및 승인
             authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
             with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
@@ -400,13 +464,20 @@ class TestOrderPaymentIntegration:
                     format="json",
                 )
 
-            # Assert - 1% 적립 (final_amount 기준)
+            # Assert - 등급별 적립률 검증
             user.refresh_from_db()
-            expected_earn = int(order.final_amount * Decimal("0.01"))
+            expected_rate = expected_rates[level]
+            expected_earn = int(order.final_amount * Decimal(expected_rate) / Decimal("100"))
             actual_earn = user.points - 10000  # 초기 포인트 차감
-            assert actual_earn == expected_earn, f"user_{idx} 적립 검증 실패"
-            # final_amount = 10000 + 3000 = 13000 → 130포인트
-            assert actual_earn == 130
+
+            assert actual_earn == expected_earn, f"{level} 등급 적립률 검증 실패"
+            # final_amount = 10000 + 3000 = 13000
+            # bronze: 130, silver: 260, gold: 390, vip: 650
+
+            # Assert - 포인트 이력 확인
+            earn_history = PointHistory.objects.filter(user=user, type="earn", order=order).first()
+            assert earn_history is not None
+            assert earn_history.points == expected_earn
 
     def test_payment_cancel_refunds_used_points(
         self,

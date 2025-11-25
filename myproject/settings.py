@@ -372,9 +372,25 @@ LOGGING = {
         },
     },
     "loggers": {
+        # Django request 로거 (400/500 에러 자동 로깅)
+        "django.request": {
+            "handlers": ["console"],
+            "level": "WARNING",  # 400, 500 에러 출력
+            "propagate": False,
+        },
         "shopping.views.payment_views": {
             "handlers": ["console", "file"],
             "level": "INFO",
+            "propagate": False,
+        },
+        "shopping.views.order_views": {
+            "handlers": ["console"],
+            "level": "DEBUG",  # 주문 에러 상세 로깅
+            "propagate": False,
+        },
+        "shopping.views.cart_views": {
+            "handlers": ["console"],
+            "level": "DEBUG",  # 장바구니 에러 상세 로깅
             "propagate": False,
         },
         "shopping.webhooks": {
@@ -456,8 +472,8 @@ LOGGING["loggers"]["celery"] = {
 }
 
 LOGGING["loggers"]["shopping.services"] = {
-    "handlers": ["console", "file"],
-    "level": "INFO",
+    "handlers": ["console"],
+    "level": "DEBUG",  # 서비스 레이어 상세 로깅
     "propagate": False,
 }
 

@@ -29,13 +29,15 @@ services:
   # Django 웹 애플리케이션
   web:
     build: .
-    command: gunicorn myproject.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120
+    command: gunicorn myproject.wsgi:application --bind 0.0.0.0:8000 --workers 3 --threads 2 --timeout 120 --max-requests 1000 --max-requests-jitter 50 --worker-class gthread
     volumes:
       - .:/code
     ports:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - TESTING=True  # 부하 테스트를 위한 Rate Limiting 비활성화
     depends_on:
       db:
         condition: service_healthy
@@ -45,7 +47,7 @@ services:
   # Celery Worker (백그라운드 작업 처리)
   celery_worker:
     build: .
-    command: celery -A myproject worker -l info
+    command: celery -A myproject worker -l info --concurrency=8
     volumes:
       - .:/code
     env_file:

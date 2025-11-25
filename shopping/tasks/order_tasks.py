@@ -54,7 +54,10 @@ def process_order_heavy_tasks(
             cart = Cart.objects.select_for_update().get(pk=cart_id)
 
             # 3. 재고 차감 및 OrderItem 생성
-            for cart_item in cart.items.all():
+            # ✅ Deadlock 방지: Product ID 순서대로 정렬하여 락 획득 순서를 일관되게 유지
+            cart_items = cart.items.select_related('product').order_by('product_id').all()
+
+            for cart_item in cart_items:
                 product = Product.objects.select_for_update().get(pk=cart_item.product.pk)
 
                 # 재고 부족 체크

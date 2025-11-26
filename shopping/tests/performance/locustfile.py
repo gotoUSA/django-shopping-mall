@@ -192,6 +192,9 @@ class PaymentUser(TaskSet):
             return  # 실패하면 포기
 
         order_id = response.json().get("order_id")
+        final_amount = response.json().get("final_amount")
+        if not final_amount:
+            return
 
         # 5% 확률로 결제 전 포기
         if random.random() < 0.05:
@@ -203,7 +206,7 @@ class PaymentUser(TaskSet):
         self.client.post("/api/payments/confirm/", json={
             "payment_key": payment_key,
             "order_id": order_id,
-            "amount": 13000
+            "amount": int(final_amount)
         })
 
 

@@ -54,7 +54,7 @@ services:
       - static_volume:/code/staticfiles
       - media_volume:/code/media
     ports:
-      - "80:80"
+      - "8000:80"
     depends_on:
       - web
 

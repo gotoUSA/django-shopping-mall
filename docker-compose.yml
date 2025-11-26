@@ -26,23 +26,35 @@ services:
       timeout: 3s
       retries: 5
 
-  # Django 웹 애플리케이션
+  # Django 웹 애플리케이션 (Gunicorn)
   web:
     build: .
-    command: gunicorn myproject.wsgi:application --bind 0.0.0.0:8000 --workers 3 --threads 2 --timeout 120 --max-requests 1000 --max-requests-jitter 50 --worker-class gthread
+    command: gunicorn myproject.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120 --access-logfile - --error-logfile -
     volumes:
       - .:/code
-    ports:
-      - "8000:8000"
+      - static_volume:/code/staticfiles
+      - media_volume:/code/media
+    expose:
+      - "8000"
     env_file:
       - .env
-    environment:
-      - TESTING=True  # 부하 테스트를 위한 Rate Limiting 비활성화
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  # Nginx (리버스 프록시)
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - static_volume:/code/staticfiles
+      - media_volume:/code/media
+    ports:
+      - "8000:80"
+    depends_on:
+      - web
 
   # Celery Worker (백그라운드 작업 처리)
   celery_worker:
@@ -88,3 +100,5 @@ services:
 
 volumes:
   postgres_data:
+  static_volume:
+  media_volume:

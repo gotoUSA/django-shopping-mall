@@ -316,3 +316,47 @@ class ProductReview(models.Model):
 
     def __str__(self) -> str:
         return f"{self.product.name} - {self.user.username}의 리뷰"
+
+
+# ==================== 캐시 무효화 신호 ====================
+from django.core.cache import cache
+from django.db.models.signals import post_delete, post_save
+from django.dispatch import receiver
+
+
+@receiver([post_save, post_delete], sender=Category)
+def invalidate_category_tree_cache(sender, **kwargs):
+    """
+    카테고리 생성/수정/삭제 시 카테고리 트리 캐시 무효화
+
+    트리거:
+    - Category 생성
+    - Category 수정 (이름, 활성화 상태 등)
+    - Category 삭제
+
+    무효화 이유:
+    - 카테고리 구조가 변경되었으므로 전체 트리를 다시 빌드해야 함
+    """
+    cache.delete("category_tree_v2")
+
+
+@receiver([post_save, post_delete], sender=Product)
+def invalidate_category_tree_on_product_change(sender, instance, **kwargs):
+    """
+    상품 생성/삭제 시 카테고리 트리 캐시 무효화
+
+    트리거:
+    - Product 생성 (product_count 증가)
+    - Product 삭제 (product_count 감소)
+    - Product의 is_active 변경 (product_count 변동)
+
+    무효화 이유:
+    - 카테고리별 product_count가 변경되므로 트리를 다시 빌드해야 함
+
+    Note:
+    - Product의 category 변경도 감지됨 (post_save 시그널)
+    - 단, 상품명, 가격 등 변경은 캐시에 영향 없으나 신호가 발생함
+    - 성능 영향 미미 (캐시 삭제는 매우 빠름)
+    """
+    cache.delete("category_tree_v2")
+

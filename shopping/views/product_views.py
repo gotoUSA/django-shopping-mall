@@ -115,7 +115,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         성능 최적화:
         - select_related: seller, category (JOIN 최적화)
         - prefetch_related: images, reviews (N+1 문제 방지)
-        - annotate: avg_rating, review_cnt (집계)
+        - annotate: avg_rating, review_cnt, wishlist_cnt, is_wished (집계)
 
         필터링:
         - category: 카테고리 및 하위 카테고리 포함
@@ -124,14 +124,27 @@ class ProductViewSet(viewsets.ModelViewSet):
         - seller: 판매자
         - is_active: 활성 상품만 (기본)
         """
+        from django.db.models import Case, When, Value, BooleanField
+
+        # 현재 사용자 ID (인증되지 않은 경우 None)
+        user_id = self.request.user.id if self.request.user.is_authenticated else None
+
         queryset = (
             Product.objects.filter(is_active=True)
             .select_related("seller", "category")
-            .prefetch_related("images", "reviews", "wished_by_users")
+            .prefetch_related("images", "reviews")
             .annotate(
                 # 평균 평점과 리뷰 수를 미리 계산
                 avg_rating=Avg("reviews__rating"),
-                review_cnt=Count("reviews"),
+                review_cnt=Count("reviews", distinct=True),
+                # 찜한 사용자 수 (distinct 필수: JOIN으로 인한 중복 방지)
+                wishlist_cnt=Count("wished_by_users", distinct=True),
+                # 현재 사용자가 찜했는지 여부 (SQL에서 계산)
+                is_wished=Case(
+                    When(wished_by_users__id=user_id, then=Value(True)),
+                    default=Value(False),
+                    output_field=BooleanField(),
+                ),
             )
         )
 
@@ -412,29 +425,56 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=["get"])
     def tree(self, request: Request) -> Response:
         """
-        카테고리 계층 구조 조회
+        카테고리 계층 구조 조회 (최적화됨 + 캐싱)
         GET /api/categories/tree/
 
         응답: 최상위부터 하위까지 재귀적 구조
         각 카테고리에 상품 개수 포함
         권한: 누구나 조회 가능
-        """
 
-        def build_tree(parent: Category | None = None) -> list[dict[str, Any]]:
-            """재귀적으로 카테고리 트리 구성"""
-            categories = []
-            for category in Category.objects.filter(parent=parent, is_active=True):
-                cat_data = {
+        성능 최적화:
+        - Redis 캐싱 (1시간 TTL)
+        - 신호 기반 캐시 무효화 (Category/Product 변경 시)
+        - 단일 쿼리로 모든 카테고리 가져오기
+        - MPTT의 cache_tree_children로 트리 캐싱
+        """
+        from django.core.cache import cache
+        from mptt.templatetags.mptt_tags import cache_tree_children
+
+        # 캐시 키
+        cache_key = "category_tree_v2"
+
+        # 캐시에서 먼저 조회
+        tree = cache.get(cache_key)
+
+        if tree is None:
+            # 캐시 미스 - DB에서 새로 생성
+            # 모든 활성 카테고리를 한 번에 가져오고 상품 수 annotate
+            categories = Category.objects.filter(is_active=True).annotate(
+                product_count=Count("products", filter=Q(products__is_active=True))
+            )
+
+            # MPTT 내장 함수로 트리 캐싱 (매우 빠름!)
+            # 이 함수는 각 카테고리에 get_children() 메서드로 접근 가능한 캐시를 추가
+            root_nodes = cache_tree_children(categories)
+
+            def serialize_category(category: Category) -> dict[str, Any]:
+                """카테고리를 딕셔너리로 직렬화 (재귀)"""
+                return {
                     "id": category.id,
                     "name": category.name,
                     "slug": category.slug,
-                    "product_count": Product.objects.filter(category=category, is_active=True).count(),
-                    "children": build_tree(category),
+                    "product_count": category.product_count,
+                    "children": [serialize_category(child) for child in category.get_children()],  # 이미 캐싱됨!
                 }
-                categories.append(cat_data)
-            return categories
 
-        tree = build_tree()
+            # 최상위 카테고리들을 직렬화
+            tree = [serialize_category(cat) for cat in root_nodes]
+
+            # Redis에 캐싱 (1시간)
+            # 신호(signal)로 자동 무효화되므로 긴 TTL 사용 가능
+            cache.set(cache_key, tree, 60 * 60)
+
         return Response(tree)
 
     @action(detail=True, methods=["get"])
@@ -450,16 +490,31 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 
         권한: 누구나 조회 가능
         """
+        from django.db.models import Case, When, Value, BooleanField
+
         category = self.get_object()
 
         # 현재 카테고리와 모든 하위 카테고리 가져오기
         categories = category.get_descendants(include_self=True)
 
-        # 해당 카테고리들의 상품 조회
+        # 현재 사용자 ID
+        user_id = request.user.id if request.user.is_authenticated else None
+
+        # 해당 카테고리들의 상품 조회 (ProductViewSet과 동일한 annotate 적용)
         products = (
             Product.objects.filter(category__in=categories, is_active=True)
             .select_related("seller", "category")
-            .prefetch_related("images", "reviews", "wished_by_users")
+            .prefetch_related("images", "reviews")
+            .annotate(
+                avg_rating=Avg("reviews__rating"),
+                review_cnt=Count("reviews", distinct=True),
+                wishlist_cnt=Count("wished_by_users", distinct=True),
+                is_wished=Case(
+                    When(wished_by_users__id=user_id, then=Value(True)),
+                    default=Value(False),
+                    output_field=BooleanField(),
+                ),
+            )
         )
 
         # ProductViewSet의 필터링 로직 재사용
@@ -468,8 +523,8 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         page = paginator.paginate_queryset(products, request)
 
         if page is not None:
-            serializer = ProductListSerializer(page, many=True)
+            serializer = ProductListSerializer(page, many=True, context={"request": request})
             return paginator.get_paginated_response(serializer.data)
 
-        serializer = ProductListSerializer(products, many=True)
+        serializer = ProductListSerializer(products, many=True, context={"request": request})
         return Response(serializer.data)

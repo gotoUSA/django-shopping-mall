@@ -265,7 +265,7 @@ STRESS_TEST = {
 
 # ==================== 실제 사용할 시나리오 선택 ====================
 # 👇 여기서 원하는 프리셋을 선택하세요
-CURRENT_SCENARIO = REALISTIC_TRAFFIC  # ✅ 기본값: 현실적 트래픽
+CURRENT_SCENARIO = HIGH_INTENT_TRAFFIC  # ✅ 기본값: 현실적 트래픽
 
 
 class WebsiteUser(HttpUser):

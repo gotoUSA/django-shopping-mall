@@ -10,7 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import BaseSerializer
+from rest_framework.serializers import BaseSerializer, ValidationError
 
 from ..models.order import Order
 from ..permissions import IsOrderOwnerOrAdmin
@@ -143,6 +143,15 @@ class OrderViewSet(viewsets.ModelViewSet):
                     "status_url": f"/api/orders/{order.id}/",
                 },
                 status=status.HTTP_202_ACCEPTED,
+            )
+        except ValidationError as e:
+            logger.error(
+                f"주문 생성 실패 (ValidationError): user_id={request.user.id}, "
+                f"error={str(e)}, data={request.data}"
+            )
+            return Response(
+                e.detail if hasattr(e, "detail") else {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
             )
         except OrderServiceError as e:
             logger.error(

@@ -13,6 +13,15 @@ from ..models.product import Category, Product, ProductImage, ProductReview
 User = get_user_model()
 
 
+class AverageRatingField(serializers.FloatField):
+    """평균 평점 필드 - null을 0.0으로 변환하고 소수점 1자리로 반올림"""
+
+    def to_representation(self, value):
+        if value is None:
+            return 0.0
+        return round(float(value), 1)
+
+
 class ProductListSerializer(serializers.ModelSerializer):
     """
     상품 목록 조회용 Serializer
@@ -37,11 +46,12 @@ class ProductListSerializer(serializers.ModelSerializer):
     # SerializerMethodField를 사용하면 메서드로 값을 계산할 수 있습니다.
     thumbnail_image = serializers.SerializerMethodField(help_text="상품 대표 이미지 URL")
 
-    # 평균 평점 (리뷰가 없으면 0.0)
-    average_rating = serializers.SerializerMethodField(help_text="평균 평점 (0.0 ~ 5.0)")
+    # 평균 평점 - View의 annotate(avg_rating) 값 사용 (N+1 쿼리 방지)
+    # 커스텀 필드로 null을 0.0으로 변환
+    average_rating = AverageRatingField(source="avg_rating", read_only=True, help_text="평균 평점 (0.0 ~ 5.0)")
 
-    # 리뷰 개수
-    review_count = serializers.SerializerMethodField(help_text="리뷰 총 개수")
+    # 리뷰 개수 - View의 annotate(review_cnt) 값 사용 (N+1 쿼리 방지)
+    review_count = serializers.IntegerField(source="review_cnt", read_only=True, help_text="리뷰 총 개수")
 
     # 할인된 가격 (나중에 할인 기능 추가시 사용)
     # 지금은 원가와 동일하게 반환
@@ -50,9 +60,9 @@ class ProductListSerializer(serializers.ModelSerializer):
     # 재고 상태를 텍스트로 표시 (모델 property 사용)
     stock_status = serializers.ReadOnlyField(help_text="재고 상태 (품절/부족/충분)")
 
-    # 찜 관련 필드
-    wishlist_count = serializers.SerializerMethodField()
-    is_wished = serializers.SerializerMethodField()  # 현재 사용자가 찜했는지
+    # 찜 관련 필드 - View의 annotate 값 사용 (N+1 쿼리 방지)
+    wishlist_count = serializers.IntegerField(source="wishlist_cnt", read_only=True, help_text="찜한 사용자 수")
+    is_wished = serializers.BooleanField(read_only=True, help_text="현재 사용자가 찜했는지 여부")
 
     class Meta:
         model = Product
@@ -102,25 +112,6 @@ class ProductListSerializer(serializers.ModelSerializer):
         # 이미지가 없으면 None 반환 (프론드엔드에서 기본 이미지 처리)
         return None
 
-    def get_average_rating(self, obj: Product) -> float:
-        """
-        상품의 평균 평점을 계산합니다.
-
-        Django ORM의 집계(aggregate) 기능을 사용합니다.
-        """
-        # reviews는 Product 모델에서 related_name으로 정의된 역참조
-        avg_rating = obj.reviews.aggregate(avg=Avg("rating"))["avg"]  # rating 필드의 평균 계산
-
-        # 리뷰가 없으면 0.0 반환, 있으면 소수점 1자리로 반올림
-        return round(avg_rating, 1) if avg_rating else 0.0
-
-    def get_review_count(self, obj: Product) -> int:
-        """
-        상품의 리뷰 개수를 반환합니다.
-        """
-        # count() 메서드로 리뷰 개수 계산
-        return obj.reviews.count()
-
     def get_discounted_price(self, obj: Product) -> str:
         """
         할인가를 반환합니다.
@@ -129,19 +120,6 @@ class ProductListSerializer(serializers.ModelSerializer):
         """
         # 현재는 원가 그대로 반환
         return str(obj.price)
-
-
-
-    def get_wishlist_count(self, obj: Product) -> int:
-        """찜한 사용자 수"""
-        return obj.get_wishlist_count()
-
-    def get_is_wished(self, obj: Product) -> bool:
-        """현재 사용자가 찜했는지 여부"""
-        request = self.context.get("request")
-        if request and request.user.is_authenticated:
-            return obj.is_wished_by(request.user)
-        return False
 
 
 class ProductImageSerializer(serializers.ModelSerializer):

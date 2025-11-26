@@ -52,7 +52,8 @@ def call_toss_confirm_api(payment_key: str, order_id: str, amount: int) -> dict:
     except TossPaymentError as e:
         logger.error(f"Toss API 호출 실패: order_id={order_id}, error={e.message}")
 
-        # 에러 로그 기록 (Payment는 order_id로 찾아야 함)
+        # 에러 로그 기록 및 Payment 상태만 업데이트
+        # Order 상태는 변경하지 않음 (트랜잭션 롤백 테스트 지원)
         try:
             payment = Payment.objects.get(toss_order_id=order_id)
             payment.status = "aborted"

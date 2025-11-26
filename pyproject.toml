@@ -1,5 +1,5 @@
 # ==========================================
-# Black 설정 (코드 포맷팅)
+# Black Configuration (Code Formatting)
 # ==========================================
 [tool.black]
 line-length = 127
@@ -20,7 +20,7 @@ exclude = '''
 '''
 
 # ==========================================
-# isort 설정 (import 정렬)
+# isort Configuration (Import Sorting)
 # ==========================================
 [tool.isort]
 profile = "black"
@@ -40,7 +40,7 @@ known_first_party = ["shopping", "myproject"]
 sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 
 # ==========================================
-# pytest 설정
+# pytest Configuration
 # ==========================================
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "myproject.settings"
@@ -72,7 +72,7 @@ filterwarnings = [
 ]
 
 # ==========================================
-# coverage 설정
+# coverage Configuration
 # ==========================================
 [tool.coverage.run]
 source = ["shopping"]
@@ -88,7 +88,7 @@ omit = [
     "myproject/asgi.py",
 ]
 branch = true
-# 병렬 테스트 지원 (pytest-xdist)
+# Parallel testing support (pytest-xdist)
 parallel = true
 concurrency = ["thread", "multiprocessing"]
 

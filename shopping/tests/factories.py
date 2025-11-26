@@ -82,16 +82,31 @@ class UserFactory(DjangoModelFactory):
     class Meta:
         model = User
         django_get_or_create = ("username",)
-        skip_postgeneration_save = True
+        skip_postgeneration_save = True  # post_generation에서 명시적으로 save() 호출하므로 자동 저장 비활성화
+
 
     username = factory.Sequence(lambda n: f"testuser{n}")
     email = factory.LazyAttribute(lambda obj: f"{obj.username}@test.com")
     phone_number = factory.Sequence(lambda n: f"010-{1000+n:04d}-{5678+n:04d}")
-    password = factory.PostGenerationMethodCall("set_password", TestConstants.DEFAULT_PASSWORD)
     points = 0
     membership_level = "bronze"
     is_email_verified = True  # 기본값: 인증 완료
     is_active = True
+
+    @factory.post_generation
+    def password(obj, create, extracted, **kwargs):
+        """
+        비밀번호 설정 및 저장
+
+        extracted가 제공되면 해당 비밀번호 사용, 아니면 기본 비밀번호 사용
+        """
+        if not create:
+            # build()로 생성된 경우 (DB 저장 안 함)
+            return
+
+        password_value = extracted if extracted else TestConstants.DEFAULT_PASSWORD
+        obj.set_password(password_value)
+        obj.save()
 
     @classmethod
     def verified(cls, **kwargs):
@@ -831,22 +846,38 @@ class TossResponseBuilder:
     Toss API 응답 빌더
 
     재사용 가능한 Toss API 응답을 생성합니다.
+    동시성 테스트를 위해 기본 payment_key는 UUID로 자동 생성됩니다.
 
     사용 예시:
-        response = TossResponseBuilder.success_response()
+        response = TossResponseBuilder.success_response()  # 고유 UUID 생성
+        response = TossResponseBuilder.success_response(payment_key="custom_key")
         response = TossResponseBuilder.cancel_response()
         response = TossResponseBuilder.error_response("INVALID_REQUEST")
     """
 
     @staticmethod
     def success_response(
-        payment_key="test_payment_key_123",
+        payment_key=None,
         order_id="ORDER_20250115_001",
         amount=13000,
         method="카드",
         approved_at=None,
     ):
-        """결제 승인 성공 응답"""
+        """
+        결제 승인 성공 응답
+
+        Args:
+            payment_key: 결제키 (None이면 UUID 자동 생성)
+            order_id: 주문번호
+            amount: 결제금액
+            method: 결제수단
+            approved_at: 승인시간
+        """
+        import uuid
+
+        if payment_key is None:
+            payment_key = f"test_key_{uuid.uuid4().hex[:16]}"
+
         return {
             "paymentKey": payment_key,
             "orderId": order_id,

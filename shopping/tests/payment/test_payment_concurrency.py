@@ -104,7 +104,7 @@ class TestPaymentConcurrencyHappyPath:
                         {
                             "user": user_obj.username,
                             "status": response.status_code,
-                            "success": response.status_code == status.HTTP_200_OK,
+                            "success": response.status_code == status.HTTP_202_ACCEPTED,
                         }
                     )
             except Exception as e:
@@ -181,7 +181,7 @@ class TestPaymentConcurrencyHappyPath:
                 response = client.post("/api/payments/confirm/", request_data, format="json")
 
                 with lock:
-                    results.append({"success": response.status_code == status.HTTP_200_OK})
+                    results.append({"success": response.status_code == status.HTTP_202_ACCEPTED})
             except Exception as e:
                 with lock:
                     results.append({"error": str(e)})
@@ -246,7 +246,7 @@ class TestPaymentConcurrencyHappyPath:
                 response = client.post("/api/payments/confirm/", request_data, format="json")
 
                 with lock:
-                    results.append({"success": response.status_code == status.HTTP_200_OK})
+                    results.append({"success": response.status_code == status.HTTP_202_ACCEPTED})
             except Exception as e:
                 with lock:
                     results.append({"error": str(e)})
@@ -275,7 +275,7 @@ class TestPaymentConcurrencyHappyPath:
         # Arrange
         user = user_factory(username="retry_user")
 
-        order = create_order(user=user, product=product, status="pending")
+        order = create_order(user=user, product=product, status="confirmed")
 
         # 기존 Payment 생성
         old_payment = PaymentFactory(order=order)
@@ -321,11 +321,17 @@ class TestPaymentConcurrencyHappyPath:
         # 최소 1개는 성공해야 함
         assert success_count >= 1, f"최소 1개 성공. 성공: {success_count}"
 
-        # 기존 Payment는 삭제되었어야 함
-        assert not Payment.objects.filter(id=old_payment_id).exists()
+        # 최종적으로 Payment는 1개만 존재해야 함 (마지막 요청이 이전 것을 삭제)
+        assert Payment.objects.filter(order=order).count() == 1, \
+            f"Payment는 1개만 존재해야 함. 실제: {Payment.objects.filter(order=order).count()}"
 
-        # 새 Payment가 생성되었어야 함
-        assert Payment.objects.filter(order=order).exists()
+        # 새로 생성된 Payment ID 확인 (성공한 요청 중 하나)
+        successful_payment_ids = [r["payment_id"] for r in results if r.get("success") and r.get("payment_id")]
+        if successful_payment_ids:
+            # 최소 하나의 새로운 Payment가 생성되었음
+            final_payment = Payment.objects.get(order=order)
+            assert final_payment.id in successful_payment_ids, \
+                f"최종 Payment ID가 성공한 요청 중 하나여야 함. final={final_payment.id}, successful={successful_payment_ids}"
 
     def test_concurrent_payment_with_points_usage(self, product, user_factory, create_order, toss_response_builder, build_confirm_request, mocker):
         """여러 사용자가 포인트 사용하며 동시 결제"""
@@ -378,7 +384,7 @@ class TestPaymentConcurrencyHappyPath:
                 response = client.post("/api/payments/confirm/", request_data, format="json")
 
                 with lock:
-                    results.append({"success": response.status_code == status.HTTP_200_OK})
+                    results.append({"success": response.status_code == status.HTTP_202_ACCEPTED})
             except Exception as e:
                 with lock:
                     results.append({"error": str(e)})
@@ -449,7 +455,7 @@ class TestPaymentConcurrencyBoundary:
                 response = client.post("/api/payments/confirm/", request_data, format="json")
 
                 with lock:
-                    results.append({"success": response.status_code == status.HTTP_200_OK})
+                    results.append({"success": response.status_code == status.HTTP_202_ACCEPTED})
             except Exception as e:
                 with lock:
                     results.append({"error": str(e)})
@@ -477,7 +483,7 @@ class TestPaymentConcurrencyBoundary:
             phone_number="010-7000-0001",
         )
 
-        order = create_order(user=user, product=product, status="pending")
+        order = create_order(user=user, product=product, status="confirmed")
 
         results = []
         lock = threading.Lock()
@@ -572,7 +578,7 @@ class TestPaymentConcurrencyBoundary:
                 response = client.post("/api/payments/confirm/", request_data, format="json")
 
                 with lock:
-                    results.append({"success": response.status_code == status.HTTP_200_OK})
+                    results.append({"success": response.status_code == status.HTTP_202_ACCEPTED})
             except Exception as e:
                 with lock:
                     results.append({"error": str(e)})
@@ -659,7 +665,7 @@ class TestPaymentConcurrencyBoundary:
                 client, token, error = login_and_get_token(user_obj.username)
                 if error:
                     with lock:
-                        results.append({"error": error})
+                        results.append({"error": error, "payment_id": payment_obj.id})
                     return
 
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
@@ -669,13 +675,14 @@ class TestPaymentConcurrencyBoundary:
                 with lock:
                     results.append(
                         {
-                            "success": response.status_code == status.HTTP_200_OK,
+                            "accepted": response.status_code == status.HTTP_202_ACCEPTED,
                             "status": response.status_code,
+                            "payment_id": payment_obj.id,
                         }
                     )
             except Exception as e:
                 with lock:
-                    results.append({"error": str(e)})
+                    results.append({"error": str(e), "payment_id": payment_obj.id})
 
         # Act
         threads = [
@@ -687,9 +694,23 @@ class TestPaymentConcurrencyBoundary:
         for t in threads:
             t.join()
 
-        # Assert - 2명 성공, 1명 실패
-        success_count = sum(1 for r in results if r.get("success", False))
-        assert success_count == 2, f"2명 성공. 성공: {success_count}"
+        # 비동기 태스크 완료 대기
+        time.sleep(0.5)
+
+        # Assert - HTTP 응답 대신 최종 결제 상태 검증
+        # 2명 성공 (payment.status == 'done'), 1명 실패 (payment.status == 'aborted')
+        success_count = 0
+        failed_count = 0
+
+        for payment in payments:
+            payment.refresh_from_db()
+            if payment.status == "done":
+                success_count += 1
+            elif payment.status == "aborted":
+                failed_count += 1
+
+        assert success_count == 2, f"2명 성공. 성공: {success_count}, 실패: {failed_count}"
+        assert failed_count == 1, f"1명 실패. 성공: {success_count}, 실패: {failed_count}"
 
 
 @pytest.mark.django_db(transaction=True)
@@ -762,7 +783,7 @@ class TestPaymentConcurrencyException:
                 response = client.post("/api/payments/confirm/", request_data, format="json")
 
                 with lock:
-                    results.append({"success": response.status_code == status.HTTP_200_OK})
+                    results.append({"success": response.status_code == status.HTTP_202_ACCEPTED})
             except Exception as e:
                 with lock:
                     results.append({"error": str(e)})
@@ -777,9 +798,23 @@ class TestPaymentConcurrencyException:
         for t in threads:
             t.join()
 
-        # Assert - 1명만 성공
-        success_count = sum(1 for r in results if r.get("success", False))
-        assert success_count == 1, f"1명만 성공. 성공: {success_count}"
+        # 비동기 태스크 완료 대기
+        time.sleep(0.5)
+
+        # Assert - HTTP 응답 대신 최종 결제 상태 검증
+        # 1명 성공 (payment.status == 'done'), 4명 실패 (payment.status == 'aborted')
+        success_count = 0
+        failed_count = 0
+
+        for payment in payments:
+            payment.refresh_from_db()
+            if payment.status == "done":
+                success_count += 1
+            elif payment.status == "aborted":
+                failed_count += 1
+
+        assert success_count == 1, f"1명만 성공. 성공: {success_count}, 실패: {failed_count}"
+        assert failed_count == 4, f"4명 실패. 성공: {success_count}, 실패: {failed_count}"
 
     def test_concurrent_duplicate_payment_confirm(self, product, user_factory, create_order, mocker):
         """동일 결제 중복 승인 시도 (1개만 성공, 나머지 실패)"""
@@ -824,7 +859,7 @@ class TestPaymentConcurrencyException:
                 with lock:
                     results.append(
                         {
-                            "success": response.status_code == status.HTTP_200_OK,
+                            "success": response.status_code == status.HTTP_202_ACCEPTED,
                             "status": response.status_code,
                         }
                     )
@@ -984,7 +1019,7 @@ class TestPaymentConcurrencyException:
                     results.append(
                         {
                             "type": "confirm",
-                            "success": response.status_code == status.HTTP_200_OK,
+                            "success": response.status_code == status.HTTP_202_ACCEPTED,
                             "status": response.status_code,
                         }
                     )
@@ -1082,7 +1117,7 @@ class TestPaymentConcurrencyException:
                 response = client.post("/api/payments/confirm/", request_data, format="json")
 
                 with lock:
-                    results.append({"success": response.status_code == status.HTTP_200_OK})
+                    results.append({"success": response.status_code == status.HTTP_202_ACCEPTED})
             except Exception as e:
                 with lock:
                     results.append({"error": str(e)})

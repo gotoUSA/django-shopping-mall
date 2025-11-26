@@ -10,7 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import BaseSerializer
+from rest_framework.serializers import BaseSerializer, ValidationError
 
 from ..models.order import Order
 from ..permissions import IsOrderOwnerOrAdmin
@@ -119,31 +119,59 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        try:
+            # 하이브리드 방식을 사용하여 주문 검증 및 생성
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
 
-        # Validate and create order using hybrid method
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+            # 비동기 처리를 위해 하이브리드 방식 사용
+            order, task_id = serializer.create_hybrid(serializer.validated_data)
 
-        # Use hybrid method for async processing
-        order, task_id = serializer.create_hybrid(serializer.validated_data)
+            logger.info(
+                f"주문 하이브리드 생성: order_id={order.id}, order_number={order.order_number}, "
+                f"task_id={task_id}, user_id={request.user.id}"
+            )
 
-        logger.info(
-            f"주문 하이브리드 생성: order_id={order.id}, order_number={order.order_number}, "
-            f"task_id={task_id}, user_id={request.user.id}"
-        )
-
-        # Return HTTP 202 Accepted with task tracking info
-        return Response(
-            {
-                "order_id": order.id,
-                "order_number": order.order_number,
-                "status": "pending",
-                "task_id": task_id,
-                "message": "주문 처리 중입니다. 잠시 후 주문 내역에서 확인해주세요.",
-                "status_url": f"/api/orders/{order.id}/",
-            },
-            status=status.HTTP_202_ACCEPTED,
-        )
+            # 작업 추적 정보와 함께 HTTP 202 Accepted 반환
+            return Response(
+                {
+                    "order_id": order.id,
+                    "order_number": order.order_number,
+                    "status": "pending",
+                    "task_id": task_id,
+                    "message": "주문 처리 중입니다. 잠시 후 주문 내역에서 확인해주세요.",
+                    "status_url": f"/api/orders/{order.id}/",
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
+        except ValidationError as e:
+            logger.error(
+                f"주문 생성 실패 (ValidationError): user_id={request.user.id}, "
+                f"error={str(e)}, data={request.data}"
+            )
+            return Response(
+                e.detail if hasattr(e, "detail") else {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except OrderServiceError as e:
+            logger.error(
+                f"주문 생성 실패 (OrderServiceError): user_id={request.user.id}, "
+                f"error={str(e)}, data={request.data}"
+            )
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            logger.error(
+                f"주문 생성 실패 (Unexpected): user_id={request.user.id}, "
+                f"error={str(e)}, data={request.data}",
+                exc_info=True
+            )
+            return Response(
+                {"error": "주문 생성 중 오류가 발생했습니다."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
     @action(detail=True, methods=["post"])

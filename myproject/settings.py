@@ -235,8 +235,10 @@ REST_FRAMEWORK = {
 }
 
 # Rate Limiting (Throttling) 설정
-# 테스트 환경에서는 매우 높은 제한값으로 설정 (동시성 테스트 통과용)
-if TESTING:
+# 테스트 환경 또는 부하 테스트 환경에서는 매우 높은 제한값으로 설정
+DISABLE_RATE_LIMITING = os.getenv("DISABLE_RATE_LIMITING", "FALSE") == "TRUE"
+
+if TESTING or DISABLE_RATE_LIMITING:
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
         "login": "1000/min",
         "register": "1000/hour",
@@ -372,9 +374,25 @@ LOGGING = {
         },
     },
     "loggers": {
+        # Django request 로거 (400/500 에러 자동 로깅)
+        "django.request": {
+            "handlers": ["console"],
+            "level": "WARNING",  # 400, 500 에러 출력
+            "propagate": False,
+        },
         "shopping.views.payment_views": {
             "handlers": ["console", "file"],
             "level": "INFO",
+            "propagate": False,
+        },
+        "shopping.views.order_views": {
+            "handlers": ["console"],
+            "level": "DEBUG",  # 주문 에러 상세 로깅
+            "propagate": False,
+        },
+        "shopping.views.cart_views": {
+            "handlers": ["console"],
+            "level": "DEBUG",  # 장바구니 에러 상세 로깅
             "propagate": False,
         },
         "shopping.webhooks": {
@@ -456,8 +474,8 @@ LOGGING["loggers"]["celery"] = {
 }
 
 LOGGING["loggers"]["shopping.services"] = {
-    "handlers": ["console", "file"],
-    "level": "INFO",
+    "handlers": ["console"],
+    "level": "DEBUG",  # 서비스 레이어 상세 로깅
     "propagate": False,
 }
 

@@ -1047,3 +1047,119 @@ class TestOrderConcurrencyAdvanced:
         for username in success_users:
             u = User.objects.get(username=username)
             assert u.points == 4000, f"{u.username}의 포인트가 1000P 차감되어야 함"
+
+
+@pytest.mark.django_db(transaction=True)
+class TestOrderConcurrencyScaleValidation:
+    """
+    스케일 검증
+
+    대규모 동시 주문 요청으로 시스템 확장성 검증
+    """
+
+    @pytest.mark.slow
+    @pytest.mark.parametrize("user_count", [50, 100])
+    def test_concurrent_order_creation_scale(self, product, shipping_data, user_count):
+        """대규모 동시 주문 생성 - 스케일 검증
+
+        Args:
+            user_count: 동시 주문할 사용자 수 (50 or 100)
+
+        Scenario:
+            - 재고: user_count * 2개 (충분한 재고)
+            - 사용자: user_count명이 각 1개씩 동시 주문
+            - 예상: user_count개 주문 모두 성공, 재고 user_count개 남음
+
+        Note:
+            500-1000명 스케일은 DB 커넥션 풀 한계로 인해 Locust로 테스트합니다.
+            pytest는 로직 검증 목적으로 50-100명 규모를 사용합니다.
+        """
+        # Arrange - 충분한 재고 설정
+        product.stock = user_count * 2
+        product.save()
+
+        # 사용자 생성
+        users = []
+        for i in range(user_count):
+            user = UserFactory(
+                username=f"scale_user_{user_count}_{i}",
+                email=f"scale{user_count}_{i}@test.com",
+                phone_number=f"010-9000-{i:04d}",
+            )
+            users.append(user)
+
+        # 장바구니 아이템 벌크 생성
+        cart_items = []
+        for user in users:
+            cart, _ = Cart.get_or_create_active_cart(user)
+            cart_items.append(CartItem(cart=cart, product=product, quantity=1))
+
+        CartItem.objects.bulk_create(cart_items)
+
+        results = []
+        lock = threading.Lock()
+
+        def create_order(user_obj):
+            """주문 생성"""
+            try:
+                client, token, error = login_and_get_token(user_obj.username)
+
+                if error:
+                    with lock:
+                        results.append({"user": user_obj.username, "error": error})
+                    return
+
+                client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+                response = client.post("/api/orders/", shipping_data, format="json")
+
+                # 비동기 응답 처리
+                success, order, msg = verify_async_order_result(response, expected_success=True)
+
+                with lock:
+                    results.append(
+                        {
+                            "user": user_obj.username,
+                            "status": response.status_code,
+                            "success": success,
+                            "message": msg,
+                        }
+                    )
+            except Exception as e:
+                with lock:
+                    results.append({"user": user_obj.username, "error": str(e)})
+
+        # Act - 동시 주문
+        start_time = time.time()
+        threads = [threading.Thread(target=create_order, args=(u,)) for u in users]
+
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        elapsed_time = time.time() - start_time
+
+        # Assert - 모두 성공
+        success_count = sum(1 for r in results if r.get("success", False))
+        failed_count = len(results) - success_count
+
+        if success_count != user_count:
+            # 디버깅: 실패 시 샘플만 출력 (처음 5개)
+            failed_samples = [r for r in results if not r.get("success", False)][:5]
+            print(f"\n실패 샘플: {failed_samples}")
+
+        assert (
+            success_count == user_count
+        ), f"{user_count}명 모두 성공해야 함. 성공: {success_count}, 실패: {failed_count}"
+
+        # 재고 확인 (초기 재고 - user_count개 주문 = user_count개 남음)
+        product.refresh_from_db()
+        expected_stock = user_count
+        assert product.stock == expected_stock, f"재고가 {expected_stock}개 남아야 함. 실제: {product.stock}"
+
+        # 성능 확인 (적절한 시간 내 완료)
+        max_time = 120  # 2분
+        assert elapsed_time < max_time, f"{max_time}초 내 완료되어야 함. 실제: {elapsed_time:.2f}초"
+
+        print(f"\n✅ {user_count}명 동시 주문 성공 (실행 시간: {elapsed_time:.2f}초)")
+

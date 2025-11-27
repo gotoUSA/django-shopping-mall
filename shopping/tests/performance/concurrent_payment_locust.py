@@ -27,15 +27,23 @@ class ConcurrentPaymentUser(HttpUser):
 
     # 전역 카운터 (모든 사용자가 공유)
     payment_attempts = []
+    _user_counter = 0  # 사용자 순차 카운터
+    _user_lock = None  # 스레드 안전을 위한 락
 
     def on_start(self):
         """각 사용자 시작 시 로그인 및 주문/결제 생성"""
-        # 고유한 사용자 생성
-        timestamp = int(time.time() * 1000)
-        user_id = id(self)
+        # 스레드 안전한 카운터 증가
+        if self.__class__._user_lock is None:
+            import threading
 
-        # 미리 생성된 사용자 사용
-        self.user_id = random.randint(0, 999)
+            self.__class__._user_lock = threading.Lock()
+
+        with self.__class__._user_lock:
+            user_index = self.__class__._user_counter
+            self.__class__._user_counter += 1
+
+        # 고유한 사용자 할당 (0~999 순차 사용, 1000명 이상이면 재사용)
+        self.user_id = user_index % 1000
         self.username = f"load_test_user_{self.user_id}"
         self.password = "testpass123"
 
@@ -79,13 +87,56 @@ class ConcurrentPaymentUser(HttpUser):
         )
 
         if order_response.status_code != 202:
-            self.order_error = f"Order create failed: {order_response.status_code}"
+            self.order_error = f"Order create failed: {order_response.status_code} - {order_response.text[:200]}"
             return
 
-        self.order_id = order_response.json().get("order_id")
-        time.sleep(1)  # 주문 처리 대기
+        order_data = order_response.json()
+        self.order_id = order_data.get("order_id")
 
-        # 결제 요청
+        # order_id 검증
+        if not self.order_id:
+            self.order_error = f"Order ID not found in response: {order_data}"
+            return
+
+        # 주문 처리 완료 대기 (상태 확인만)
+        max_wait = 20  # 15초 → 20초로 증가
+        wait_interval = 0.5
+        elapsed = 0
+        order_ready = False
+
+        # 초기 대기 (Celery 작업 시작 대기)
+        time.sleep(2)
+
+        while elapsed < max_wait:
+            # 주문 상태 확인 (GET 요청)
+            check_response = self.client.get(
+                f"/api/orders/{self.order_id}/",
+                headers={"Authorization": f"Bearer {self.access_token}"},
+                name="/api/orders/[id]/ (poll)",
+            )
+
+            if check_response.status_code == 200:
+                order_data = check_response.json()
+                order_status = order_data.get("status")
+
+                # "confirmed" 상태가 되면 결제 요청 가능
+                if order_status in ["confirmed", "CONFIRMED", "주문확정"]:
+                    order_ready = True
+                    break
+                # 실패 상태면 즉시 종료
+                elif order_status in ["failed", "FAILED", "실패"]:
+                    self.order_error = f"Order failed: {order_data.get('failure_reason', 'unknown')}"
+                    return
+
+            # 대기 후 재시도
+            time.sleep(wait_interval)
+            elapsed += wait_interval
+
+        if not order_ready:
+            self.order_error = f"Order not ready after {max_wait}s - order_id: {self.order_id}"
+            return
+
+        # 주문 준비 완료 후 결제 요청 (단 한 번만)
         payment_request_response = self.client.post(
             "/api/payments/request/",
             json={"order_id": self.order_id},
@@ -94,39 +145,53 @@ class ConcurrentPaymentUser(HttpUser):
         )
 
         if payment_request_response.status_code != 201:
-            self.payment_request_error = f"Payment request failed: {payment_request_response.status_code}"
+            error_detail = payment_request_response.text[:200]
+            try:
+                error_detail = payment_request_response.json()
+            except:
+                pass
+            self.payment_request_error = f"Payment request failed: {payment_request_response.status_code} - {error_detail}"
             return
 
         payment_data = payment_request_response.json()
         self.payment_id = payment_data.get("payment_id")
-        self.order_number = payment_data.get("order_id")
+        self.payment_order_id = payment_data.get("order_id")  # 이게 toss_order_id
         self.amount = payment_data.get("amount")
+
+        # 디버깅: 결제 요청 응답 확인
+        if not self.payment_order_id:
+            self.payment_request_error = f"order_id not in response: {payment_data}"
+            return
 
     @task
     def confirm_payment(self):
-        """결제 승인 시도"""
+        """결제 승인 시도 - 한 번만 실행"""
+        # 이미 실행했으면 스킵
+        if hasattr(self, "_payment_confirmed"):
+            return
+        self._payment_confirmed = True
+
         if not hasattr(self, "access_token") or not hasattr(self, "payment_id"):
             # 준비 실패 시 건너뛰기
             result = {
                 "username": getattr(self, "username", "unknown"),
                 "success": False,
                 "error": getattr(self, "register_error", None)
-                        or getattr(self, "login_error", None)
-                        or getattr(self, "cart_error", None)
-                        or getattr(self, "order_error", None)
-                        or getattr(self, "payment_request_error", None)
-                        or "Setup failed",
+                or getattr(self, "login_error", None)
+                or getattr(self, "cart_error", None)
+                or getattr(self, "order_error", None)
+                or getattr(self, "payment_request_error", None)
+                or "Setup failed",
                 "timestamp": time.time(),
             }
             self.__class__.payment_attempts.append(result)
-            self.environment.runner.quit()
             return
 
         # 결제 승인
         response = self.client.post(
             "/api/payments/confirm/",
             json={
-                "order_id": self.order_number,
+                "order_id": self.payment_order_id,  # order_number -> payment_order_id
                 "payment_key": f"test_payment_{self.payment_id}",
                 "amount": self.amount,
             },
@@ -146,12 +211,18 @@ class ConcurrentPaymentUser(HttpUser):
             result["message"] = "✅ 202 Accepted - 성공"
         else:
             result["success"] = False
-            result["message"] = f"❌ {response.status_code} - {response.text[:100]}"
+            # 상세 에러 정보 출력
+            error_detail = response.text[:200]
+            try:
+                error_json = response.json()
+                error_detail = str(error_json)[:200]
+            except:
+                pass
+            result["message"] = f"❌ {response.status_code} - {error_detail}"
+            # 디버깅용: 어떤 데이터를 보냈는지도 기록
+            result["sent_data"] = {"order_id": self.payment_order_id, "payment_id": self.payment_id, "amount": self.amount}
 
         self.__class__.payment_attempts.append(result)
-
-        # 한 번만 실행하고 종료
-        self.environment.runner.quit()
 
 
 @events.test_stop.add_listener

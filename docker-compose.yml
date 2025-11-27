@@ -59,7 +59,7 @@ services:
   # Celery Worker (백그라운드 작업 처리)
   celery_worker:
     build: .
-    command: celery -A myproject worker -l info --concurrency=8
+    command: celery -A myproject worker -l info --concurrency=8 -Q celery,order_processing,points --prefetch-multiplier=1
     volumes:
       - .:/code
     env_file:

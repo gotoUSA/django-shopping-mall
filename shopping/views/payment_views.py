@@ -79,9 +79,7 @@ class PaymentRequestView(EmailVerificationRequiredMixin, APIView):
             payment = serializer.save()
 
             # N+1 방지: order와 order_items를 함께 조회
-            payment = Payment.objects.select_related("order").prefetch_related("order__order_items").get(
-                pk=payment.id
-            )
+            payment = Payment.objects.select_related("order").prefetch_related("order__order_items").get(pk=payment.id)
             order = payment.order
 
             # 주문명 생성 (첫 상품명 + 나머지 개수)
@@ -103,7 +101,7 @@ class PaymentRequestView(EmailVerificationRequiredMixin, APIView):
             # 결제 정보 반환
             response_data = {
                 "payment_id": payment.id,
-                "order_id": payment.order_id,
+                "order_id": payment.toss_order_id,  # toss_order_id를 반환 (결제 승인 시 사용)
                 "order_name": order_name,
                 "customer_name": request.user.get_full_name() or request.user.username,
                 "customer_email": request.user.email,
@@ -238,7 +236,6 @@ class PaymentConfirmView(EmailVerificationRequiredMixin, APIView):
             )
 
 
-
 class PaymentCancelView(APIView):
     """
     결제 취소 뷰
@@ -274,9 +271,7 @@ class PaymentCancelView(APIView):
             # 서비스 레이어 호출 (동시성 제어 및 비즈니스 로직 처리)
             from ..services.payment_service import PaymentService
 
-            result = PaymentService.cancel_payment(
-                payment_id=payment_id, user=request.user, cancel_reason=cancel_reason
-            )
+            result = PaymentService.cancel_payment(payment_id=payment_id, user=request.user, cancel_reason=cancel_reason)
 
             # N+1 방지: 응답용 Payment 객체를 order와 함께 조회
             payment = Payment.objects.select_related("order").get(pk=payment_id)
@@ -304,9 +299,7 @@ class PaymentCancelView(APIView):
 
             if isinstance(e, PaymentCancelError):
                 logger.error(f"Payment cancel error: {str(e)}")
-                return Response(
-                    {"error": str(e)}, status=status.HTTP_400_BAD_REQUEST
-                )
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
             # 기타 예외
             logger.error(f"Unexpected error in payment cancel: {str(e)}")
@@ -342,18 +335,17 @@ class PaymentStatusView(APIView):
         }
         """
         try:
-            payment = Payment.objects.select_related("order").get(
-                id=payment_id,
-                order__user=request.user
-            )
+            payment = Payment.objects.select_related("order").get(id=payment_id, order__user=request.user)
 
-            return Response({
-                "payment_id": payment.id,
-                "status": payment.status,
-                "is_paid": payment.is_paid,
-                "order_status": payment.order.status if payment.order else None,
-                "order_id": payment.order.id if payment.order else None,
-            })
+            return Response(
+                {
+                    "payment_id": payment.id,
+                    "status": payment.status,
+                    "is_paid": payment.is_paid,
+                    "order_status": payment.order.status if payment.order else None,
+                    "order_id": payment.order.id if payment.order else None,
+                }
+            )
 
         except Payment.DoesNotExist:
             return Response(
@@ -423,10 +415,7 @@ class PaymentFailView(APIView):
                 },
             )
 
-            logger.info(
-                f"결제 실패 처리 완료 - Payment ID: {payment.id}, "
-                f"Code: {fail_code}, Message: {fail_message}"
-            )
+            logger.info(f"결제 실패 처리 완료 - Payment ID: {payment.id}, " f"Code: {fail_code}, Message: {fail_message}")
 
             return Response(
                 {
@@ -601,10 +590,7 @@ def payment_success(request):
     amount = request.GET.get("amount")
 
     if not all([payment_key, order_id, amount]):
-        logger.warning(
-            f"결제 성공 콜백 파라미터 누락: payment_key={payment_key}, "
-            f"order_id={order_id}, amount={amount}"
-        )
+        logger.warning(f"결제 성공 콜백 파라미터 누락: payment_key={payment_key}, " f"order_id={order_id}, amount={amount}")
         return render(
             request,
             "shopping/payment_fail.html",
@@ -676,9 +662,7 @@ def payment_fail(request):
     message = request.GET.get("message")
     order_id = request.GET.get("orderId")
 
-    logger.warning(
-        f"결제 실패 콜백 수신: code={code}, message={message}, order_id={order_id}"
-    )
+    logger.warning(f"결제 실패 콜백 수신: code={code}, message={message}, order_id={order_id}")
 
     # Payment 상태 업데이트
     if order_id:

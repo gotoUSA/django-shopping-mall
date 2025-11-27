@@ -596,7 +596,7 @@ class PaymentFactory(DjangoModelFactory):
     order = factory.SubFactory(OrderFactory)
     amount = factory.LazyAttribute(lambda obj: obj.order.final_amount)
     status = "ready"
-    toss_order_id = factory.LazyAttribute(lambda obj: obj.order.order_number)
+    toss_order_id = factory.LazyAttribute(lambda obj: str(obj.order.id))
     payment_key = factory.Sequence(lambda n: f"test_payment_key_{n}")
     method = ""
 

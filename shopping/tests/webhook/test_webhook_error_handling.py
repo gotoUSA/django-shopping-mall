@@ -42,7 +42,7 @@ class TestWebhookDatabaseErrorHandling:
         # Arrange
         mock_verify_webhook()
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -79,7 +79,7 @@ class TestWebhookDatabaseErrorHandling:
         initial_stock = self.product.stock
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -231,7 +231,7 @@ class TestWebhookStockBoundaryHandling:
         initial_stock = self.product.stock
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -265,7 +265,7 @@ class TestWebhookStockBoundaryHandling:
         self.product.save()
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -295,7 +295,7 @@ class TestWebhookStockBoundaryHandling:
         self.product.save()
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -334,7 +334,7 @@ class TestWebhookStockBoundaryHandling:
         order_item.save()
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -382,7 +382,7 @@ class TestWebhookTransactionRollback:
         initial_points = self.user.points
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -429,13 +429,13 @@ class TestWebhookTransactionRollback:
             order=order_with_multiple_items,
             amount=order_with_multiple_items.total_amount,
             status="ready",
-            toss_order_id=order_with_multiple_items.order_number,
+            toss_order_id=str(order_with_multiple_items.id),
         )
 
         initial_stocks = {p.id: p.stock for p in multiple_products}
 
         webhook_data = webhook_data_builder(
-            order_id=order_with_multiple_items.order_number,
+            order_id=str(order_with_multiple_items.id),
             amount=int(payment.amount),
         )
 
@@ -475,7 +475,7 @@ class TestWebhookTransactionRollback:
         initial_stock = self.product.stock
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -515,7 +515,7 @@ class TestWebhookTransactionRollback:
         initial_stock = self.product.stock
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -563,7 +563,7 @@ class TestWebhookUnexpectedExceptions:
         # Arrange
         mock_verify_webhook()
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -621,7 +621,7 @@ class TestWebhookUnexpectedExceptions:
         )
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -667,7 +667,7 @@ class TestWebhookEventSpecificErrors:
         self.order.save()
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -699,7 +699,7 @@ class TestWebhookEventSpecificErrors:
         initial_points = self.user.points
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=50,
         )
 
@@ -740,7 +740,7 @@ class TestWebhookEventSpecificErrors:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
         )
 
         # Act
@@ -775,7 +775,7 @@ class TestWebhookEventSpecificErrors:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
         )
 
         # Act
@@ -810,7 +810,7 @@ class TestWebhookEventSpecificErrors:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
         )
 
         # Act
@@ -841,7 +841,7 @@ class TestWebhookEventSpecificErrors:
         webhook_data = {
             "eventType": "PAYMENT.FAILED",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 # failReason 누락
             },
         }
@@ -870,7 +870,7 @@ class TestWebhookEventSpecificErrors:
         mock_verify_webhook()
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             fail_reason="카드 한도 초과",
         )
 

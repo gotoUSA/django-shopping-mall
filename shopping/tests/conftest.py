@@ -655,7 +655,6 @@ def order(db, user, product):
     return order
 
 
-
 @pytest.fixture
 def paid_order(db, user, product):
     """
@@ -742,7 +741,6 @@ def order_with_multiple_items(db, user, multiple_products):
     return order
 
 
-
 @pytest.fixture
 def pending_order(db, user, product):
     """
@@ -796,7 +794,7 @@ def payment(db, order):
         order=order,
         amount=order.total_amount,
         status="ready",
-        toss_order_id=order.order_number,
+        toss_order_id=str(order.id),
     )
 
 
@@ -815,7 +813,7 @@ def canceled_payment(db, order):
         order=order,
         amount=order.total_amount,
         status="canceled",
-        toss_order_id=order.order_number,
+        toss_order_id=str(order.id),
         canceled_at=timezone.now(),
     )
 

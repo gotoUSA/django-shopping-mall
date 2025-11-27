@@ -63,7 +63,7 @@ class TestWebhookCrossEventIdempotency:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.DONE",
-            order_id=order.order_number,
+            order_id=str(order.id),
             payment_key="new_key_after_cancel",
             amount=int(payment.amount),
         )
@@ -109,7 +109,7 @@ class TestWebhookCrossEventIdempotency:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=order.order_number,
+            order_id=str(order.id),
             cancel_reason="실패 후 취소",
         )
 
@@ -151,7 +151,7 @@ class TestWebhookCrossEventIdempotency:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=order.order_number,
+            order_id=str(order.id),
             fail_reason="늦은 실패 알림",
         )
 
@@ -190,7 +190,7 @@ class TestWebhookCrossEventIdempotency:
 
         # 1. DONE 이벤트
         done_data = webhook_data_builder(
-            order_id=order.order_number,
+            order_id=str(order.id),
             amount=int(payment.amount),
         )
 
@@ -209,7 +209,7 @@ class TestWebhookCrossEventIdempotency:
         # 2. CANCELED 이벤트
         canceled_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=order.order_number,
+            order_id=str(order.id),
             cancel_reason="사용자 취소",
         )
 
@@ -227,7 +227,7 @@ class TestWebhookCrossEventIdempotency:
 
         # Act - 3. 다시 DONE 이벤트 (무시되어야 함)
         done_again_data = webhook_data_builder(
-            order_id=order.order_number,
+            order_id=str(order.id),
             payment_key="new_key_after_cancel",
             amount=int(payment.amount),
         )
@@ -287,7 +287,7 @@ class TestWebhookRapidRequests:
         initial_points = self.user.points
 
         webhook_data = webhook_data_builder(
-            order_id=order.order_number,
+            order_id=str(order.id),
             amount=int(payment.amount),
         )
 
@@ -349,7 +349,7 @@ class TestWebhookRapidRequests:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=order.order_number,
+            order_id=str(order.id),
             cancel_reason="빠른 취소",
         )
 
@@ -395,13 +395,13 @@ class TestWebhookRapidRequests:
         initial_stock = self.product.stock
 
         done_data = webhook_data_builder(
-            order_id=order.order_number,
+            order_id=str(order.id),
             amount=int(payment.amount),
         )
 
         failed_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=order.order_number,
+            order_id=str(order.id),
             fail_reason="늦은 실패",
         )
 
@@ -469,12 +469,12 @@ class TestWebhookEventOrdering:
 
         canceled_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=order.order_number,
+            order_id=str(order.id),
             cancel_reason="먼저 도착한 취소",
         )
 
         done_data = webhook_data_builder(
-            order_id=order.order_number,
+            order_id=str(order.id),
             amount=int(payment.amount),
         )
 
@@ -523,12 +523,12 @@ class TestWebhookEventOrdering:
 
         failed_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=order.order_number,
+            order_id=str(order.id),
             fail_reason="먼저 실패",
         )
 
         done_data = webhook_data_builder(
-            order_id=order.order_number,
+            order_id=str(order.id),
             amount=int(payment.amount),
         )
 
@@ -577,19 +577,19 @@ class TestWebhookEventOrdering:
         initial_stock = self.product.stock
 
         done_data = webhook_data_builder(
-            order_id=order.order_number,
+            order_id=str(order.id),
             amount=int(payment.amount),
         )
 
         failed_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=order.order_number,
+            order_id=str(order.id),
             fail_reason="중간 실패",
         )
 
         canceled_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=order.order_number,
+            order_id=str(order.id),
             cancel_reason="마지막 취소",
         )
 
@@ -678,7 +678,7 @@ class TestWebhookDatabaseConsistency:
 
         # Act - 첫 번째 주문 DONE
         done_data_1 = webhook_data_builder(
-            order_id=order1.order_number,
+            order_id=str(order1.id),
             payment_key="shared_payment_key",
             amount=int(payment1.amount),
         )
@@ -697,7 +697,7 @@ class TestWebhookDatabaseConsistency:
 
         # 두 번째 주문에 같은 key 사용 시도
         done_data_2 = webhook_data_builder(
-            order_id=order2.order_number,
+            order_id=str(order2.id),
             payment_key="shared_payment_key",  # 중복 키
             amount=int(payment2.amount),
         )
@@ -734,7 +734,7 @@ class TestWebhookDatabaseConsistency:
         initial_stock = self.product.stock
 
         webhook_data = webhook_data_builder(
-            order_id=order.order_number,
+            order_id=str(order.id),
             amount=int(payment.amount),
         )
 
@@ -789,7 +789,7 @@ class TestWebhookDatabaseConsistency:
         )
 
         webhook_data = webhook_data_builder(
-            order_id=order.order_number,
+            order_id=str(order.id),
             amount=int(payment.amount),
         )
 

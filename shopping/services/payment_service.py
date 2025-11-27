@@ -63,7 +63,7 @@ class PaymentService:
         # 새 Payment 생성 (포인트 차감 후 금액으로)
         payment = Payment.objects.create(
             order=order,
-            toss_order_id=order.order_number,  # 명시적으로 설정
+            toss_order_id=str(order.id),  # Toss에 전송하는 orderId와 일치시킴
             amount=order.final_amount,
             method=payment_method,  # 결제 수단 저장
             status="ready",

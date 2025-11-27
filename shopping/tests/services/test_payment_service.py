@@ -50,7 +50,7 @@ class TestPaymentServiceCreatePayment:
         assert payment.amount == order.final_amount
         assert payment.method == "card"
         assert payment.status == "ready"
-        assert payment.toss_order_id == order.order_number
+        assert payment.toss_order_id == str(order.id)  # Toss에 전송하는 orderId와 일치
 
         # PaymentLog 확인
         log = PaymentLog.objects.filter(payment=payment, log_type="request").first()

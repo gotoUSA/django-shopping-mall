@@ -249,7 +249,7 @@ def paid_payment(db, paid_order):
         order=paid_order,
         amount=paid_order.total_amount,
         status="done",
-        toss_order_id=paid_order.order_number,
+        toss_order_id=str(paid_order.id),
         payment_key="test_payment_key_paid",
         method="카드",
         approved_at=timezone.now(),

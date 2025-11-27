@@ -598,14 +598,14 @@ def payment_success(request):
         )
 
     try:
-        # Payment 찾기
+        # Payment 찾기 (toss_order_id는 str(order.id)로 저장됨)
         payment = Payment.objects.get(toss_order_id=order_id)
 
         # PaymentService를 통한 결제 승인 처리
         result = PaymentService.confirm_payment(
             payment=payment,
             payment_key=payment_key,
-            order_id=order_id,
+            order_id=int(order_id),  # int로 변환
             amount=int(amount),
             user=request.user,
         )

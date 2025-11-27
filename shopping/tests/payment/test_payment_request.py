@@ -100,7 +100,7 @@ class TestPaymentRequestNormalCase:
         assert payment.order == order
         assert payment.status == "ready"
         assert payment.amount == order.final_amount
-        assert payment.toss_order_id == order.order_number
+        assert payment.toss_order_id == str(order.id)  # Toss에 전송하는 orderId와 일치
         assert payment.method == "card"  # 기본값
 
     def test_response_data_structure(self, authenticated_client, order, user):

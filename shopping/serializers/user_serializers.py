@@ -4,11 +4,15 @@ from typing import Any
 
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
+from django.db import IntegrityError
 
 from rest_framework import serializers
 
 from shopping.models.user import User
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 class UserListSerializer(serializers.ModelSerializer):
     """
@@ -129,6 +133,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     회원가입용 시리얼라이저
     - 필수: username, email, password, password2
     - 선택: 나머지 필드들
+    - DB constraint만으로 중복 체크
     """
 
     # 비밀번호 확인 필드 (DB에는 저장 안됨)
@@ -170,6 +175,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {"username": {"required": True}, "email": {"required": True}}
 
+
     def validate_email(self, value: str) -> str:
         """이메일 중복 검사"""
         if User.objects.filter(email=value).exists():
@@ -188,15 +194,78 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"password": "비밀번호가 일치하지 않습니다."})
         return attrs
 
+
     def create(self, validated_data: dict[str, Any]) -> User:
-        """사용자 생성"""
+        """
+        사용자 생성 - DB constraint를 최종 방어선으로 활용
+
+        동시성 시나리오:
+        - 여러 요청이 동시에 validation을 통과할 수 있음 (race condition)
+        - DB의 unique constraint가 최종적으로 중복을 방지
+        - IntegrityError를 ValidationError로 변환하여 400 Bad Request 반환
+        """
         # password2는 DB에 저장하지 않으므로 제거
         validated_data.pop("password2")
 
         # create_user 메서드를 사용하면 비밀번호가 자동으로 해시화됨
-        user = User.objects.create_user(**validated_data)
+        try:
+            user = User.objects.create_user(**validated_data)
+            logger.info(
+                "User registration successful",
+                extra={
+                    "username": validated_data.get("username"),
+                    "email": validated_data.get("email"),
+                }
+            )
+            return user
+        except IntegrityError as e:
+            # DB unique constraint 위반 시 로깅
+            logger.warning(
+                "Registration failed - IntegrityError caught",
+                extra={
+                    "username": validated_data.get("username"),
+                    "email": validated_data.get("email"),
+                    "error": str(e),
+                }
+            )
 
-        return user
+            # 에러 메시지 파싱하여 어떤 필드가 중복되었는지 확인
+            error_msg = str(e).lower()
+
+            # PostgreSQL: 'duplicate key value violates unique constraint "shopping_user_email_key"'
+            # SQLite: 'UNIQUE constraint failed: shopping_user.email'
+            if 'email' in error_msg or 'shopping_user_email' in error_msg:
+                raise serializers.ValidationError(
+                    {"email": "이미 사용중인 이메일입니다."},
+                    code='unique'
+                )
+            elif 'username' in error_msg or 'shopping_user_username' in error_msg:
+                raise serializers.ValidationError(
+                    {"username": "이미 사용중인 사용자명입니다."},
+                    code='unique'
+                )
+
+            # phone_number도 unique일 수 있음
+            elif 'phone' in error_msg or 'shopping_user_phone' in error_msg:
+                raise serializers.ValidationError(
+                    {"phone_number": "이미 사용중인 전화번호입니다."},
+                    code='unique'
+                )
+
+            # 예상치 못한 IntegrityError - 로깅 후 일반적인 에러 메시지 반환
+            logger.error(
+                "Unexpected IntegrityError during registration",
+                extra={
+                    "username": validated_data.get("username"),
+                    "email": validated_data.get("email"),
+                    "error": str(e),
+                },
+                exc_info=True
+            )
+            raise serializers.ValidationError(
+                {"detail": "회원가입 중 오류가 발생했습니다. 관리자에게 문의하세요."},
+                code='integrity_error'
+            )
 
 
 class LoginSerializer(serializers.Serializer):

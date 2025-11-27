@@ -358,6 +358,7 @@ class TestPaymentRequestException:
         """주문 금액 0원 이하"""
         # Arrange - total_amount가 0원인 주문 생성
         from shopping.models.order import Order, OrderItem
+
         # 0원 상품 생성
         zero_product = ProductFactory(
             name="무료 상품",

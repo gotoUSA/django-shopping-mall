@@ -190,6 +190,7 @@ class ReturnService:
             title=f"{return_obj.get_type_display()} 승인",
             message=f"{return_obj.return_number} 신청이 승인되었습니다. 반품 상품을 발송해주세요.",
             link=f"/returns/{return_obj.id}",
+            metadata={"return_id": return_obj.id, "return_number": return_obj.return_number},
         )
 
         logger.info(
@@ -231,6 +232,7 @@ class ReturnService:
             title=f"{return_obj.get_type_display()} 거부",
             message=f"{return_obj.return_number} 신청이 거부되었습니다. 사유: {reason}",
             link=f"/returns/{return_obj.id}",
+            metadata={"return_id": return_obj.id, "return_number": return_obj.return_number},
         )
 
         logger.info(
@@ -268,8 +270,9 @@ class ReturnService:
             user=return_obj.user,
             notification_type="return",
             title="반품 도착 확인",
-            message=f"{return_obj.return_number} 반품 상품이 도착했습니다. 곧 처리될 예정입니다.",
+            message=f"{return_obj.return_number} 반품 상품이 도착했습니다. 곷 처리될 예정입니다.",
             link=f"/returns/{return_obj.id}",
+            metadata={"return_id": return_obj.id, "return_number": return_obj.return_number},
         )
 
         logger.info(
@@ -364,6 +367,11 @@ class ReturnService:
             title="환불 완료",
             message=f"{return_obj.return_number} 환불이 완료되었습니다. 환불 금액: {actual_refund_amount:,}원",
             link=f"/returns/{return_obj.id}",
+            metadata={
+                "return_id": return_obj.id,
+                "return_number": return_obj.return_number,
+                "refund_amount": str(actual_refund_amount),
+            },
         )
 
         logger.info(
@@ -439,6 +447,11 @@ class ReturnService:
             title="교환 완료",
             message=f"{return_obj.return_number} 교환 상품이 발송되었습니다. 송장번호: {exchange_tracking_number}",
             link=f"/returns/{return_obj.id}",
+            metadata={
+                "return_id": return_obj.id,
+                "return_number": return_obj.return_number,
+                "tracking_number": exchange_tracking_number,
+            },
         )
 
         logger.info(

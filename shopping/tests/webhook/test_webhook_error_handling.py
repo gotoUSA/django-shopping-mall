@@ -35,9 +35,7 @@ class TestWebhookDatabaseErrorHandling:
     # 1단계: 정상 케이스 (Happy Path)
     # ==========================================
 
-    def test_payment_found_processes_successfully(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_payment_found_processes_successfully(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """Payment가 존재하면 정상 처리"""
         # Arrange
         mock_verify_webhook()
@@ -66,9 +64,7 @@ class TestWebhookDatabaseErrorHandling:
     # 2단계: 경계값 케이스 (Boundary)
     # ==========================================
 
-    def test_payment_exists_but_already_processed(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_payment_exists_but_already_processed(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """Payment는 있지만 이미 처리된 상태"""
         # Arrange
         mock_verify_webhook()
@@ -102,9 +98,7 @@ class TestWebhookDatabaseErrorHandling:
     # 3단계: 예외 케이스 (Exception)
     # ==========================================
 
-    def test_payment_not_found_returns_success(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature, caplog
-    ):
+    def test_payment_not_found_returns_success(self, mock_verify_webhook, webhook_data_builder, webhook_signature, caplog):
         """Payment가 존재하지 않아도 200 OK 반환하고 에러 로그 남김"""
         # Arrange
         mock_verify_webhook()
@@ -127,9 +121,7 @@ class TestWebhookDatabaseErrorHandling:
         # Assert - 에러 로그 검증 (핵심만)
         assert "Payment not found" in caplog.text
 
-    def test_payment_not_found_missing_order_id(
-        self, mock_verify_webhook, webhook_signature
-    ):
+    def test_payment_not_found_missing_order_id(self, mock_verify_webhook, webhook_signature):
         """웹훅 데이터에 orderId가 누락된 경우"""
         # Arrange
         mock_verify_webhook()
@@ -152,9 +144,7 @@ class TestWebhookDatabaseErrorHandling:
         # Assert - 응답 검증
         assert response.status_code == status.HTTP_200_OK
 
-    def test_payment_canceled_not_found(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature, caplog
-    ):
+    def test_payment_canceled_not_found(self, mock_verify_webhook, webhook_data_builder, webhook_signature, caplog):
         """PAYMENT.CANCELED 이벤트에서 Payment 누락 시 200 OK 반환하고 에러 로그 남김"""
         # Arrange
         mock_verify_webhook()
@@ -177,9 +167,7 @@ class TestWebhookDatabaseErrorHandling:
         # Assert - 에러 로그 검증 (핵심만)
         assert "Payment not found" in caplog.text
 
-    def test_payment_failed_not_found(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature, caplog
-    ):
+    def test_payment_failed_not_found(self, mock_verify_webhook, webhook_data_builder, webhook_signature, caplog):
         """PAYMENT.FAILED 이벤트에서 Payment 누락 시 200 OK 반환하고 에러 로그 남김"""
         # Arrange
         mock_verify_webhook()
@@ -222,9 +210,7 @@ class TestWebhookStockBoundaryHandling:
     # 1단계: 정상 케이스 (Happy Path)
     # ==========================================
 
-    def test_sufficient_stock_deducts_correctly(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_sufficient_stock_deducts_correctly(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """충분한 재고가 있으면 정상 차감"""
         # Arrange
         mock_verify_webhook()
@@ -254,9 +240,7 @@ class TestWebhookStockBoundaryHandling:
     # 2단계: 경계값 케이스 (Boundary)
     # ==========================================
 
-    def test_exact_stock_quantity_becomes_zero(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_exact_stock_quantity_becomes_zero(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """재고가 주문 수량과 정확히 일치 (재고 0이 됨)"""
         # Arrange
         mock_verify_webhook()
@@ -284,9 +268,7 @@ class TestWebhookStockBoundaryHandling:
         self.product.refresh_from_db()
         assert self.product.stock == 0
 
-    def test_insufficient_stock_prevented_by_greatest(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_insufficient_stock_prevented_by_greatest(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """재고 부족 시 Greatest로 음수 방지"""
         # Arrange
         mock_verify_webhook()
@@ -322,9 +304,7 @@ class TestWebhookStockBoundaryHandling:
     # 3단계: 예외 케이스 (Exception)
     # ==========================================
 
-    def test_product_deleted_after_order_created(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_product_deleted_after_order_created(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """Product가 삭제된 OrderItem은 건너뜀"""
         # Arrange
         mock_verify_webhook()
@@ -372,9 +352,7 @@ class TestWebhookTransactionRollback:
     # 1단계: 정상 케이스 (Happy Path)
     # ==========================================
 
-    def test_transaction_commits_on_success(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_transaction_commits_on_success(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """모든 작업이 성공하면 전체 커밋"""
         # Arrange
         mock_verify_webhook()
@@ -556,9 +534,7 @@ class TestWebhookUnexpectedExceptions:
     # 1단계: 정상 케이스 (Happy Path)
     # ==========================================
 
-    def test_normal_execution_no_exception(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_normal_execution_no_exception(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """예외 없이 정상 실행"""
         # Arrange
         mock_verify_webhook()
@@ -582,9 +558,7 @@ class TestWebhookUnexpectedExceptions:
     # 2단계: 경계값 케이스 (Boundary)
     # ==========================================
 
-    def test_empty_data_field_in_webhook(
-        self, mock_verify_webhook, webhook_signature
-    ):
+    def test_empty_data_field_in_webhook(self, mock_verify_webhook, webhook_signature):
         """data 필드가 빈 객체인 경우"""
         # Arrange
         mock_verify_webhook()
@@ -656,9 +630,7 @@ class TestWebhookEventSpecificErrors:
     # PAYMENT.DONE 관련
     # ==========================================
 
-    def test_done_event_user_none_skips_points(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_done_event_user_none_skips_points(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """user가 None인 경우 포인트 적립 스킵"""
         # Arrange
         mock_verify_webhook()
@@ -686,9 +658,7 @@ class TestWebhookEventSpecificErrors:
         self.payment.refresh_from_db()
         assert self.payment.status == "done"
 
-    def test_done_event_point_calculation_zero(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_done_event_point_calculation_zero(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """포인트 계산 결과가 0인 경우"""
         # Arrange
         mock_verify_webhook()
@@ -722,9 +692,7 @@ class TestWebhookEventSpecificErrors:
     # PAYMENT.CANCELED 관련
     # ==========================================
 
-    def test_canceled_event_stock_restoration(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_canceled_event_stock_restoration(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """재고 복구 정상 처리"""
         # Arrange
         mock_verify_webhook()
@@ -832,9 +800,7 @@ class TestWebhookEventSpecificErrors:
     # PAYMENT.FAILED 관련
     # ==========================================
 
-    def test_failed_event_missing_reason_field(
-        self, mock_verify_webhook, webhook_signature
-    ):
+    def test_failed_event_missing_reason_field(self, mock_verify_webhook, webhook_signature):
         """failReason 필드가 누락된 경우 빈 문자열로 처리"""
         # Arrange
         mock_verify_webhook()
@@ -862,9 +828,7 @@ class TestWebhookEventSpecificErrors:
         assert self.payment.status == "aborted"
         assert self.payment.fail_reason == ""
 
-    def test_failed_event_with_reason(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_failed_event_with_reason(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """실패 사유가 있는 경우 정상 저장"""
         # Arrange
         mock_verify_webhook()
@@ -891,8 +855,6 @@ class TestWebhookEventSpecificErrors:
         assert self.payment.fail_reason == "카드 한도 초과"
 
         # Assert - PaymentLog 생성됨
-        log = PaymentLog.objects.filter(
-            payment=self.payment, log_type="webhook"
-        ).first()
+        log = PaymentLog.objects.filter(payment=self.payment, log_type="webhook").first()
         assert log is not None
         assert "카드 한도 초과" in log.message

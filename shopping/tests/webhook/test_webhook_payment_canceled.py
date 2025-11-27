@@ -30,9 +30,7 @@ class TestPaymentCanceledWebhook:
     # 1단계: 정상 케이스 (Happy Path)
     # ==========================================
 
-    def test_payment_canceled_from_paid_order(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_payment_canceled_from_paid_order(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """paid 상태 주문의 정상적인 결제 취소"""
         # Arrange
         mock_verify_webhook()
@@ -97,15 +95,11 @@ class TestPaymentCanceledWebhook:
         assert self.user.points == initial_points
 
         # Assert - PaymentLog 생성 확인
-        log = PaymentLog.objects.filter(
-            payment=self.payment, log_type="webhook"
-        ).first()
+        log = PaymentLog.objects.filter(payment=self.payment, log_type="webhook").first()
         assert log is not None
         assert "취소" in log.message
 
-    def test_payment_canceled_from_preparing_order(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_payment_canceled_from_preparing_order(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """preparing 상태에서 취소 - 재고 복구 및 포인트 회수"""
         # Arrange
         mock_verify_webhook()
@@ -222,9 +216,7 @@ class TestPaymentCanceledWebhook:
     # 2단계: 경계값/중복 케이스 (Boundary)
     # ==========================================
 
-    def test_payment_canceled_duplicate_request(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_payment_canceled_duplicate_request(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """중복 웹훅 요청 - 재고 중복 복구 방지"""
         # Arrange
         mock_verify_webhook()
@@ -265,9 +257,7 @@ class TestPaymentCanceledWebhook:
         assert self.product.stock == initial_stock
         assert self.product.sold_count == initial_sold_count
 
-    def test_payment_canceled_order_already_canceled(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_payment_canceled_order_already_canceled(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """주문이 이미 canceled 상태인 경우"""
         # Arrange
         mock_verify_webhook()
@@ -309,9 +299,7 @@ class TestPaymentCanceledWebhook:
         self.product.refresh_from_db()
         assert self.product.stock == initial_stock
 
-    def test_payment_canceled_from_pending_order(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_payment_canceled_from_pending_order(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """pending 상태에서 취소 - 재고 차감 전이므로 복구 불필요"""
         # Arrange
         mock_verify_webhook()
@@ -355,9 +343,7 @@ class TestPaymentCanceledWebhook:
         self.user.refresh_from_db()
         assert self.user.points == initial_points
 
-    def test_payment_canceled_from_shipped_order(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_payment_canceled_from_shipped_order(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """shipped 상태에서 취소 - 재고 복구 및 포인트 회수 안 함"""
         # Arrange
         mock_verify_webhook()
@@ -416,9 +402,7 @@ class TestPaymentCanceledWebhook:
     # 3단계: 예외 케이스 (Exception)
     # ==========================================
 
-    def test_payment_canceled_user_none(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_payment_canceled_user_none(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """user가 None인 경우 포인트 회수 스킵"""
         # Arrange
         mock_verify_webhook()
@@ -463,9 +447,7 @@ class TestPaymentCanceledWebhook:
         self.product.refresh_from_db()
         assert self.product.stock == initial_stock
 
-    def test_payment_canceled_payment_not_found(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_payment_canceled_payment_not_found(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """Payment가 존재하지 않는 경우"""
         # Arrange
         mock_verify_webhook()

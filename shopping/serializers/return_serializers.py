@@ -315,12 +315,18 @@ class ReturnDetailSerializer(serializers.ModelSerializer):
 class ReturnUpdateSerializer(serializers.ModelSerializer):
     """송장번호 업데이트 Serializer (고객)"""
 
+    status = serializers.CharField(read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+
     class Meta:
         model = Return
         fields = [
             "return_shipping_company",
             "return_tracking_number",
+            "status",
+            "status_display",
         ]
+        read_only_fields = ["status", "status_display"]
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """송장번호 입력 가능 상태인지 확인"""

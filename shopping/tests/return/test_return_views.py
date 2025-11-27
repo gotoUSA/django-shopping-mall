@@ -310,11 +310,7 @@ class TestReturnViewIntegration:
         }
         response = api_client.patch(update_url, update_data, format="json")
         assert response.status_code == status.HTTP_200_OK
-        # PATCH 응답은 ReturnUpdateSerializer fields만 반환 (status 미포함)
-        # DB에서 상태 확인
-        from shopping.models import Return
-        updated_return = Return.objects.get(id=return_id)
-        assert updated_return.status == "shipping"
+        assert response.data["status"] == "shipping"
 
         # Act & Assert - 4. 수령 확인
         api_client.force_authenticate(user=seller)
@@ -368,10 +364,7 @@ class TestReturnViewIntegration:
         }
         response = api_client.patch(update_url, update_data, format="json")
         assert response.status_code == status.HTTP_200_OK
-        # PATCH 응답은 ReturnUpdateSerializer fields만 반환
-        from shopping.models import Return
-        updated_return = Return.objects.get(id=return_id)
-        assert updated_return.status == "shipping"
+        assert response.data["status"] == "shipping"
 
         # Act & Assert - 4. 수령 확인
         api_client.force_authenticate(user=seller)

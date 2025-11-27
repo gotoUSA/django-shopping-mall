@@ -4,20 +4,26 @@ FROM python:3.12-slim
 WORKDIR /code
 
 # 시스템 패키지 업데이트 및 필요한 패키지 설치
+# libev-dev, libevent-dev: gevent/locust 빌드에 필요
+# libffi-dev: cffi 빌드에 필요
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
     git \
+    libev-dev \
+    libevent-dev \
+    libffi-dev \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Python 의존성 파일 복사
 COPY requirements.txt /code/
 COPY requirements-dev.txt /code/
 
-# Python 패키지 설치 (에러 발생 시 빌드 중단)
+# Python 패키지 설치
+# requirements-dev.txt가 이미 requirements.txt를 포함(-r)하므로 한 번만 설치
 RUN pip install --upgrade pip 
-RUN pip install --no-cache-dir -r requirements.txt || exit 1
-RUN pip install --no-cache-dir -r requirements-dev.txt || exit 1
+RUN pip install --no-cache-dir -r requirements-dev.txt
 
 # 프로젝트 파일 복사
 COPY . /code/

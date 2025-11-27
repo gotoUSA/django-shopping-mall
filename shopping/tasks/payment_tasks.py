@@ -119,9 +119,7 @@ def finalize_payment_confirm(toss_response: dict, payment_id: int, user_id: int)
             # 2. 재고 차감 (sold_count만 증가, stock은 주문 생성 시 이미 차감)
             for order_item in order.order_items.select_for_update():
                 if order_item.product:
-                    Product.objects.filter(pk=order_item.product.pk).update(
-                        sold_count=F("sold_count") + order_item.quantity
-                    )
+                    Product.objects.filter(pk=order_item.product.pk).update(sold_count=F("sold_count") + order_item.quantity)
 
             # 3. Order 상태 변경
             order.status = "paid"

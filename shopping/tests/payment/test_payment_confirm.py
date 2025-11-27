@@ -346,7 +346,6 @@ class TestPaymentConfirmBoundary:
         )
         assert not earn_history.exists()
 
-
     def test_earn_rate_by_membership_level(
         self,
         authenticated_client,

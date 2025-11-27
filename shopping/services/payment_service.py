@@ -57,9 +57,7 @@ class PaymentService:
         # 기존 Payment가 있으면 삭제 (재시도의 경우)
         existing_count = Payment.objects.filter(order=order).count()
         if existing_count > 0:
-            logger.warning(
-                f"기존 결제 정보 삭제: order_id={order.id}, count={existing_count}"
-            )
+            logger.warning(f"기존 결제 정보 삭제: order_id={order.id}, count={existing_count}")
             Payment.objects.filter(order=order).delete()
 
         # 새 Payment 생성 (포인트 차감 후 금액으로)
@@ -85,10 +83,7 @@ class PaymentService:
             },
         )
 
-        logger.info(
-            f"결제 정보 생성 완료: payment_id={payment.id}, order_id={order.id}, "
-            f"amount={payment.amount}"
-        )
+        logger.info(f"결제 정보 생성 완료: payment_id={payment.id}, order_id={order.id}, " f"amount={payment.amount}")
 
         return payment
 
@@ -155,8 +150,7 @@ class PaymentService:
                 # sold_count만 증가 (F 객체로 안전하게)
                 Product.objects.filter(pk=product.pk).update(sold_count=F("sold_count") + order_item.quantity)
                 logger.info(
-                    f"판매량 증가: product_id={product.pk}, product_name={product.name}, "
-                    f"quantity={order_item.quantity}"
+                    f"판매량 증가: product_id={product.pk}, product_name={product.name}, " f"quantity={order_item.quantity}"
                 )
 
         # 4. 주문 상태 변경
@@ -211,16 +205,11 @@ class PaymentService:
                     data={"points": points_to_add},
                 )
 
-                logger.info(
-                    f"포인트 적립 완료: user_id={user.id}, order_id={order.id}, points={points_to_add}"
-                )
+                logger.info(f"포인트 적립 완료: user_id={user.id}, order_id={order.id}, points={points_to_add}")
         else:
             # 포인트 전액 결제 로그
             if order.used_points > 0:
-                logger.info(
-                    f"포인트 전액 결제: user_id={user.id}, order_id={order.id}, "
-                    f"used_points={order.used_points}"
-                )
+                logger.info(f"포인트 전액 결제: user_id={user.id}, order_id={order.id}, " f"used_points={order.used_points}")
                 PaymentLog.objects.create(
                     payment=payment,
                     log_type="approve",
@@ -237,8 +226,7 @@ class PaymentService:
         )
 
         logger.info(
-            f"결제 승인 완료: payment_id={payment.id}, order_id={order.id}, "
-            f"amount={amount}, points_earned={points_to_add}"
+            f"결제 승인 완료: payment_id={payment.id}, order_id={order.id}, " f"amount={amount}, points_earned={points_to_add}"
         )
 
         return {
@@ -248,13 +236,7 @@ class PaymentService:
         }
 
     @staticmethod
-    def confirm_payment_async(
-        payment: Payment,
-        payment_key: str,
-        order_id: int,
-        amount: int,
-        user
-    ) -> dict[str, Any]:
+    def confirm_payment_async(payment: Payment, payment_key: str, order_id: int, amount: int, user) -> dict[str, Any]:
         """
         결제 승인 처리 (비동기 버전)
 
@@ -307,18 +289,17 @@ class PaymentService:
         # 따라서 TESTING 모드에서는 직접 순차 호출
         from django.conf import settings
 
-        if getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', False):
+        if getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False):
             # Eager 모드: 직접 함수 호출 (동기 실행)
             toss_result = call_toss_confirm_api(payment_key, order_id, amount)
             final_result = finalize_payment_confirm(toss_result, payment.id, user.id)
 
             # 응답 형식 통일을 위한 더미 AsyncResult
-            result = type('DummyResult', (), {'id': 'sync-execution'})()
+            result = type("DummyResult", (), {"id": "sync-execution"})()
         else:
             # 프로덕션 환경: chain 사용
             task_chain = chain(
-                call_toss_confirm_api.s(payment_key, order_id, amount),
-                finalize_payment_confirm.s(payment.id, user.id)
+                call_toss_confirm_api.s(payment_key, order_id, amount), finalize_payment_confirm.s(payment.id, user.id)
             )
             result = task_chain.apply_async()
 
@@ -352,35 +333,24 @@ class PaymentService:
             Payment.DoesNotExist: 결제 정보를 찾을 수 없음
             PaymentCancelError: 취소 불가능한 상태
         """
-        logger.info(
-            f"결제 취소 시작: payment_id={payment_id}, user_id={user.id}, "
-            f"cancel_reason={cancel_reason}"
-        )
+        logger.info(f"결제 취소 시작: payment_id={payment_id}, user_id={user.id}, " f"cancel_reason={cancel_reason}")
 
         # 1. 동시성 제어: Payment를 락으로 보호하며 조회
         try:
-            payment = Payment.objects.select_for_update().get(
-                id=payment_id, order__user=user
-            )
+            payment = Payment.objects.select_for_update().get(id=payment_id, order__user=user)
         except Payment.DoesNotExist:
             logger.error(f"결제 정보를 찾을 수 없음: payment_id={payment_id}, user_id={user.id}")
             raise PaymentCancelError("결제 정보를 찾을 수 없습니다.")
 
         # 2. 중복 취소 방지: 이미 취소된 결제인지 확인
         if payment.is_canceled:
-            logger.warning(
-                f"이미 취소된 결제 취소 시도: payment_id={payment_id}, user_id={user.id}"
-            )
+            logger.warning(f"이미 취소된 결제 취소 시도: payment_id={payment_id}, user_id={user.id}")
             raise PaymentCancelError("이미 취소된 결제입니다.")
 
         # 3. 취소 가능한 상태인지 확인
         if payment.status != "done":
-            logger.warning(
-                f"취소 불가능한 결제 상태: payment_id={payment_id}, status={payment.status}"
-            )
-            raise PaymentCancelError(
-                f"취소할 수 없는 결제 상태입니다: {payment.get_status_display()}"
-            )
+            logger.warning(f"취소 불가능한 결제 상태: payment_id={payment_id}, status={payment.status}")
+            raise PaymentCancelError(f"취소할 수 없는 결제 상태입니다: {payment.get_status_display()}")
 
         # 4. Order를 락으로 보호
         order = Order.objects.select_for_update().get(pk=payment.order_id)
@@ -396,9 +366,7 @@ class PaymentService:
         try:
             # 6. 토스페이먼츠에 취소 요청
             logger.info(f"토스페이먼츠 결제 취소 요청: payment_id={payment_id}, order_id={order.id}")
-            cancel_data = toss_client.cancel_payment(
-                payment_key=payment.payment_key, cancel_reason=cancel_reason
-            )
+            cancel_data = toss_client.cancel_payment(payment_key=payment.payment_key, cancel_reason=cancel_reason)
             logger.info(f"토스페이먼츠 결제 취소 성공: payment_id={payment_id}")
 
             # 7. Payment 정보 업데이트
@@ -430,10 +398,7 @@ class PaymentService:
             # 10-1. 사용한 포인트 환불
             if order.used_points > 0:
                 points_refunded = order.used_points
-                logger.info(
-                    f"포인트 환불 시작: user_id={user.id}, order_id={order.id}, "
-                    f"points={points_refunded}"
-                )
+                logger.info(f"포인트 환불 시작: user_id={user.id}, order_id={order.id}, " f"points={points_refunded}")
 
                 # 포인트 환불 (PointService 사용)
                 PointService.add_points(
@@ -474,10 +439,7 @@ class PaymentService:
                     )
 
                 points_deducted = order.earned_points
-                logger.info(
-                    f"적립 포인트 차감 시작: user_id={user.id}, order_id={order.id}, "
-                    f"points={points_deducted}"
-                )
+                logger.info(f"적립 포인트 차감 시작: user_id={user.id}, order_id={order.id}, " f"points={points_deducted}")
 
                 # 포인트 차감 (FIFO 방식)
                 point_service = PointService()
@@ -544,13 +506,13 @@ class PaymentService:
             error_data = {"error_code": e.code, "error_message": e.message}
 
             logger.error(
-                f"토스페이먼츠 결제 취소 실패: payment_id={payment_id}, "
-                f"error_code={e.code}, error_message={e.message}"
+                f"토스페이먼츠 결제 취소 실패: payment_id={payment_id}, " f"error_code={e.code}, error_message={e.message}"
             )
 
             # 트랜잭션 밖에서 로그 기록
             try:
                 from django.db import transaction
+
                 with transaction.atomic():
                     PaymentLog.objects.create(
                         payment=payment,
@@ -573,6 +535,7 @@ class PaymentService:
             # 트랜잭션 밖에서 로그 기록
             try:
                 from django.db import transaction
+
                 with transaction.atomic():
                     PaymentLog.objects.create(
                         payment=payment,

@@ -118,7 +118,7 @@ class PaymentRequestSerializer(serializers.Serializer):
     def create(self, validated_data):
         """결제 정보 생성 (PaymentService 사용)"""
         # 이미 미결제 Payment가 있으면 재사용
-        if hasattr(self, 'existing_payment') and self.existing_payment:
+        if hasattr(self, "existing_payment") and self.existing_payment:
             return self.existing_payment
 
         from ..services.payment_service import PaymentService

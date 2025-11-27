@@ -260,7 +260,6 @@ def paid_payment(db, paid_order):
     return payment
 
 
-
 @pytest.fixture
 def canceled_order(db, user, product):
     """
@@ -574,12 +573,7 @@ def user_factory(db):
         }
         defaults.update(kwargs)
 
-        return User.objects.create_user(
-            username=username,
-            email=email,
-            phone_number=phone_number,
-            **defaults
-        )
+        return User.objects.create_user(username=username, email=email, phone_number=phone_number, **defaults)
 
     return _create_user
 
@@ -619,18 +613,18 @@ def create_order(db, default_shipping_info):
         earned_points=0,
         payment_method=None,
         order_number=None,
-        **kwargs
+        **kwargs,
     ):
         # total_amount 계산
         if products:
             quantities = quantities or [1] * len(products)
             total_amount = sum(p.price * q for p, q in zip(products, quantities))
         elif product:
-            quantity = kwargs.pop('quantity', 1)
+            quantity = kwargs.pop("quantity", 1)
             total_amount = product.price * quantity
             quantities = [quantity]
         else:
-            total_amount = kwargs.get('total_amount', Decimal("10000"))
+            total_amount = kwargs.get("total_amount", Decimal("10000"))
 
         final_amount = total_amount - used_points
 
@@ -710,12 +704,13 @@ def adjust_stock(db):
         # 재고 복구, 판매량 감소
         adjust_stock(product, stock_delta=1, sold_delta=-1)
     """
+
     def _adjust(product, stock_delta=0, sold_delta=0):
         updates = {}
         if stock_delta != 0:
-            updates['stock'] = F('stock') + stock_delta
+            updates["stock"] = F("stock") + stock_delta
         if sold_delta != 0:
-            updates['sold_count'] = F('sold_count') + sold_delta
+            updates["sold_count"] = F("sold_count") + sold_delta
 
         if updates:
             Product.objects.filter(pk=product.pk).update(**updates)
@@ -785,7 +780,7 @@ def toss_response_builder():
         method="카드",
         card_company="신한카드",
         approved_at="2025-01-15T10:00:00+09:00",
-        **kwargs
+        **kwargs,
     ):
         # payment_key가 지정되지 않으면 고유한 UUID 생성
         if payment_key is None:
@@ -844,7 +839,7 @@ def toss_cancel_response_builder():
         canceled_amount=None,
         cancel_reason="고객 변심",
         canceled_at="2025-01-15T11:00:00+09:00",
-        **kwargs
+        **kwargs,
     ):
         # payment_key가 지정되지 않으면 고유한 UUID 생성
         if payment_key is None:
@@ -877,6 +872,7 @@ def build_payment_key():
     Usage:
         payment_key = build_payment_key(payment_obj)
     """
+
     def _build(payment_obj):
         return f"test_key_{payment_obj.id}"
 
@@ -897,6 +893,7 @@ def build_confirm_request():
         # payment_obj만 사용 (자동 키 생성)
         request_data = build_confirm_request(payment_obj)
     """
+
     def _build(payment_obj, payment_key=None):
         if payment_key is None:
             payment_key = f"test_key_{payment_obj.id}"

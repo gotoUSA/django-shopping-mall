@@ -58,9 +58,7 @@ class TestPaymentSecurityNormalCase:
         assert paid_payment.order.user == user
 
         # Act - 결제 조회
-        detail_response = authenticated_client.get(
-            f"/api/payments/{paid_payment.id}/"
-        )
+        detail_response = authenticated_client.get(f"/api/payments/{paid_payment.id}/")
 
         # Assert
         assert detail_response.status_code == status.HTTP_200_OK
@@ -449,9 +447,7 @@ class TestPaymentSecurityException:
         xss_payload = "<script>alert('XSS')</script>"
 
         # 결제 취소 시 sold_count 감소를 위해 미리 증가
-        Product.objects.filter(pk=product.pk).update(
-            sold_count=F("sold_count") + 1
-        )
+        Product.objects.filter(pk=product.pk).update(sold_count=F("sold_count") + 1)
         product.refresh_from_db()
 
         order = OrderFactory(

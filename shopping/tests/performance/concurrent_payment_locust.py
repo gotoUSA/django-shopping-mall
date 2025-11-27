@@ -155,7 +155,7 @@ class ConcurrentPaymentUser(HttpUser):
 
         payment_data = payment_request_response.json()
         self.payment_id = payment_data.get("payment_id")
-        self.payment_order_id = payment_data.get("order_id")  # 이게 toss_order_id
+        self.payment_order_id = payment_data.get("order_id")  # order.id (정수)
         self.amount = payment_data.get("amount")
 
         # 디버깅: 결제 요청 응답 확인

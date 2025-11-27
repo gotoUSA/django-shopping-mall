@@ -192,7 +192,7 @@ def paid_order_with_payment(db, user, product):
         order=order,
         amount=order.total_amount,
         status="done",
-        toss_order_id=order.order_number,
+        toss_order_id=order.id,
         payment_key="test_payment_key_already_paid",
         method="카드",
         approved_at=timezone.now(),
@@ -327,7 +327,7 @@ def order_with_existing_payment(db, user, product):
         order=order,
         amount=order.total_amount,
         status="ready",
-        toss_order_id=order.order_number,
+        toss_order_id=order.id,
     )
 
     return order
@@ -902,7 +902,7 @@ def build_confirm_request():
             payment_key = f"test_key_{payment_obj.id}"
 
         return {
-            "order_id": payment_obj.order.order_number,
+            "order_id": payment_obj.order.id,  # order.id로 변경 (정수)
             "payment_key": payment_key,
             "amount": int(payment_obj.amount),
         }

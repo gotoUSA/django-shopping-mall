@@ -21,13 +21,13 @@ logger = get_task_logger(__name__)
     default_retry_delay=5,
     time_limit=10,  # 10초 타임아웃
 )
-def call_toss_confirm_api(payment_key: str, order_id: str, amount: int) -> dict:
+def call_toss_confirm_api(payment_key: str, order_id: int, amount: int) -> dict:
     """
     Toss 결제 승인 API 호출 (외부 API만 호출, DB 작업 없음)
 
     Args:
         payment_key: 토스 결제 키
-        order_id: 주문 번호
+        order_id: 주문 ID
         amount: 결제 금액
 
     Returns:
@@ -42,7 +42,7 @@ def call_toss_confirm_api(payment_key: str, order_id: str, amount: int) -> dict:
         toss_client = TossPaymentClient()
         payment_data = toss_client.confirm_payment(
             payment_key=payment_key,
-            order_id=order_id,
+            order_id=str(order_id),  # Toss API는 문자열 orderId를 받음
             amount=amount,
         )
 
@@ -55,7 +55,7 @@ def call_toss_confirm_api(payment_key: str, order_id: str, amount: int) -> dict:
         # 에러 로그 기록 및 Payment 상태만 업데이트
         # Order 상태는 변경하지 않음 (트랜잭션 롤백 테스트 지원)
         try:
-            payment = Payment.objects.get(toss_order_id=order_id)
+            payment = Payment.objects.get(order_id=order_id)
             payment.status = "aborted"
             payment.save(update_fields=["status"])
 

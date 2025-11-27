@@ -101,7 +101,7 @@ class PaymentRequestView(EmailVerificationRequiredMixin, APIView):
             # 결제 정보 반환
             response_data = {
                 "payment_id": payment.id,
-                "order_id": payment.toss_order_id,  # toss_order_id를 반환 (결제 승인 시 사용)
+                "order_id": order.id,  # order.id를 반환 (내부 ID)
                 "order_name": order_name,
                 "customer_name": request.user.get_full_name() or request.user.username,
                 "customer_email": request.user.email,

@@ -94,7 +94,7 @@ class PaymentService:
 
     @staticmethod
     @transaction.atomic
-    def confirm_payment_sync(payment: Payment, payment_key: str, order_id: str, amount: int, user) -> dict[str, Any]:
+    def confirm_payment_sync(payment: Payment, payment_key: str, order_id: int, amount: int, user) -> dict[str, Any]:
         """
         결제 승인 처리 (동기 버전 - 롤백용)
 
@@ -134,13 +134,13 @@ class PaymentService:
         toss_client = TossPaymentClient()
 
         # 1. 토스페이먼츠에 결제 승인 요청
-        logger.info(f"토스페이먼츠 결제 승인 요청: order_number={order_id}, amount={amount}")
+        logger.info(f"토스페이먼츠 결제 승인 요청: order_id={order_id}, amount={amount}")
         payment_data = toss_client.confirm_payment(
             payment_key=payment_key,
-            order_id=order_id,
+            order_id=str(order_id),  # Toss API는 문자열 orderId를 받음
             amount=amount,
         )
-        logger.info(f"토스페이먼츠 결제 승인 성공: payment_id={payment.id}, order_number={order_id}")
+        logger.info(f"토스페이먼츠 결제 승인 성공: payment_id={payment.id}, order_id={order_id}")
 
         # 2. Payment 정보 업데이트
         payment.mark_as_paid(payment_data)
@@ -251,7 +251,7 @@ class PaymentService:
     def confirm_payment_async(
         payment: Payment,
         payment_key: str,
-        order_id: str,
+        order_id: int,
         amount: int,
         user
     ) -> dict[str, Any]:
@@ -265,7 +265,7 @@ class PaymentService:
         Args:
             payment: 결제 객체
             payment_key: 토스페이먼츠 결제 키
-            order_id: 주문 번호
+            order_id: 주문 ID
             amount: 결제 금액
             user: 요청한 사용자
 

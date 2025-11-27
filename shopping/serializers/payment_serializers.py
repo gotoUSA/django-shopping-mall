@@ -138,7 +138,7 @@ class PaymentConfirmSerializer(serializers.Serializer):
     토스페이먼츠 결제창에서 결제 완료 후 승인 요청
     """
 
-    order_id = serializers.CharField(help_text="우리 시스템의 주문번호")
+    order_id = serializers.IntegerField(help_text="우리 시스템의 주문 ID")
 
     payment_key = serializers.CharField(help_text="토스페이먼츠 결제키")
 
@@ -156,7 +156,7 @@ class PaymentConfirmSerializer(serializers.Serializer):
         # Payment 찾기 (사용자 검증 포함)
         try:
             payment = Payment.objects.get(
-                toss_order_id=order_id,
+                order_id=order_id,
                 order__user=self.context["request"].user,  # 보안: 본인 주문만 접근 가능
             )
         except Payment.DoesNotExist:

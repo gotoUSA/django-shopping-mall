@@ -571,7 +571,7 @@ class TestPaymentConcurrencyBoundary:
 
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
-                    "order_id": payment_obj.order.order_number,
+                    "order_id": payment_obj.order.id,
                     "payment_key": f"test_key_{payment_obj.id}",
                     "amount": 0,
                 }
@@ -850,7 +850,7 @@ class TestPaymentConcurrencyException:
 
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
-                    "order_id": order.order_number,
+                    "order_id": order.id,
                     "payment_key": "test_key",
                     "amount": int(payment.amount),
                 }
@@ -977,7 +977,7 @@ class TestPaymentConcurrencyException:
 
         toss_response = TossResponseBuilder.success_response(
             payment_key="test_webhook_key",
-            order_id=order.order_number,
+            order_id=order.id,
             amount=int(payment.amount)
         )
 
@@ -1009,7 +1009,7 @@ class TestPaymentConcurrencyException:
 
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
-                    "order_id": order.order_number,
+                    "order_id": order.id,
                     "payment_key": "test_webhook_key",
                     "amount": int(payment.amount),
                 }
@@ -1131,4 +1131,110 @@ class TestPaymentConcurrencyException:
 
         # Assert - 모두 성공
         success_count = sum(1 for r in results if r.get("success", False))
-        assert success_count == 3, f"3개 모두 성공. 성공: {success_count}"
+        error_count = sum(1 for r in results if "error" in r)
+        assert success_count == 3, f"3개 모두 성공해야 함. 성공: {success_count}, 에러: {error_count}"
+
+        # Payment 상태 검증
+        done_payments = 0
+        for payment in payments:
+            payment.refresh_from_db()
+            if payment.status == "done":
+                done_payments += 1
+
+        assert done_payments == 3, f"3개 결제 완료. 실제: {done_payments}"
+
+        # Product 통계 검증
+        product.refresh_from_db()
+        assert product.sold_count == 3, f"sold_count 3 증가. 실제: {product.sold_count}"
+
+
+@pytest.mark.slow
+@pytest.mark.django_db(transaction=True)
+class TestPaymentConcurrencyScaleValidation:
+    """스케일 검증 - 중규모 동시성
+
+    Note:
+        50명 이상 스케일은 DB 커넥션 풀 한계로 인해 Locust로 테스트합니다.
+        (shopping/tests/performance/concurrent_payment_locust.py 참조)
+        pytest는 로직 검증 목적으로 10-20명 규모를 사용합니다.
+    """
+    @pytest.mark.parametrize("user_count", [10, 20])
+    def test_concurrent_payment_confirm_scale(
+        self, user_count, product, user_factory, create_order, toss_response_builder, build_confirm_request, mocker
+    ):
+        """중규모 동시 결제 승인 - 스케일 검증
+
+        Args:
+            user_count: 동시 결제할 사용자 수 (10 or 20)
+
+        시나리오:
+            - 재고: user_count * 2개 (충분한 재고)
+            - 사용자: user_count명이 각 1개씩 동시 결제
+            - 예상: user_count개 결제 성공, 재고 user_count개 남음
+        """
+        # Arrange
+        product.stock = user_count * 2
+        product.sold_count = 0
+        product.save()
+        users = []
+        orders = []
+        payments = []
+        for i in range(user_count):
+            user = user_factory(
+                username=f"scale_user{i}",
+                email=f"scale{i}@test.com",
+                phone_number=f"010-{2000 + (i // 10000):04d}-{i % 10000:04d}",
+            )
+            users.append(user)
+            order = create_order(user=user, product=product, status="pending")
+            orders.append(order)
+            payment = PaymentFactory(order=order)
+            payments.append(payment)
+        mocker.patch(
+            "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
+            side_effect=lambda *args, **kwargs: toss_response_builder(),
+        )
+        results = []
+        lock = threading.Lock()
+        def confirm_payment(user_obj, payment_obj):
+            """결제 승인"""
+            try:
+                client, token, error = login_and_get_token(user_obj.username)
+                if error:
+                    with lock:
+                        results.append({"user": user_obj.username, "error": error})
+                    return
+                client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+                request_data = build_confirm_request(payment_obj)
+                response = client.post("/api/payments/confirm/", request_data, format="json")
+                with lock:
+                    results.append(
+                        {
+                            "user": user_obj.username,
+                            "status": response.status_code,
+                            "success": response.status_code == status.HTTP_202_ACCEPTED,
+                        }
+                    )
+            except Exception as e:
+                with lock:
+                    results.append({"user": user_obj.username, "error": str(e)})
+        # Act
+        threads = [
+            threading.Thread(target=confirm_payment, args=(users[i], payments[i]))
+            for i in range(user_count)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        time.sleep(3)
+        # Assert
+        success_count = sum(1 for r in results if r.get("success", False))
+        error_count = sum(1 for r in results if "error" in r)
+        if success_count != user_count:
+            print(f"\n성공: {success_count}, 에러: {error_count}")
+        assert success_count == user_count, f"{user_count}명 모두 성공. 성공: {success_count}, 에러: {error_count}"
+        done_payments = sum(1 for p in payments if (p.refresh_from_db() or p.status == "done"))
+        assert done_payments == user_count
+        product.refresh_from_db()
+        assert product.sold_count == user_count

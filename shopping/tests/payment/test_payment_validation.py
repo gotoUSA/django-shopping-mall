@@ -121,7 +121,7 @@ class TestPaymentValidationNormalCase:
 
         # Confirm 테스트
         toss_response = TossResponseBuilder.success_response(
-            order_id=order.order_number,
+            order_id=order.id,
             amount=0,
         )
 
@@ -131,7 +131,7 @@ class TestPaymentValidationNormalCase:
         )
 
         confirm_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": 0,
         }
@@ -516,7 +516,7 @@ class TestPaymentValidationException:
         """문자열 금액 거부"""
         # Arrange - confirm에서 문자열 금액 전송
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": "invalid_string",  # 명확한 문자열
         }
@@ -542,7 +542,7 @@ class TestPaymentValidationException:
         """null 금액 거부"""
         # Arrange
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": None,  # null
         }
@@ -567,7 +567,7 @@ class TestPaymentValidationException:
         """amount 필드 누락 거부"""
         # Arrange - amount 필드 없음
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             # amount 누락
         }
@@ -594,7 +594,7 @@ class TestPaymentValidationException:
         # Arrange
         toss_response = TossResponseBuilder.success_response(
             payment_key="test_payment_key_float",
-            order_id=order.order_number,
+            order_id=order.id,
             amount=int(payment.amount),
         )
 
@@ -605,7 +605,7 @@ class TestPaymentValidationException:
 
         # float를 int로 변환 (DRF DecimalField는 float를 허용하지만 정수로 변환)
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": int(payment.amount),
         }
@@ -632,7 +632,7 @@ class TestPaymentValidationException:
         """소수점 금액 거부 (decimal_places=0)"""
         # Arrange - 소수점 포함 금액
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": 10000.5,  # 소수점
         }
@@ -678,7 +678,7 @@ class TestPaymentValidationException:
 
         # confirm에서 소수점 금액 전송
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": 0.01,  # 매우 작은 소수
         }
@@ -746,7 +746,7 @@ class TestPaymentValidationException:
         """confirm 시 금액 불일치 (payment.amount ≠ request.amount)"""
         # Arrange - 잘못된 금액으로 confirm 시도
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": int(payment.amount) + 1000,  # 불일치
         }
@@ -798,7 +798,7 @@ class TestPaymentValidationException:
 
         # Act - confirm 시 변조된 금액 전송
         tampered_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": int(original_amount) - 5000,  # 5000원 감액 변조
         }
@@ -845,7 +845,7 @@ class TestPaymentValidationException:
 
         # Act - confirm 시도
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": 10000,  # order의 금액으로 전송
         }

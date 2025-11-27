@@ -37,7 +37,7 @@ class TestPaymentPointsEarnNormalCase:
 
         toss_response = TossResponseBuilder.success_response(
             payment_key=payment.payment_key,
-            order_id=order.order_number,
+            order_id=order.id,
             amount=int(payment.amount),
         )
 
@@ -47,7 +47,7 @@ class TestPaymentPointsEarnNormalCase:
         )
 
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": int(payment.amount),
         }
@@ -87,7 +87,7 @@ class TestPaymentPointsEarnNormalCase:
         # Arrange
         toss_response = TossResponseBuilder.success_response(
             payment_key=payment.payment_key,
-            order_id=order.order_number,
+            order_id=order.id,
             amount=int(payment.amount),
         )
 
@@ -97,7 +97,7 @@ class TestPaymentPointsEarnNormalCase:
         )
 
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": int(payment.amount),
         }

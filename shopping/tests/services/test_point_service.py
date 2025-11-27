@@ -49,9 +49,7 @@ class TestPointServiceAddPoints:
         order = OrderFactory(user=user)
 
         # Act
-        result = PointService.add_points(
-            user, 100, type="earn", order=order, description="주문 적립"
-        )
+        result = PointService.add_points(user, 100, type="earn", order=order, description="주문 적립")
 
         # Assert
         assert result is True
@@ -66,9 +64,7 @@ class TestPointServiceAddPoints:
         metadata = {"event": "welcome_bonus", "campaign_id": 123}
 
         # Act
-        result = PointService.add_points(
-            user, 500, type="event", metadata=metadata
-        )
+        result = PointService.add_points(user, 500, type="event", metadata=metadata)
 
         # Assert
         assert result is True
@@ -184,9 +180,7 @@ class TestPointServiceUsePoints:
         order = OrderFactory(user=user)
 
         # Act
-        result = PointService.use_points(
-            user, 300, type="use", order=order, description="주문 사용"
-        )
+        result = PointService.use_points(user, 300, type="use", order=order, description="주문 사용")
 
         # Assert
         assert result is True
@@ -315,6 +309,41 @@ class TestPointServiceUsePointsConcurrency:
 
         user.refresh_from_db()
         assert user.points == 50
+
+    def test_use_points_concurrency_20_users(self):
+        """20명 동시 포인트 사용 - 중간 스케일 검증"""
+        # Arrange
+        user = UserFactory.with_points(20_000)
+        results = []
+        lock = threading.Lock()
+
+        def use_points_thread():
+            try:
+                success = PointService.use_points(user, 1000, type="use")
+                with lock:
+                    results.append({"success": success})
+            except Exception as e:
+                with lock:
+                    results.append({"error": str(e)})
+
+        # Act
+        threads = [threading.Thread(target=use_points_thread) for _ in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # Assert
+        success_count = sum(1 for r in results if r.get("success", False))
+        assert success_count == 20
+
+        user.refresh_from_db()
+        assert user.points == 0
+
+        # 이력 검증
+        histories = PointHistory.objects.filter(user=user, type="use").order_by("created_at")
+        assert histories.count() == 20
+        assert all(h.points == -1000 for h in histories)
 
 
 @pytest.mark.django_db

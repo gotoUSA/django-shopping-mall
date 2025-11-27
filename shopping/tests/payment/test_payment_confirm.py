@@ -42,7 +42,7 @@ class TestPaymentConfirm:
 
         toss_response = TossResponseBuilder.success_response(
             payment_key="test_payment_key_123",
-            order_id=order.order_number,
+            order_id=order.id,
             amount=int(payment.amount),
         )
 
@@ -52,7 +52,7 @@ class TestPaymentConfirm:
         )
 
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_payment_key_123",
             "amount": int(payment.amount),
         }
@@ -113,10 +113,10 @@ class TestPaymentConfirm:
         assert logs.count() >= 2  # 적립 로그 + 승인 로그
         assert logs.filter(log_type="approve", message="결제 승인 완료").exists()
 
-        # Assert - 토스 API 호출 확인
+        # Assert - Toss API 호출 검증
         mock_confirm.assert_called_once_with(
             payment_key="test_payment_key_123",
-            order_id=order.order_number,
+            order_id=str(order.id),  # Toss API는 문자열로 변환되어 호출됨
             amount=int(payment.amount),
         )
 
@@ -160,7 +160,7 @@ class TestPaymentConfirm:
 
         toss_response = TossResponseBuilder.success_response(
             payment_key=payment.payment_key,
-            order_id=order.order_number,
+            order_id=order.id,
             amount=int(payment.amount),
         )
 
@@ -170,7 +170,7 @@ class TestPaymentConfirm:
         )
 
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": int(payment.amount),
         }
@@ -231,7 +231,7 @@ class TestPaymentConfirm:
 
         toss_response = TossResponseBuilder.success_response(
             payment_key=payment.payment_key,
-            order_id=order.order_number,
+            order_id=order.id,
             amount=int(payment.amount),
         )
 
@@ -243,7 +243,7 @@ class TestPaymentConfirm:
         authenticated_client.force_authenticate(user=user)
 
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": int(payment.amount),
         }
@@ -308,7 +308,7 @@ class TestPaymentConfirmBoundary:
 
         toss_response = TossResponseBuilder.success_response(
             payment_key=payment.payment_key,
-            order_id=order.order_number,
+            order_id=order.id,
             amount=0,
         )
 
@@ -318,7 +318,7 @@ class TestPaymentConfirmBoundary:
         )
 
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": 0,
         }
@@ -345,7 +345,6 @@ class TestPaymentConfirmBoundary:
             order=order,
         )
         assert not earn_history.exists()
-
 
     def test_earn_rate_by_membership_level(
         self,
@@ -391,7 +390,7 @@ class TestPaymentConfirmBoundary:
 
             toss_response = TossResponseBuilder.success_response(
                 payment_key=payment.payment_key,
-                order_id=order.order_number,
+                order_id=order.id,
                 amount=int(payment.amount),
             )
 
@@ -401,7 +400,7 @@ class TestPaymentConfirmBoundary:
             )
 
             request_data = {
-                "order_id": order.order_number,
+                "order_id": order.id,
                 "payment_key": "test_key",
                 "amount": int(payment.amount),
             }
@@ -452,7 +451,7 @@ class TestPaymentConfirmException:
         api_client.force_authenticate(user=user)
 
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": int(payment.amount),
         }
@@ -480,7 +479,7 @@ class TestPaymentConfirmException:
         """이미 완료된 결제"""
         # Arrange
         request_data = {
-            "order_id": paid_order.order_number,
+            "order_id": paid_order.id,
             "payment_key": "test_key",
             "amount": int(paid_payment.amount),
         }
@@ -526,7 +525,7 @@ class TestPaymentConfirmException:
         """payment_key 필드 없음"""
         # Arrange
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "amount": 10000,
         }
 
@@ -549,7 +548,7 @@ class TestPaymentConfirmException:
         """amount 필드 없음"""
         # Arrange
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
         }
 
@@ -573,7 +572,7 @@ class TestPaymentConfirmException:
         """금액 불일치"""
         # Arrange
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": 99999,  # 잘못된 금액
         }
@@ -596,7 +595,7 @@ class TestPaymentConfirmException:
         """존재하지 않는 order_id"""
         # Arrange
         request_data = {
-            "order_id": "NONEXISTENT_20250115999999",
+            "order_id": 999999999,  # 존재하지 않는 정수 ID
             "payment_key": "test_key",
             "amount": 10000,
         }
@@ -628,7 +627,7 @@ class TestPaymentConfirmException:
         )
 
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": int(payment.amount),
         }
@@ -679,7 +678,7 @@ class TestPaymentConfirmException:
         )
 
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_key",
             "amount": int(payment.amount),
         }

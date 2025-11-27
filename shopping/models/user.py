@@ -22,6 +22,14 @@ class User(AbstractUser):
     AbstractUser를 상속받아 기본 필드들(username, email, password 등)을 모두 포함하고,
     쇼핑몰에 필요한 추가 필드들을 정의합니다.
     """
+    # AbstractUser의 email 필드를 unique로 오버라이드
+    email = models.EmailField(
+        verbose_name="이메일 주소",
+        unique=True,  # 중복 방지
+        error_messages={
+            'unique': "이미 사용중인 이메일입니다.",
+        }
+    )
 
     # 기본 정보 추가 필드
     phone_number = models.CharField(

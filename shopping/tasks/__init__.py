@@ -10,6 +10,7 @@ from .cleanup_tasks import (
     delete_unverified_users_task,
 )
 from .email_tasks import retry_failed_emails_task, send_email_task, send_verification_email_task
+from .order_tasks import process_order_heavy_tasks
 from .point_tasks import expire_points_task, send_email_notification, send_expiry_notification_task
 
 __all__ = [
@@ -26,4 +27,6 @@ __all__ = [
     "expire_points_task",
     "send_expiry_notification_task",
     "send_email_notification",
+    # 주문 태스크
+    "process_order_heavy_tasks",
 ]

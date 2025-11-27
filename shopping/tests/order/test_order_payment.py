@@ -63,7 +63,7 @@ class TestOrderPaymentIntegration:
             confirm_response = authenticated_client.post(
                 "/api/payments/confirm/",
                 {
-                    "order_id": order.order_number,
+                    "order_id": order.id,
                     "payment_key": "test_payment_key_123",
                     "amount": int(order.final_amount),
                 },
@@ -140,7 +140,7 @@ class TestOrderPaymentIntegration:
             confirm_response = authenticated_client.post(
                 "/api/payments/confirm/",
                 {
-                    "order_id": order.order_number,
+                    "order_id": order.id,
                     "payment_key": "test_key",
                     "amount": int(expected_amount),
                 },
@@ -338,7 +338,7 @@ class TestOrderPaymentIntegration:
             confirm_response = authenticated_client.post(
                 "/api/payments/confirm/",
                 {
-                    "order_id": order.order_number,
+                    "order_id": order.id,
                     "payment_key": "test_key",
                     "amount": int(order.final_amount),
                 },
@@ -393,7 +393,7 @@ class TestOrderPaymentIntegration:
             confirm_response = authenticated_client.post(
                 "/api/payments/confirm/",
                 {
-                    "order_id": order.order_number,
+                    "order_id": order.id,
                     "payment_key": "test_key",
                     "amount": int(order.final_amount),
                 },
@@ -457,7 +457,7 @@ class TestOrderPaymentIntegration:
                 confirm_response = authenticated_client.post(
                     "/api/payments/confirm/",
                     {
-                        "order_id": order.order_number,
+                        "order_id": order.id,
                         "payment_key": "test_key",
                         "amount": int(order.final_amount),
                     },
@@ -515,7 +515,7 @@ class TestOrderPaymentIntegration:
             authenticated_client.post(
                 "/api/payments/confirm/",
                 {
-                    "order_id": order.order_number,
+                    "order_id": order.id,
                     "payment_key": "test_key",
                     "amount": int(order.final_amount),
                 },
@@ -585,7 +585,7 @@ class TestOrderPaymentIntegration:
             authenticated_client.post(
                 "/api/payments/confirm/",
                 {
-                    "order_id": order.order_number,
+                    "order_id": order.id,
                     "payment_key": "test_key",
                     "amount": int(order.final_amount),
                 },

@@ -317,7 +317,7 @@ class Payment(models.Model):
         테스트 등에서 직접 생성 시 모든 필드를 명시적으로 설정해야 합니다:
             Payment.objects.create(
                 order=order,
-                toss_order_id=order.order_number,  # 명시적 설정 필수
+                toss_order_id=str(order.id),  # Toss orderId와 일치 (명시적 설정 필수)
                 amount=order.final_amount,
                 status="ready",
             )

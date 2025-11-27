@@ -38,7 +38,7 @@ class TestPaymentDoneWebhook:
         # Arrange
         mock_verify_webhook()
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -105,13 +105,13 @@ class TestPaymentDoneWebhook:
             order=order_with_multiple_items,
             amount=order_with_multiple_items.total_amount,
             status="pending",
-            toss_order_id=order_with_multiple_items.order_number,
+            toss_order_id=str(order_with_multiple_items.id),
         )
 
         initial_stocks = {p.id: p.stock for p in multiple_products}
 
         webhook_data = webhook_data_builder(
-            order_id=order_with_multiple_items.order_number,
+            order_id=str(order_with_multiple_items.id),
             payment_key="test_key_multi",
             amount=int(payment.amount),
         )
@@ -152,7 +152,7 @@ class TestPaymentDoneWebhook:
         initial_stock = self.product.stock
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             payment_key="duplicate_key",
             amount=int(self.payment.amount),
         )
@@ -186,7 +186,7 @@ class TestPaymentDoneWebhook:
         initial_stock = self.product.stock
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -221,7 +221,7 @@ class TestPaymentDoneWebhook:
         self.product.save()
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 
@@ -258,7 +258,7 @@ class TestPaymentDoneWebhook:
         self.order.save()
 
         webhook_data = webhook_data_builder(
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             amount=int(self.payment.amount),
         )
 

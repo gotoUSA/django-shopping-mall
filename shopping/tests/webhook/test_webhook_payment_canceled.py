@@ -59,7 +59,7 @@ class TestPaymentCanceledWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             payment_key="test_payment_key_123",
             cancel_reason="사용자 요청",
         )
@@ -132,7 +132,7 @@ class TestPaymentCanceledWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             cancel_reason="상품 품절",
         )
 
@@ -182,7 +182,7 @@ class TestPaymentCanceledWebhook:
             order=order_with_multiple_items,
             amount=order_with_multiple_items.total_amount,
             status="done",
-            toss_order_id=order_with_multiple_items.order_number,
+            toss_order_id=str(order_with_multiple_items.id),
             payment_key="test_key_multi",
         )
 
@@ -196,7 +196,7 @@ class TestPaymentCanceledWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=order_with_multiple_items.order_number,
+            order_id=str(order_with_multiple_items.id),
             payment_key="test_key_multi",
             cancel_reason="사용자 요청",
         )
@@ -244,7 +244,7 @@ class TestPaymentCanceledWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             payment_key="duplicate_key",
             cancel_reason="중복 요청",
         )
@@ -285,7 +285,7 @@ class TestPaymentCanceledWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             cancel_reason="주문 취소",
         )
 
@@ -328,7 +328,7 @@ class TestPaymentCanceledWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             cancel_reason="결제 취소",
         )
 
@@ -384,7 +384,7 @@ class TestPaymentCanceledWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             cancel_reason="환불 요청",
         )
 
@@ -440,7 +440,7 @@ class TestPaymentCanceledWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             cancel_reason="사용자 요청",
         )
 
@@ -515,7 +515,7 @@ class TestPaymentCanceledWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             cancel_reason="사용자 요청",
         )
 

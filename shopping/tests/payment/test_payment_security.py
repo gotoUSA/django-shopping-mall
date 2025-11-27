@@ -58,9 +58,7 @@ class TestPaymentSecurityNormalCase:
         assert paid_payment.order.user == user
 
         # Act - 결제 조회
-        detail_response = authenticated_client.get(
-            f"/api/payments/{paid_payment.id}/"
-        )
+        detail_response = authenticated_client.get(f"/api/payments/{paid_payment.id}/")
 
         # Assert
         assert detail_response.status_code == status.HTTP_200_OK
@@ -124,7 +122,7 @@ class TestPaymentSecurityException:
         tampered_amount = original_amount // 2
 
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_payment_key",
             "amount": tampered_amount,
         }
@@ -150,7 +148,7 @@ class TestPaymentSecurityException:
     ):
         """존재하지 않는 order_id로 결제 승인 시도 거부"""
         # Arrange - 존재하지 않는 order_id
-        fake_order_id = "FAKE_ORDER_99999999"
+        fake_order_id = 999999999  # 존재하지 않는 정수 ID
 
         request_data = {
             "order_id": fake_order_id,
@@ -207,7 +205,7 @@ class TestPaymentSecurityException:
         api_client.force_authenticate(user=user)
 
         request_data = {
-            "order_id": other_user_order.order_number,
+            "order_id": other_user_order.id,
             "payment_key": "test_payment_key",
             "amount": int(payment.amount),
         }
@@ -287,7 +285,7 @@ class TestPaymentSecurityException:
         payment.save()
 
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_payment_key",
             "amount": int(payment.amount),
         }
@@ -332,7 +330,7 @@ class TestPaymentSecurityException:
         )
 
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "test_payment_key",
             "amount": int(payment.amount),
         }
@@ -433,9 +431,9 @@ class TestPaymentSecurityException:
                 format="json",
             )
 
-            # Assert - Django ORM이 자동으로 이스케이프 처리
+            # Assert - IntegerField가 자동으로 문자열을 거부
             assert response.status_code == status.HTTP_400_BAD_REQUEST
-            assert "결제 정보를 찾을 수 없습니다" in str(response.data)
+            assert "유효한 정수(integer)를 넣어주세요" in str(response.data)
 
     def test_xss_in_cancel_reason_sanitized(
         self,
@@ -449,9 +447,7 @@ class TestPaymentSecurityException:
         xss_payload = "<script>alert('XSS')</script>"
 
         # 결제 취소 시 sold_count 감소를 위해 미리 증가
-        Product.objects.filter(pk=product.pk).update(
-            sold_count=F("sold_count") + 1
-        )
+        Product.objects.filter(pk=product.pk).update(sold_count=F("sold_count") + 1)
         product.refresh_from_db()
 
         order = OrderFactory(
@@ -511,7 +507,7 @@ class TestPaymentSecurityException:
         assert not hasattr(order, "payment")
 
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "fake_payment_key",
             "amount": int(order.final_amount),
         }
@@ -548,7 +544,7 @@ class TestPaymentSecurityException:
         )
 
         request_data = {
-            "order_id": order.order_number,
+            "order_id": order.id,
             "payment_key": "FAKE_INVALID_KEY_12345",
             "amount": int(payment.amount),
         }
@@ -615,7 +611,7 @@ class TestPaymentSecurityException:
 
         # order1의 order_id + order2의 payment_key (불일치)
         request_data = {
-            "order_id": order1.order_number,
+            "order_id": order1.id,  # order.id 사용 (정수)
             "payment_key": "mismatched_payment_key",
             "amount": int(payment1.amount),
         }

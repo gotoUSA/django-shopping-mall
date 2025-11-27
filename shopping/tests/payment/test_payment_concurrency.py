@@ -112,10 +112,7 @@ class TestPaymentConcurrencyHappyPath:
                     results.append({"user": user_obj.username, "error": str(e)})
 
         # Act - 5명이 동시 결제 승인
-        threads = [
-            threading.Thread(target=confirm_payment, args=(users[i], payments[i]))
-            for i in range(5)
-        ]
+        threads = [threading.Thread(target=confirm_payment, args=(users[i], payments[i])) for i in range(5)]
         for t in threads:
             t.start()
         for t in threads:
@@ -187,10 +184,7 @@ class TestPaymentConcurrencyHappyPath:
                     results.append({"error": str(e)})
 
         # Act
-        threads = [
-            threading.Thread(target=confirm_payment, args=(users[i], payments[i]))
-            for i in range(3)
-        ]
+        threads = [threading.Thread(target=confirm_payment, args=(users[i], payments[i])) for i in range(3)]
         for t in threads:
             t.start()
         for t in threads:
@@ -204,7 +198,9 @@ class TestPaymentConcurrencyHappyPath:
         product.refresh_from_db()
         assert product.sold_count == 6, f"sold_count 6 증가. 실제: {product.sold_count}"
 
-    def test_concurrent_payment_point_earn(self, product, user_factory, create_order, toss_response_builder, build_confirm_request, mocker):
+    def test_concurrent_payment_point_earn(
+        self, product, user_factory, create_order, toss_response_builder, build_confirm_request, mocker
+    ):
         """포인트 적립 동시성 (여러 결제가 동시에 완료되어 포인트 적립)"""
         # Arrange
         users = []
@@ -214,11 +210,7 @@ class TestPaymentConcurrencyHappyPath:
             user = user_factory(username=f"point_earn_user{i}", points=0)
             users.append(user)
 
-            order = create_order(
-                user=user,
-                product=product,
-                status="pending"
-            )
+            order = create_order(user=user, product=product, status="pending")
 
             payment = PaymentFactory(order=order)
             payments.append(payment)
@@ -252,10 +244,7 @@ class TestPaymentConcurrencyHappyPath:
                     results.append({"error": str(e)})
 
         # Act
-        threads = [
-            threading.Thread(target=confirm_payment, args=(users[i], payments[i]))
-            for i in range(3)
-        ]
+        threads = [threading.Thread(target=confirm_payment, args=(users[i], payments[i])) for i in range(3)]
         for t in threads:
             t.start()
         for t in threads:
@@ -322,18 +311,22 @@ class TestPaymentConcurrencyHappyPath:
         assert success_count >= 1, f"최소 1개 성공. 성공: {success_count}"
 
         # 최종적으로 Payment는 1개만 존재해야 함 (마지막 요청이 이전 것을 삭제)
-        assert Payment.objects.filter(order=order).count() == 1, \
-            f"Payment는 1개만 존재해야 함. 실제: {Payment.objects.filter(order=order).count()}"
+        assert (
+            Payment.objects.filter(order=order).count() == 1
+        ), f"Payment는 1개만 존재해야 함. 실제: {Payment.objects.filter(order=order).count()}"
 
         # 새로 생성된 Payment ID 확인 (성공한 요청 중 하나)
         successful_payment_ids = [r["payment_id"] for r in results if r.get("success") and r.get("payment_id")]
         if successful_payment_ids:
             # 최소 하나의 새로운 Payment가 생성되었음
             final_payment = Payment.objects.get(order=order)
-            assert final_payment.id in successful_payment_ids, \
-                f"최종 Payment ID가 성공한 요청 중 하나여야 함. final={final_payment.id}, successful={successful_payment_ids}"
+            assert (
+                final_payment.id in successful_payment_ids
+            ), f"최종 Payment ID가 성공한 요청 중 하나여야 함. final={final_payment.id}, successful={successful_payment_ids}"
 
-    def test_concurrent_payment_with_points_usage(self, product, user_factory, create_order, toss_response_builder, build_confirm_request, mocker):
+    def test_concurrent_payment_with_points_usage(
+        self, product, user_factory, create_order, toss_response_builder, build_confirm_request, mocker
+    ):
         """여러 사용자가 포인트 사용하며 동시 결제"""
         # Arrange
         product.price = Decimal("10000")
@@ -351,12 +344,7 @@ class TestPaymentConcurrencyHappyPath:
             result = point_service.use_points_fifo(user=user, amount=1000)
             assert result["success"]
 
-            order = create_order(
-                user=user,
-                product=product,
-                status="pending",
-                used_points=1000
-            )
+            order = create_order(user=user, product=product, status="pending", used_points=1000)
 
             payment = PaymentFactory(order=order)
             payments.append(payment)
@@ -390,10 +378,7 @@ class TestPaymentConcurrencyHappyPath:
                     results.append({"error": str(e)})
 
         # Act
-        threads = [
-            threading.Thread(target=confirm_payment, args=(users[i], payments[i]))
-            for i in range(3)
-        ]
+        threads = [threading.Thread(target=confirm_payment, args=(users[i], payments[i])) for i in range(3)]
         for t in threads:
             t.start()
         for t in threads:
@@ -414,7 +399,9 @@ class TestPaymentConcurrencyHappyPath:
 class TestPaymentConcurrencyBoundary:
     """경계값 테스트 - 재고나 포인트가 딱 맞는 경계 상황"""
 
-    def test_concurrent_payment_exact_stock_boundary(self, product, user_factory, create_order, toss_response_builder, build_confirm_request, mocker):
+    def test_concurrent_payment_exact_stock_boundary(
+        self, product, user_factory, create_order, toss_response_builder, build_confirm_request, mocker
+    ):
         """재고 딱 맞는 상황에서 동시 결제 (10개 재고, 10명 동시 결제)"""
         # Arrange
         product.stock = 10
@@ -461,10 +448,7 @@ class TestPaymentConcurrencyBoundary:
                     results.append({"error": str(e)})
 
         # Act
-        threads = [
-            threading.Thread(target=confirm_payment, args=(users[i], payments[i]))
-            for i in range(10)
-        ]
+        threads = [threading.Thread(target=confirm_payment, args=(users[i], payments[i])) for i in range(10)]
         for t in threads:
             t.start()
         for t in threads:
@@ -541,12 +525,7 @@ class TestPaymentConcurrencyBoundary:
             result = point_service.use_points_fifo(user=user, amount=int(product.price))
             assert result["success"]
 
-            order = create_order(
-                user=user,
-                product=product,
-                status="pending",
-                used_points=int(product.price)
-            )
+            order = create_order(user=user, product=product, status="pending", used_points=int(product.price))
 
             payment = PaymentFactory(order=order, amount=Decimal("0"))
             payments.append(payment)
@@ -571,7 +550,7 @@ class TestPaymentConcurrencyBoundary:
 
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
-                    "order_id": payment_obj.order.order_number,
+                    "order_id": payment_obj.order.id,
                     "payment_key": f"test_key_{payment_obj.id}",
                     "amount": 0,
                 }
@@ -584,10 +563,7 @@ class TestPaymentConcurrencyBoundary:
                     results.append({"error": str(e)})
 
         # Act
-        threads = [
-            threading.Thread(target=confirm_payment, args=(users[i], payments[i]))
-            for i in range(2)
-        ]
+        threads = [threading.Thread(target=confirm_payment, args=(users[i], payments[i])) for i in range(2)]
         for t in threads:
             t.start()
         for t in threads:
@@ -602,7 +578,9 @@ class TestPaymentConcurrencyBoundary:
             user.refresh_from_db()
             assert user.points == 0, f"포인트 0P. 실제: {user.points}"
 
-    def test_concurrent_stock_boundary_partial_success(self, product, user_factory, create_order, build_confirm_request, mocker):
+    def test_concurrent_stock_boundary_partial_success(
+        self, product, user_factory, create_order, build_confirm_request, mocker
+    ):
         """재고 경계값 (5개 재고, 3명이 2개씩 주문 → 2명만 성공)"""
         # Arrange
         product.stock = 5
@@ -619,12 +597,7 @@ class TestPaymentConcurrencyBoundary:
             )
             users.append(user)
 
-            order = create_order(
-                user=user,
-                product=product,
-                quantity=2,
-                status="pending"
-            )
+            order = create_order(user=user, product=product, quantity=2, status="pending")
 
             payment = PaymentFactory(order=order)
             payments.append(payment)
@@ -685,10 +658,7 @@ class TestPaymentConcurrencyBoundary:
                     results.append({"error": str(e), "payment_id": payment_obj.id})
 
         # Act
-        threads = [
-            threading.Thread(target=confirm_payment, args=(users[i], payments[i]))
-            for i in range(3)
-        ]
+        threads = [threading.Thread(target=confirm_payment, args=(users[i], payments[i])) for i in range(3)]
         for t in threads:
             t.start()
         for t in threads:
@@ -789,10 +759,7 @@ class TestPaymentConcurrencyException:
                     results.append({"error": str(e)})
 
         # Act
-        threads = [
-            threading.Thread(target=confirm_payment, args=(users[i], payments[i]))
-            for i in range(5)
-        ]
+        threads = [threading.Thread(target=confirm_payment, args=(users[i], payments[i])) for i in range(5)]
         for t in threads:
             t.start()
         for t in threads:
@@ -850,7 +817,7 @@ class TestPaymentConcurrencyException:
 
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
-                    "order_id": order.order_number,
+                    "order_id": order.id,
                     "payment_key": "test_key",
                     "amount": int(payment.amount),
                 }
@@ -891,12 +858,7 @@ class TestPaymentConcurrencyException:
             phone_number="010-1300-0001",
         )
 
-        order = create_order(
-            user=user,
-            product=product,
-            status="paid",
-            payment_method="card"
-        )
+        order = create_order(user=user, product=product, status="paid", payment_method="card")
 
         from django.utils import timezone
 
@@ -976,9 +938,7 @@ class TestPaymentConcurrencyException:
         payment = PaymentFactory(order=order)
 
         toss_response = TossResponseBuilder.success_response(
-            payment_key="test_webhook_key",
-            order_id=order.order_number,
-            amount=int(payment.amount)
+            payment_key="test_webhook_key", order_id=order.id, amount=int(payment.amount)
         )
 
         mocker.patch(
@@ -1009,7 +969,7 @@ class TestPaymentConcurrencyException:
 
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
                 request_data = {
-                    "order_id": order.order_number,
+                    "order_id": order.id,
                     "payment_key": "test_webhook_key",
                     "amount": int(payment.amount),
                 }
@@ -1075,7 +1035,9 @@ class TestPaymentConcurrencyException:
         order.refresh_from_db()
         assert order.status == "paid"
 
-    def test_concurrent_same_user_multiple_payments(self, product, user_factory, create_order, toss_response_builder, build_confirm_request, mocker):
+    def test_concurrent_same_user_multiple_payments(
+        self, product, user_factory, create_order, toss_response_builder, build_confirm_request, mocker
+    ):
         """동일 사용자가 여러 주문 동시 결제 시도"""
         # Arrange
         user = user_factory(
@@ -1131,4 +1093,110 @@ class TestPaymentConcurrencyException:
 
         # Assert - 모두 성공
         success_count = sum(1 for r in results if r.get("success", False))
-        assert success_count == 3, f"3개 모두 성공. 성공: {success_count}"
+        error_count = sum(1 for r in results if "error" in r)
+        assert success_count == 3, f"3개 모두 성공해야 함. 성공: {success_count}, 에러: {error_count}"
+
+        # Payment 상태 검증
+        done_payments = 0
+        for payment in payments:
+            payment.refresh_from_db()
+            if payment.status == "done":
+                done_payments += 1
+
+        assert done_payments == 3, f"3개 결제 완료. 실제: {done_payments}"
+
+        # Product 통계 검증
+        product.refresh_from_db()
+        assert product.sold_count == 3, f"sold_count 3 증가. 실제: {product.sold_count}"
+
+
+@pytest.mark.slow
+@pytest.mark.django_db(transaction=True)
+class TestPaymentConcurrencyScaleValidation:
+    """스케일 검증 - 중규모 동시성
+
+    Note:
+        50명 이상 스케일은 DB 커넥션 풀 한계로 인해 Locust로 테스트합니다.
+        (shopping/tests/performance/concurrent_payment_locust.py 참조)
+        pytest는 로직 검증 목적으로 10-20명 규모를 사용합니다.
+    """
+
+    @pytest.mark.parametrize("user_count", [10, 20])
+    def test_concurrent_payment_confirm_scale(
+        self, user_count, product, user_factory, create_order, toss_response_builder, build_confirm_request, mocker
+    ):
+        """중규모 동시 결제 승인 - 스케일 검증
+
+        Args:
+            user_count: 동시 결제할 사용자 수 (10 or 20)
+
+        시나리오:
+            - 재고: user_count * 2개 (충분한 재고)
+            - 사용자: user_count명이 각 1개씩 동시 결제
+            - 예상: user_count개 결제 성공, 재고 user_count개 남음
+        """
+        # Arrange
+        product.stock = user_count * 2
+        product.sold_count = 0
+        product.save()
+        users = []
+        orders = []
+        payments = []
+        for i in range(user_count):
+            user = user_factory(
+                username=f"scale_user{i}",
+                email=f"scale{i}@test.com",
+                phone_number=f"010-{2000 + (i // 10000):04d}-{i % 10000:04d}",
+            )
+            users.append(user)
+            order = create_order(user=user, product=product, status="pending")
+            orders.append(order)
+            payment = PaymentFactory(order=order)
+            payments.append(payment)
+        mocker.patch(
+            "shopping.utils.toss_payment.TossPaymentClient.confirm_payment",
+            side_effect=lambda *args, **kwargs: toss_response_builder(),
+        )
+        results = []
+        lock = threading.Lock()
+
+        def confirm_payment(user_obj, payment_obj):
+            """결제 승인"""
+            try:
+                client, token, error = login_and_get_token(user_obj.username)
+                if error:
+                    with lock:
+                        results.append({"user": user_obj.username, "error": error})
+                    return
+                client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+                request_data = build_confirm_request(payment_obj)
+                response = client.post("/api/payments/confirm/", request_data, format="json")
+                with lock:
+                    results.append(
+                        {
+                            "user": user_obj.username,
+                            "status": response.status_code,
+                            "success": response.status_code == status.HTTP_202_ACCEPTED,
+                        }
+                    )
+            except Exception as e:
+                with lock:
+                    results.append({"user": user_obj.username, "error": str(e)})
+
+        # Act
+        threads = [threading.Thread(target=confirm_payment, args=(users[i], payments[i])) for i in range(user_count)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        time.sleep(3)
+        # Assert
+        success_count = sum(1 for r in results if r.get("success", False))
+        error_count = sum(1 for r in results if "error" in r)
+        if success_count != user_count:
+            print(f"\n성공: {success_count}, 에러: {error_count}")
+        assert success_count == user_count, f"{user_count}명 모두 성공. 성공: {success_count}, 에러: {error_count}"
+        done_payments = sum(1 for p in payments if (p.refresh_from_db() or p.status == "done"))
+        assert done_payments == user_count
+        product.refresh_from_db()
+        assert product.sold_count == user_count

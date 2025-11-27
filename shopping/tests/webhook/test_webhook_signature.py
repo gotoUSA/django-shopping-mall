@@ -86,7 +86,7 @@ class TestWebhookSignatureValidCases:
         webhook_data = {
             "eventType": "PAYMENT.DONE",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "paymentKey": "test_payment_key_123",
                 "status": "DONE",
                 "totalAmount": int(self.payment.amount),
@@ -122,7 +122,7 @@ class TestWebhookSignatureValidCases:
         webhook_data = {
             "eventType": "PAYMENT.CANCELED",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "paymentKey": "test_key",
                 "status": "CANCELED",
                 "cancelReason": "사용자 요청",
@@ -151,7 +151,7 @@ class TestWebhookSignatureValidCases:
         webhook_data = {
             "eventType": "PAYMENT.FAILED",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "failReason": "카드 한도 초과",
             },
         }
@@ -205,7 +205,7 @@ class TestWebhookSignatureBoundaryCases:
         webhook_data = {
             "eventType": "PAYMENT.FAILED",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "failReason": "결제 실패 🚫 カード エラー 💳 支付失败",
             },
         }
@@ -231,7 +231,7 @@ class TestWebhookSignatureBoundaryCases:
         webhook_data = {
             "eventType": "PAYMENT.FAILED",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "failReason": '카드 오류: "한도 초과" & \'잔액 부족\' <취소>',
             },
         }
@@ -259,7 +259,7 @@ class TestWebhookSignatureBoundaryCases:
         webhook_data = {
             "eventType": "PAYMENT.FAILED",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "failReason": long_reason,
             },
         }
@@ -285,7 +285,7 @@ class TestWebhookSignatureBoundaryCases:
         webhook_data = {
             "eventType": "PAYMENT.FAILED",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "failReason": "실패",
             },
         }
@@ -311,7 +311,7 @@ class TestWebhookSignatureBoundaryCases:
         webhook_data_1 = {
             "eventType": "PAYMENT.DONE",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "paymentKey": "test_key",
                 "status": "DONE",
                 "totalAmount": int(self.payment.amount),
@@ -323,7 +323,7 @@ class TestWebhookSignatureBoundaryCases:
                 "totalAmount": int(self.payment.amount),
                 "status": "DONE",
                 "paymentKey": "test_key",
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
             },
             "eventType": "PAYMENT.DONE",
         }
@@ -380,7 +380,7 @@ class TestWebhookSignatureInvalidCases:
         webhook_data = {
             "eventType": "PAYMENT.DONE",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
             },
         }
 
@@ -397,7 +397,7 @@ class TestWebhookSignatureInvalidCases:
         webhook_data = {
             "eventType": "PAYMENT.DONE",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
             },
         }
 
@@ -418,7 +418,7 @@ class TestWebhookSignatureInvalidCases:
         webhook_data = {
             "eventType": "PAYMENT.DONE",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "paymentKey": "test_key",
                 "status": "DONE",
                 "totalAmount": int(self.payment.amount),
@@ -443,7 +443,7 @@ class TestWebhookSignatureInvalidCases:
         webhook_data = {
             "eventType": "PAYMENT.DONE",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "paymentKey": "test_key",
                 "status": "DONE",
                 "totalAmount": int(self.payment.amount),
@@ -469,7 +469,7 @@ class TestWebhookSignatureInvalidCases:
         original_data = {
             "eventType": "PAYMENT.DONE",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "paymentKey": "test_key",
                 "status": "DONE",
                 "totalAmount": int(self.payment.amount),
@@ -481,7 +481,7 @@ class TestWebhookSignatureInvalidCases:
         tampered_data = {
             "eventType": "PAYMENT.DONE",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "paymentKey": "test_key",
                 "status": "DONE",
                 "totalAmount": 99999999,  # 변조된 금액
@@ -510,7 +510,7 @@ class TestWebhookSignatureInvalidCases:
         webhook_data = {
             "eventType": "PAYMENT.DONE",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
             },
         }
         signature = generate_valid_signature(webhook_data)
@@ -535,7 +535,7 @@ class TestWebhookSignatureInvalidCases:
         webhook_data = {
             "eventType": "PAYMENT.DONE",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
             },
         }
 
@@ -590,7 +590,7 @@ class TestWebhookSignatureSecurityFeatures:
         webhook_data = {
             "eventType": "PAYMENT.DONE",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "paymentKey": "test_key",
                 "status": "DONE",
                 "totalAmount": int(self.payment.amount),
@@ -625,7 +625,7 @@ class TestWebhookSignatureSecurityFeatures:
         webhook_data = {
             "eventType": "PAYMENT.DONE",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "nested": {"key1": "value1", "key2": "value2"},
             },
         }
@@ -656,7 +656,7 @@ class TestWebhookSignatureSecurityFeatures:
         webhook_data = {
             "eventType": "PAYMENT.FAILED",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "failReason": "<script>alert('XSS')</script> 결제 실패",
             },
         }
@@ -687,7 +687,7 @@ class TestWebhookSignatureSecurityFeatures:
         webhook_data = {
             "eventType": "PAYMENT.FAILED",
             "data": {
-                "orderId": self.order.order_number,
+                "orderId": str(self.order.id),
                 "failReason": "'; DROP TABLE payment; -- 결제 실패",
             },
         }

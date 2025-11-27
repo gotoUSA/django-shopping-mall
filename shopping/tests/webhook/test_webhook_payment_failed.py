@@ -47,7 +47,7 @@ class TestPaymentFailedWebhook:
         mock_verify_webhook()
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             fail_reason="카드 한도 초과",
         )
 
@@ -100,7 +100,7 @@ class TestPaymentFailedWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             fail_reason="중복 요청",
         )
 
@@ -135,7 +135,7 @@ class TestPaymentFailedWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             fail_reason="결제 진행 중 오류",
         )
 
@@ -167,7 +167,7 @@ class TestPaymentFailedWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             fail_reason="가상계좌 발급 실패",
         )
 
@@ -199,7 +199,7 @@ class TestPaymentFailedWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             fail_reason="결제 실패",
         )
 
@@ -232,7 +232,7 @@ class TestPaymentFailedWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             fail_reason="결제 실패",
         )
 
@@ -263,7 +263,7 @@ class TestPaymentFailedWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             fail_reason="결제 실패",
         )
 
@@ -319,7 +319,7 @@ class TestPaymentFailedWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             fail_reason="",
         )
 
@@ -349,7 +349,7 @@ class TestPaymentFailedWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             fail_reason=long_reason,
         )
 
@@ -381,7 +381,7 @@ class TestPaymentFailedWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             fail_reason=special_reason,
         )
 
@@ -416,7 +416,7 @@ class TestPaymentFailedWebhook:
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             fail_reason=unicode_reason,
         )
 
@@ -478,7 +478,7 @@ class TestPaymentFailedVariousReasons:
         mock_verify_webhook()
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.FAILED",
-            order_id=self.order.order_number,
+            order_id=str(self.order.id),
             fail_reason=fail_reason,
         )
 

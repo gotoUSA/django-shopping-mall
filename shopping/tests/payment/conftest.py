@@ -192,7 +192,7 @@ def paid_order_with_payment(db, user, product):
         order=order,
         amount=order.total_amount,
         status="done",
-        toss_order_id=order.order_number,
+        toss_order_id=order.id,
         payment_key="test_payment_key_already_paid",
         method="카드",
         approved_at=timezone.now(),
@@ -249,7 +249,7 @@ def paid_payment(db, paid_order):
         order=paid_order,
         amount=paid_order.total_amount,
         status="done",
-        toss_order_id=paid_order.order_number,
+        toss_order_id=str(paid_order.id),
         payment_key="test_payment_key_paid",
         method="카드",
         approved_at=timezone.now(),
@@ -258,7 +258,6 @@ def paid_payment(db, paid_order):
     )
 
     return payment
-
 
 
 @pytest.fixture
@@ -327,7 +326,7 @@ def order_with_existing_payment(db, user, product):
         order=order,
         amount=order.total_amount,
         status="ready",
-        toss_order_id=order.order_number,
+        toss_order_id=order.id,
     )
 
     return order
@@ -547,44 +546,6 @@ def alternative_shipping_info():
 
 
 @pytest.fixture
-def user_factory(db):
-    """
-    동적 사용자 생성 팩토리
-
-    동시성 테스트 및 다수의 사용자가 필요한 경우 사용
-    고유한 username, email, phone_number 자동 생성
-
-    Usage:
-        user1 = user_factory()
-        user2 = user_factory(username="custom_user", points=10000)
-    """
-    from shopping.models.user import User
-    import uuid
-
-    def _create_user(username=None, email=None, phone_number=None, **kwargs):
-        unique_id = uuid.uuid4().hex[:8]
-        username = username or f"user_{unique_id}"
-        email = email or f"{username}@test.com"
-        phone_number = phone_number or f"010-{unique_id[:4]}-{unique_id[4:8]}"
-
-        defaults = {
-            "password": "testpass123",
-            "points": 5000,
-            "is_email_verified": True,
-        }
-        defaults.update(kwargs)
-
-        return User.objects.create_user(
-            username=username,
-            email=email,
-            phone_number=phone_number,
-            **defaults
-        )
-
-    return _create_user
-
-
-@pytest.fixture
 def create_order(db, default_shipping_info):
     """
     Order 생성 헬퍼 함수 (매개변수화)
@@ -619,18 +580,18 @@ def create_order(db, default_shipping_info):
         earned_points=0,
         payment_method=None,
         order_number=None,
-        **kwargs
+        **kwargs,
     ):
         # total_amount 계산
         if products:
             quantities = quantities or [1] * len(products)
             total_amount = sum(p.price * q for p, q in zip(products, quantities))
         elif product:
-            quantity = kwargs.pop('quantity', 1)
+            quantity = kwargs.pop("quantity", 1)
             total_amount = product.price * quantity
             quantities = [quantity]
         else:
-            total_amount = kwargs.get('total_amount', Decimal("10000"))
+            total_amount = kwargs.get("total_amount", Decimal("10000"))
 
         final_amount = total_amount - used_points
 
@@ -710,12 +671,13 @@ def adjust_stock(db):
         # 재고 복구, 판매량 감소
         adjust_stock(product, stock_delta=1, sold_delta=-1)
     """
+
     def _adjust(product, stock_delta=0, sold_delta=0):
         updates = {}
         if stock_delta != 0:
-            updates['stock'] = F('stock') + stock_delta
+            updates["stock"] = F("stock") + stock_delta
         if sold_delta != 0:
-            updates['sold_count'] = F('sold_count') + sold_delta
+            updates["sold_count"] = F("sold_count") + sold_delta
 
         if updates:
             Product.objects.filter(pk=product.pk).update(**updates)
@@ -785,7 +747,7 @@ def toss_response_builder():
         method="카드",
         card_company="신한카드",
         approved_at="2025-01-15T10:00:00+09:00",
-        **kwargs
+        **kwargs,
     ):
         # payment_key가 지정되지 않으면 고유한 UUID 생성
         if payment_key is None:
@@ -844,7 +806,7 @@ def toss_cancel_response_builder():
         canceled_amount=None,
         cancel_reason="고객 변심",
         canceled_at="2025-01-15T11:00:00+09:00",
-        **kwargs
+        **kwargs,
     ):
         # payment_key가 지정되지 않으면 고유한 UUID 생성
         if payment_key is None:
@@ -877,6 +839,7 @@ def build_payment_key():
     Usage:
         payment_key = build_payment_key(payment_obj)
     """
+
     def _build(payment_obj):
         return f"test_key_{payment_obj.id}"
 
@@ -897,12 +860,13 @@ def build_confirm_request():
         # payment_obj만 사용 (자동 키 생성)
         request_data = build_confirm_request(payment_obj)
     """
+
     def _build(payment_obj, payment_key=None):
         if payment_key is None:
             payment_key = f"test_key_{payment_obj.id}"
 
         return {
-            "order_id": payment_obj.order.order_number,
+            "order_id": payment_obj.order.id,  # order.id로 변경 (정수)
             "payment_key": payment_key,
             "amount": int(payment_obj.amount),
         }

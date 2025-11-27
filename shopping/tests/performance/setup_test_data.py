@@ -18,7 +18,9 @@ def setup_test_data():
     print("테스트 사용자 생성 중...")
     users = []
     created_count = 0
-    for i in range(1000):
+    total_users = 1000  # 1000명으로 충분 (0-999 범위)
+
+    for i in range(total_users):
         user, created = User.objects.get_or_create(
             username=f'load_test_user_{i}',
             defaults={
@@ -33,7 +35,7 @@ def setup_test_data():
         users.append(user)
 
         if (i + 1) % 100 == 0:
-            print(f"{i + 1}/1000 사용자 처리 완료 (새로 생성: {created_count}개)")
+            print(f"{i + 1}/{total_users} 사용자 처리 완료 (새로 생성: {created_count}개)")
 
     print(f"\n총 {len(users)}명 사용자 처리 완료 (새로 생성: {created_count}개)")
 
@@ -45,7 +47,7 @@ def setup_test_data():
     )
 
     products = []
-    created_count = 0
+    product_created_count = 0
     updated_count = 0
     for i in range(100):
         product, created = Product.objects.get_or_create(
@@ -59,7 +61,7 @@ def setup_test_data():
             }
         )
         if created:
-            created_count += 1
+            product_created_count += 1
         else:
             # 기존 상품의 재고를 100000으로 업데이트
             product.stock = 100000
@@ -68,10 +70,10 @@ def setup_test_data():
         products.append(product)
 
         if (i + 1) % 20 == 0:
-            print(f"{i + 1}/100 상품 처리 완료 (생성: {created_count}개, 재고 업데이트: {updated_count}개)")
+            print(f"{i + 1}/100 상품 처리 완료 (생성: {product_created_count}개, 재고 업데이트: {updated_count}개)")
 
     print(f"\n총 {len(users)}명 사용자, {len(products)}개 상품 처리 완료")
-    print(f"(사용자 생성: {len([u for u in users if u.username.startswith('load_test_user_')])}명, 상품 생성: {created_count}개, 재고 업데이트: {updated_count}개)")
+    print(f"(사용자 생성: {created_count}명, 상품 생성: {product_created_count}개, 재고 업데이트: {updated_count}개)")
 
 
 if __name__ == '__main__':

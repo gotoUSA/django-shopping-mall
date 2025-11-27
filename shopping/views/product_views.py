@@ -321,7 +321,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         """
         popular_products = (
             self.get_queryset()
-            .annotate(review_count=Count("review"))
+            .annotate(review_count=Count("reviews"))
             .filter(review_count__gt=0)
             .order_by("-review_count")[:12]
         )
@@ -450,8 +450,9 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         if tree is None:
             # 캐시 미스 - DB에서 새로 생성
             # 모든 활성 카테고리를 한 번에 가져오고 상품 수 annotate
+            # Note: 모델에 product_count @property가 있으므로 다른 이름 사용
             categories = Category.objects.filter(is_active=True).annotate(
-                product_count=Count("products", filter=Q(products__is_active=True))
+                products_count=Count("products", filter=Q(products__is_active=True))
             )
 
             # MPTT 내장 함수로 트리 캐싱 (매우 빠름!)
@@ -464,7 +465,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
                     "id": category.id,
                     "name": category.name,
                     "slug": category.slug,
-                    "product_count": category.product_count,
+                    "product_count": category.products_count,  # annotate된 필드 사용
                     "children": [serialize_category(child) for child in category.get_children()],  # 이미 캐싱됨!
                 }
 
@@ -515,6 +516,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
                     output_field=BooleanField(),
                 ),
             )
+            .order_by("-created_at")  # 페이지네이션 일관성을 위한 정렬
         )
 
         # ProductViewSet의 필터링 로직 재사용

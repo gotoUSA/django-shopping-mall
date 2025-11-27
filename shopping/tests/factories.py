@@ -436,6 +436,37 @@ class ProductImageFactory(DjangoModelFactory):
         return cls(**kwargs)
 
 
+class ProductReviewFactory(DjangoModelFactory):
+    """
+    ProductReview factory
+
+    사용 예시:
+        review = ProductReviewFactory()
+        review = ProductReviewFactory(rating=3)
+        review = ProductReviewFactory.low_rating()
+    """
+
+    class Meta:
+        model = "shopping.ProductReview"
+
+    product = factory.SubFactory(ProductFactory)
+    user = factory.SubFactory(UserFactory)
+    rating = 5
+    comment = factory.Sequence(lambda n: f"테스트 리뷰 내용 {n}")
+
+    @classmethod
+    def low_rating(cls, **kwargs):
+        """낮은 평점 리뷰"""
+        kwargs.setdefault("rating", 1)
+        return cls(**kwargs)
+
+    @classmethod
+    def with_rating(cls, rating, **kwargs):
+        """특정 평점 리뷰"""
+        kwargs.setdefault("rating", rating)
+        return cls(**kwargs)
+
+
 # ==========================================
 # Order & OrderItem Factories
 # ==========================================

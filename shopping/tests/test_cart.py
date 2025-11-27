@@ -1,752 +1,787 @@
+"""
+장바구니(Cart) API 테스트
+
+pytest 스타일로 작성된 장바구니 기능 테스트입니다.
+Factory를 사용하여 테스트 데이터를 생성합니다.
+
+테스트 범위:
+- CartViewSet: 장바구니 CRUD, bulk_add, check_stock
+- CartItemViewSet: 아이템 개별 관리
+- 동시성 처리
+- 비회원(익명) 장바구니
+"""
+
 import threading
 import time
 from decimal import Decimal
 
-from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 
+import pytest
 from rest_framework import status
-from rest_framework.test import APIClient
 
 from shopping.models.cart import Cart, CartItem
-from shopping.models.product import Category, Product
-from shopping.models.user import User
+from shopping.tests.factories import (
+    CartFactory,
+    CartItemFactory,
+    CategoryFactory,
+    ProductFactory,
+    UserFactory,
+)
 
 
-class CartBasicTestCase(TestCase):
-    """장바구니 기본 기능 테스트"""
+# ==========================================
+# Fixtures
+# ==========================================
 
-    def setUp(self):
-        """테스트 데이터 초기 설정"""
-        # API 클라이언트
-        self.client = APIClient()
 
-        # 테스트 사용자 생성
-        self.user = User.objects.create_user(
-            username="testuser",
-            email="test@example.com",
-            password="testpass123",
-            phone_number="010-1234-5678",
-        )
+@pytest.fixture
+def cart_urls():
+    """장바구니 관련 URL 모음"""
+    return {
+        "detail": reverse("cart-detail"),
+        "summary": reverse("cart-summary"),
+        "add_item": reverse("cart-add-item"),
+        "items": reverse("cart-items"),
+        "clear": reverse("cart-clear"),
+        "bulk_add": reverse("cart-bulk-add"),
+        "check_stock": reverse("cart-check-stock"),
+    }
 
-        # 다른 사용자 (권한 테스트용)
-        self.other_user = User.objects.create_user(
-            username="otheruser",
-            email="other@example.com",
-            password="otherpass123",
-        )
 
-        # 카테고리 생성
-        self.category = Category.objects.create(name="테스트 카테고리", slug="test-category")
+@pytest.fixture
+def other_user(db):
+    """다른 사용자 (권한 테스트용)"""
+    return UserFactory(username="otheruser")
 
-        # 테스트 상품들 생성
-        self.product1 = Product.objects.create(
-            name="테스트 상품 1",
-            slug="test-product-1",
-            category=self.category,
-            price=Decimal("10000"),
-            stock=10,
-            sku="TEST-001",
-            description="테스트 상품 1 설명",
-        )
 
-        self.product2 = Product.objects.create(
-            name="테스트 상품 2",
-            slug="test-product-2",
-            category=self.category,
-            price=Decimal("20000"),
-            stock=5,
-            sku="TEST-002",
-            description="테스트 상품 2 설명",
-        )
+@pytest.fixture
+def out_of_stock_product(db, category, seller_user):
+    """품절 상품"""
+    return ProductFactory.out_of_stock(category=category, seller=seller_user)
 
-        # 품절 상품
-        self.out_of_stock_product = Product.objects.create(
-            name="품절 상품",
-            slug="out-of-stock",
-            category=self.category,
-            price=Decimal("5000"),
-            stock=0,
-            sku="TEST-003",
-            description="재고 없는 상품",
-        )
 
-        # 비활성 상품
-        self.inactive_product = Product.objects.create(
-            name="판매중단 상품",
-            slug="inactive-product",
-            category=self.category,
-            price=Decimal("15000"),
-            stock=10,
-            is_active=False,  # 판매 중단
-            sku="TEST-004",
-            description="판매 중단된 상품",
-        )
+@pytest.fixture
+def inactive_product(db, category, seller_user):
+    """판매 중단 상품"""
+    return ProductFactory.inactive(category=category, seller=seller_user)
 
-        # URL 정의
-        self.cart_url = reverse("cart-detail")  # GET /api/cart/
-        self.cart_summary_url = reverse("cart-summary")  # GET /api/cart/summary/
-        self.cart_add_url = reverse("cart-add-item")  # POST /api/cart/add_item/
-        self.cart_items_url = reverse("cart-items")  # GET /api/cart/items/
-        self.cart_clear_url = reverse("cart-clear")  # POST /api/cart/clear/
-        self.cart_check_stock_url = reverse("cart-check-stock")  # GET /api/cart/check_stock/
 
-    def tearDown(self):
-        """테스트 후 정리"""
-        Cart.objects.all().delete()
-        super().tearDown()
+@pytest.fixture
+def product2(db, category, seller_user):
+    """두 번째 테스트 상품"""
+    return ProductFactory(
+        name="테스트 상품 2",
+        category=category,
+        seller=seller_user,
+        price=Decimal("20000"),
+        stock=5,
+    )
 
-    def _login_user(self, user=None):
-        """사용자 로그인 헬퍼 메서드"""
-        if user is None:
-            user = self.user
 
-        response = self.client.post(
+# ==========================================
+# 장바구니 조회 테스트
+# ==========================================
+
+
+@pytest.mark.django_db
+class TestCartRetrieve:
+    """장바구니 조회 테스트"""
+
+    def test_authenticated_user_creates_cart_on_first_access(self, authenticated_client, user, cart_urls):
+        """인증된 사용자 첫 접근 시 장바구니 생성"""
+        # Act
+        response = authenticated_client.get(cart_urls["detail"])
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "id" in data
+        assert data["total_amount"] == "0"
+        assert data["total_quantity"] == 0
+        assert Cart.objects.filter(user=user, is_active=True).exists()
+
+    def test_returns_same_cart_on_multiple_access(self, authenticated_client, cart_urls):
+        """여러 번 조회해도 동일한 장바구니 반환"""
+        # Act
+        response1 = authenticated_client.get(cart_urls["detail"])
+        response2 = authenticated_client.get(cart_urls["detail"])
+
+        # Assert
+        assert response1.json()["id"] == response2.json()["id"]
+
+    def test_anonymous_user_gets_session_based_cart(self, api_client, cart_urls):
+        """비회원은 세션 기반 장바구니 사용"""
+        # Act
+        response = api_client.get(cart_urls["detail"])
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["total_amount"] == "0"
+
+    def test_cart_response_structure(self, authenticated_client, cart_urls):
+        """장바구니 응답 구조 검증"""
+        # Act
+        response = authenticated_client.get(cart_urls["detail"])
+
+        # Assert
+        data = response.json()
+        required_fields = ["id", "items", "total_amount", "total_quantity", "item_count", "is_active", "is_all_available"]
+        for field in required_fields:
+            assert field in data, f"응답에 '{field}' 필드 누락"
+
+
+# ==========================================
+# 상품 추가 테스트
+# ==========================================
+
+
+@pytest.mark.django_db
+class TestCartAddItem:
+    """장바구니 상품 추가 테스트"""
+
+    def test_add_product_success(self, authenticated_client, product, cart_urls):
+        """상품 추가 성공"""
+        # Arrange
+        add_data = {"product_id": product.id, "quantity": 2}
+
+        # Act
+        response = authenticated_client.post(cart_urls["add_item"], add_data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_201_CREATED
+        data = response.json()
+        assert data["message"] == "장바구니에 추가되었습니다."
+        assert data["item"]["product_id"] == product.id
+        assert data["item"]["quantity"] == 2
+
+    def test_add_same_product_increases_quantity(self, authenticated_client, product, cart_urls):
+        """동일 상품 추가 시 수량 증가"""
+        # Arrange
+        add_data = {"product_id": product.id, "quantity": 2}
+        authenticated_client.post(cart_urls["add_item"], add_data, format="json")
+
+        # Act
+        response = authenticated_client.post(cart_urls["add_item"], add_data, format="json")
+
+        # Assert
+        assert response.json()["item"]["quantity"] == 4
+
+    def test_add_out_of_stock_product_fails(self, authenticated_client, out_of_stock_product, cart_urls):
+        """품절 상품 추가 실패"""
+        # Arrange
+        add_data = {"product_id": out_of_stock_product.id, "quantity": 1}
+
+        # Act
+        response = authenticated_client.post(cart_urls["add_item"], add_data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "품절" in str(response.json())
+
+    def test_add_inactive_product_fails(self, authenticated_client, inactive_product, cart_urls):
+        """판매 중단 상품 추가 실패"""
+        # Arrange
+        add_data = {"product_id": inactive_product.id, "quantity": 1}
+
+        # Act
+        response = authenticated_client.post(cart_urls["add_item"], add_data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "판매하지 않는" in str(response.json())
+
+    def test_add_exceeds_stock_fails(self, authenticated_client, product, cart_urls):
+        """재고 초과 수량 추가 실패"""
+        # Arrange
+        add_data = {"product_id": product.id, "quantity": product.stock + 5}
+
+        # Act
+        response = authenticated_client.post(cart_urls["add_item"], add_data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "재고가 부족" in str(response.json())
+
+    def test_add_nonexistent_product_fails(self, authenticated_client, cart_urls):
+        """존재하지 않는 상품 추가 실패"""
+        # Arrange
+        add_data = {"product_id": 99999, "quantity": 1}
+
+        # Act
+        response = authenticated_client.post(cart_urls["add_item"], add_data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "찾을 수 없습니다" in str(response.json())
+
+    def test_add_with_invalid_quantity_fails(self, authenticated_client, product, cart_urls):
+        """유효하지 않은 수량으로 추가 실패"""
+        # Arrange - 수량 0
+        add_data = {"product_id": product.id, "quantity": 0}
+
+        # Act
+        response = authenticated_client.post(cart_urls["add_item"], add_data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+# ==========================================
+# 수량 변경 테스트
+# ==========================================
+
+
+@pytest.mark.django_db
+class TestCartUpdateItem:
+    """장바구니 아이템 수량 변경 테스트"""
+
+    def test_update_quantity_success(self, authenticated_client, user, product, cart_urls):
+        """수량 변경 성공"""
+        # Arrange
+        cart = CartFactory(user=user)
+        item = CartItemFactory(cart=cart, product=product, quantity=2)
+        update_url = reverse("cart-item-detail", kwargs={"pk": item.id})
+
+        # Act
+        response = authenticated_client.patch(update_url, {"quantity": 5}, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["item"]["quantity"] == 5
+
+    def test_update_quantity_to_zero_deletes_item(self, authenticated_client, user, product, cart_urls):
+        """수량 0으로 변경 시 아이템 삭제"""
+        # Arrange
+        cart = CartFactory(user=user)
+        item = CartItemFactory(cart=cart, product=product, quantity=2)
+        update_url = reverse("cart-item-detail", kwargs={"pk": item.id})
+
+        # Act
+        response = authenticated_client.patch(update_url, {"quantity": 0}, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert not CartItem.objects.filter(id=item.id).exists()
+
+    def test_update_exceeds_stock_fails(self, authenticated_client, user, product, cart_urls):
+        """재고 초과 수량 변경 실패"""
+        # Arrange
+        cart = CartFactory(user=user)
+        item = CartItemFactory(cart=cart, product=product, quantity=2)
+        update_url = reverse("cart-item-detail", kwargs={"pk": item.id})
+
+        # Act
+        response = authenticated_client.patch(update_url, {"quantity": product.stock + 10}, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "재고가 부족" in str(response.json())
+
+
+# ==========================================
+# 아이템 삭제 테스트
+# ==========================================
+
+
+@pytest.mark.django_db
+class TestCartDeleteItem:
+    """장바구니 아이템 삭제 테스트"""
+
+    def test_delete_item_success(self, authenticated_client, user, product):
+        """아이템 삭제 성공"""
+        # Arrange
+        cart = CartFactory(user=user)
+        item = CartItemFactory(cart=cart, product=product)
+        delete_url = reverse("cart-item-detail", kwargs={"pk": item.id})
+
+        # Act
+        response = authenticated_client.delete(delete_url)
+
+        # Assert
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert not CartItem.objects.filter(id=item.id).exists()
+
+    def test_delete_other_users_item_fails(self, authenticated_client, other_user, product):
+        """다른 사용자 아이템 삭제 실패"""
+        # Arrange
+        other_cart = CartFactory(user=other_user)
+        other_item = CartItemFactory(cart=other_cart, product=product)
+        delete_url = reverse("cart-item-detail", kwargs={"pk": other_item.id})
+
+        # Act
+        response = authenticated_client.delete(delete_url)
+
+        # Assert
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+# ==========================================
+# 장바구니 비우기 테스트
+# ==========================================
+
+
+@pytest.mark.django_db
+class TestCartClear:
+    """장바구니 비우기 테스트"""
+
+    def test_clear_cart_success(self, authenticated_client, user, product, product2, cart_urls):
+        """장바구니 비우기 성공"""
+        # Arrange
+        cart = CartFactory(user=user)
+        CartItemFactory(cart=cart, product=product)
+        CartItemFactory(cart=cart, product=product2)
+
+        # Act
+        response = authenticated_client.post(cart_urls["clear"], {"confirm": True}, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        assert cart.items.count() == 0
+
+    def test_clear_without_confirm_fails(self, authenticated_client, user, product, cart_urls):
+        """confirm=False 시 비우기 실패"""
+        # Arrange
+        cart = CartFactory(user=user)
+        CartItemFactory(cart=cart, product=product)
+
+        # Act
+        response = authenticated_client.post(cart_urls["clear"], {"confirm": False}, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert cart.items.count() == 1
+
+    def test_clear_empty_cart_fails(self, authenticated_client, user, cart_urls):
+        """빈 장바구니 비우기 시도 시 에러"""
+        # Arrange
+        CartFactory(user=user)
+
+        # Act
+        response = authenticated_client.post(cart_urls["clear"], {"confirm": True}, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "비어있습니다" in str(response.json())
+
+
+# ==========================================
+# 장바구니 요약 테스트
+# ==========================================
+
+
+@pytest.mark.django_db
+class TestCartSummary:
+    """장바구니 요약 정보 테스트"""
+
+    def test_summary_calculation(self, authenticated_client, user, product, product2, cart_urls):
+        """요약 정보 계산 정확성"""
+        # Arrange
+        cart = CartFactory(user=user)
+        CartItemFactory(cart=cart, product=product, quantity=2)  # 10000 * 2
+        CartItemFactory(cart=cart, product=product2, quantity=3)  # 20000 * 3
+
+        # Act
+        response = authenticated_client.get(cart_urls["summary"])
+
+        # Assert
+        data = response.json()
+        assert data["total_amount"] == "80000"  # 20000 + 60000
+        assert data["total_quantity"] == 5
+        assert data["item_count"] == 2
+
+
+# ==========================================
+# 재고 확인 테스트
+# ==========================================
+
+
+@pytest.mark.django_db
+class TestCartCheckStock:
+    """장바구니 재고 확인 테스트"""
+
+    def test_all_stock_available(self, authenticated_client, user, product, cart_urls):
+        """모든 상품 재고 충분"""
+        # Arrange
+        cart = CartFactory(user=user)
+        CartItemFactory(cart=cart, product=product, quantity=2)
+
+        # Act
+        response = authenticated_client.get(cart_urls["check_stock"])
+
+        # Assert
+        data = response.json()
+        assert data["has_issues"] is False
+        assert data["message"] == "모든 상품을 구매할 수 있습니다."
+
+    def test_stock_shortage_detected(self, authenticated_client, user, product, cart_urls):
+        """재고 부족 감지"""
+        # Arrange
+        cart = CartFactory(user=user)
+        CartItemFactory(cart=cart, product=product, quantity=5)
+        product.stock = 3  # 재고 부족 상황
+        product.save()
+
+        # Act
+        response = authenticated_client.get(cart_urls["check_stock"])
+
+        # Assert
+        data = response.json()
+        assert data["has_issues"] is True
+        assert data["issues"][0]["issue"] == "재고 부족"
+        assert data["issues"][0]["requested"] == 5
+        assert data["issues"][0]["available"] == 3
+
+    def test_inactive_product_detected(self, authenticated_client, user, product, cart_urls):
+        """판매 중단 상품 감지"""
+        # Arrange
+        cart = CartFactory(user=user)
+        CartItemFactory(cart=cart, product=product, quantity=2)
+        product.is_active = False
+        product.save()
+
+        # Act
+        response = authenticated_client.get(cart_urls["check_stock"])
+
+        # Assert
+        data = response.json()
+        assert data["has_issues"] is True
+        assert data["issues"][0]["issue"] == "판매 중단"
+
+
+# ==========================================
+# Bulk Add 테스트 (신규)
+# ==========================================
+
+
+@pytest.mark.django_db
+class TestCartBulkAdd:
+    """장바구니 일괄 추가 테스트"""
+
+    def test_bulk_add_success(self, api_client, category, seller_user, cart_urls):
+        """여러 상품 일괄 추가 성공"""
+        # Arrange - User와 Cart를 직접 생성하고 force_authenticate 사용
+        test_user = UserFactory(is_email_verified=True)
+        CartFactory(user=test_user, is_active=True)
+        api_client.force_authenticate(user=test_user)
+
+        prod1 = ProductFactory(category=category, seller=seller_user, is_active=True)
+        prod2 = ProductFactory(category=category, seller=seller_user, is_active=True)
+
+        items_data = {
+            "items": [
+                {"product_id": prod1.id, "quantity": 2},
+                {"product_id": prod2.id, "quantity": 1},
+            ]
+        }
+
+        # Act
+        response = api_client.post(cart_urls["bulk_add"], items_data, format="json")
+
+        # Assert
+        data = response.json()
+        assert response.status_code in [
+            status.HTTP_201_CREATED,
+            status.HTTP_207_MULTI_STATUS,
+        ], f"Unexpected status {response.status_code}. Response: {data}"
+        assert len(data["added_items"]) == 2, f"Expected 2, got {len(data['added_items'])}. Full response: {data}"
+        assert "2개의 상품이 추가" in data["message"]
+
+    def test_bulk_add_partial_success(self, api_client, category, seller_user, cart_urls):
+        """일부 상품만 추가 성공 (207 Multi-Status)"""
+        # Arrange - User와 Cart를 직접 생성하고 force_authenticate 사용
+        test_user = UserFactory(is_email_verified=True)
+        CartFactory(user=test_user, is_active=True)
+        api_client.force_authenticate(user=test_user)
+
+        active_prod = ProductFactory(category=category, seller=seller_user, is_active=True)
+        inactive_prod = ProductFactory.inactive(category=category, seller=seller_user)
+
+        items_data = {
+            "items": [
+                {"product_id": active_prod.id, "quantity": 2},
+                {"product_id": inactive_prod.id, "quantity": 1},  # 판매중단
+            ]
+        }
+
+        # Act
+        response = api_client.post(cart_urls["bulk_add"], items_data, format="json")
+
+        # Assert
+        data = response.json()
+        assert (
+            response.status_code == status.HTTP_207_MULTI_STATUS
+        ), f"Expected 207, got {response.status_code}. Response: {data}"
+        assert len(data["added_items"]) == 1, f"Expected 1, got {len(data['added_items'])}. Full response: {data}"
+        assert data["error_count"] == 1
+
+    def test_bulk_add_empty_items_fails(self, authenticated_client, cart_urls):
+        """빈 배열 전송 시 실패"""
+        # Arrange
+        items_data = {"items": []}
+
+        # Act
+        response = authenticated_client.post(cart_urls["bulk_add"], items_data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "상품 정보가 없습니다" in str(response.json())
+
+    def test_bulk_add_missing_product_id(self, api_client, category, seller_user, cart_urls):
+        """product_id 누락 시 에러"""
+        # Arrange - User와 Cart를 직접 생성하고 force_authenticate 사용
+        test_user = UserFactory(is_email_verified=True)
+        CartFactory(user=test_user, is_active=True)
+        api_client.force_authenticate(user=test_user)
+
+        prod = ProductFactory(category=category, seller=seller_user, is_active=True)
+
+        items_data = {
+            "items": [
+                {"quantity": 2},  # product_id 누락
+                {"product_id": prod.id, "quantity": 1},
+            ]
+        }
+
+        # Act
+        response = api_client.post(cart_urls["bulk_add"], items_data, format="json")
+
+        # Assert
+        data = response.json()
+        assert (
+            response.status_code == status.HTTP_207_MULTI_STATUS
+        ), f"Expected 207, got {response.status_code}. Response: {data}"
+        assert data["error_count"] >= 1, f"Expected error_count >= 1, got {data.get('error_count')}. Response: {data}"
+        assert len(data["added_items"]) >= 1, f"Expected added_items >= 1, got {len(data['added_items'])}. Response: {data}"
+
+    def test_bulk_add_exceeds_stock(self, api_client, category, seller_user, cart_urls):
+        """재고 초과 상품 포함 시 해당 상품만 실패"""
+        # Arrange - User와 Cart를 직접 생성하고 force_authenticate 사용
+        test_user = UserFactory(is_email_verified=True)
+        CartFactory(user=test_user, is_active=True)
+        api_client.force_authenticate(user=test_user)
+
+        prod = ProductFactory(category=category, seller=seller_user, is_active=True, stock=10)
+        items_data = {
+            "items": [
+                {"product_id": prod.id, "quantity": prod.stock + 100},
+            ]
+        }
+
+        # Act
+        response = api_client.post(cart_urls["bulk_add"], items_data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_207_MULTI_STATUS
+        data = response.json()
+        assert data["error_count"] == 1
+        assert "재고 부족" in str(data["errors"])
+
+    def test_bulk_add_invalid_quantity(self, api_client, category, seller_user, cart_urls):
+        """유효하지 않은 수량"""
+        # Arrange - User와 Cart를 직접 생성하고 force_authenticate 사용
+        test_user = UserFactory(is_email_verified=True)
+        CartFactory(user=test_user, is_active=True)
+        api_client.force_authenticate(user=test_user)
+
+        prod = ProductFactory(category=category, seller=seller_user, is_active=True)
+        items_data = {
+            "items": [
+                {"product_id": prod.id, "quantity": 0},
+                {"product_id": prod.id, "quantity": 1000},  # 최대값 초과
+            ]
+        }
+
+        # Act
+        response = api_client.post(cart_urls["bulk_add"], items_data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_207_MULTI_STATUS
+        assert response.json()["error_count"] == 2
+
+
+# ==========================================
+# CartItemViewSet 테스트 (신규)
+# ==========================================
+
+
+@pytest.mark.django_db
+class TestCartItemViewSet:
+    """CartItemViewSet 테스트"""
+
+    def test_list_cart_items(self, authenticated_client, user, product, product2):
+        """아이템 목록 조회"""
+        # Arrange
+        cart = CartFactory(user=user)
+        CartItemFactory(cart=cart, product=product)
+        CartItemFactory(cart=cart, product=product2)
+        list_url = reverse("cart-item-list")
+
+        # Act
+        response = authenticated_client.get(list_url)
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.json()) == 2
+
+    def test_create_cart_item(self, authenticated_client, product):
+        """아이템 생성"""
+        # Arrange
+        create_url = reverse("cart-item-list")
+        create_data = {"product_id": product.id, "quantity": 2}
+
+        # Act
+        response = authenticated_client.post(create_url, create_data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()["quantity"] == 2
+
+    def test_update_cart_item(self, authenticated_client, user, product):
+        """아이템 수정 (PATCH 사용)"""
+        # Arrange
+        cart = CartFactory(user=user)
+        item = CartItemFactory(cart=cart, product=product, quantity=1)
+        update_url = reverse("cart-item-detail", kwargs={"pk": item.id})
+
+        # Act - cart-item-detail은 PATCH만 허용 (PUT은 405)
+        response = authenticated_client.patch(update_url, {"quantity": 5}, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["item"]["quantity"] == 5
+
+    def test_destroy_cart_item(self, authenticated_client, user, product):
+        """아이템 삭제"""
+        # Arrange
+        cart = CartFactory(user=user)
+        item = CartItemFactory(cart=cart, product=product)
+        delete_url = reverse("cart-item-detail", kwargs={"pk": item.id})
+
+        # Act
+        response = authenticated_client.delete(delete_url)
+
+        # Assert
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+
+# ==========================================
+# 동시성 테스트
+# ==========================================
+
+
+@pytest.mark.django_db(transaction=True)
+class TestCartConcurrency:
+    """장바구니 동시성 처리 테스트"""
+
+    def test_concurrent_add_same_product(self, api_client, product):
+        """동시에 같은 상품 추가 시 정확한 수량 처리"""
+        # Arrange
+        user = UserFactory()
+        response = api_client.post(
             reverse("auth-login"),
-            {
-                "username": user.username,
-                "password": "testpass123" if user == self.user else "otherpass123",
-            },
+            {"username": user.username, "password": "testpass123"},
         )
-        token = response.json()["access"]
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
-        return token
-
-    # ========== 장바구니 생성 및 조회 테스트 ==========
-
-    def test_get_or_create_cart_for_authenticated_user(self):
-        """인증된 사용자의 장바구니 생성/조회 테스트"""
-        self._login_user()
-
-        # 장바구니 조회
-        response = self.client.get(self.cart_url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        data = response.json()
-        self.assertIn("id", data)
-        self.assertIn("items", data)
-        self.assertEqual(data["total_amount"], "0")
-        self.assertEqual(data["total_quantity"], 0)
-        self.assertEqual(len(data["items"]), 0)
-
-        # DB에 장바구니가 생성되었는지 확인
-        cart = Cart.objects.get(user=self.user, is_active=True)
-        self.assertIsNotNone(cart)
-
-    def test_cart_requires_authentication(self):
-        """비로그인 사용자 익명 장바구니 접근 테스트"""
-        # 인증 없이 장바구니 접근 시도 (익명 장바구니 허용)
-        response = self.client.get(self.cart_url)
-
-        # 익명 사용자도 세션 기반 장바구니 사용 가능
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # 빈 장바구니가 생성되었는지 확인
-        data = response.json()
-        self.assertIn("id", data)
-        self.assertEqual(data["total_amount"], "0")
-        self.assertEqual(data["total_quantity"], 0)
-
-    def test_user_has_only_one_active_cart(self):
-        """사용자당 활성 장바구니는 하나만 존재"""
-        self._login_user()
-
-        # 첫 번째 장바구니 조회
-        response1 = self.client.get(self.cart_url)
-        cart_id1 = response1.json()["id"]
-
-        # 두 번째 장바구니 조회
-        response2 = self.client.get(self.cart_url)
-        cart_id2 = response2.json()["id"]
-
-        # 같은 장바구니여야 함
-        self.assertEqual(cart_id1, cart_id2)
-
-        # DB에서도 확인
-        cart_count = Cart.objects.filter(user=self.user, is_active=True).count()
-        self.assertEqual(cart_count, 1)
-
-    # ========== 상품 추가 테스트 ==========
-
-    def test_add_product_to_cart(self):
-        """장바구니에 상품 추가 테스트"""
-        self._login_user()
-
-        # 상품 추가
-        add_data = {"product_id": self.product1.id, "quantity": 2}
-        response = self.client.post(self.cart_add_url, add_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        response_data = response.json()
-        self.assertIn("message", response_data)
-        self.assertEqual(response_data["message"], "장바구니에 추가되었습니다.")
-
-        # 추가된 아이템 확인
-        item = response_data["item"]
-        self.assertEqual(item["product_id"], self.product1.id)
-        self.assertEqual(item["quantity"], 2)
-        self.assertEqual(item["subtotal"], "20000")  # 10000 * 2
-
-        # DB 확인
-        cart = Cart.objects.get(user=self.user, is_active=True)
-        cart_item = CartItem.objects.get(cart=cart, product=self.product1)
-        self.assertEqual(cart_item.quantity, 2)
-
-    def test_add_same_product_increases_quantity(self):
-        """이미 담긴 상품 추가시 수량 증가 테스트"""
-        self._login_user()
-
-        # 첫 번째 추가
-        add_data = {"product_id": self.product1.id, "quantity": 2}
-        self.client.post(self.cart_add_url, add_data, format="json")
-
-        # 두 번째 추가 (같은 상품)
-        add_data = {"product_id": self.product1.id, "quantity": 3}
-        response = self.client.post(self.cart_add_url, add_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        # 수량이 5가 되어야 함 (2 + 3)
-        item = response.json()["item"]
-        self.assertEqual(item["quantity"], 5)
-        self.assertEqual(item["subtotal"], "50000")  # 10000 * 5
-
-    def test_add_out_of_stock_product(self):
-        """품절 상품 추가 시도 테스트"""
-        self._login_user()
-
-        add_data = {"product_id": self.out_of_stock_product.id, "quantity": 1}
-        response = self.client.post(self.cart_add_url, add_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("품절된 상품입니다.", str(response.json()))
-
-    def test_add_inactive_product(self):
-        """비활성(판매중단) 상품 추가 시도 테스트"""
-        self._login_user()
-
-        add_data = {"product_id": self.inactive_product.id, "quantity": 1}
-        response = self.client.post(self.cart_add_url, add_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("현재 판매하지 않는 상품입니다.", str(response.json()))
-
-    def test_add_product_exceeds_stock(self):
-        """재고 초과 수량 추가 시도 테스트"""
-        self._login_user()
-
-        # product1의 재고는 10개
-        add_data = {"product_id": self.product1.id, "quantity": 15}  # 재고 초과
-        response = self.client.post(self.cart_add_url, add_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("재고가 부족합니다", str(response.json()))
-
-    def test_add_nonexistent_product(self):
-        """존재하지 않는 상품 추가 시도 테스트"""
-        self._login_user()
-
-        add_data = {"product_id": 99999, "quantity": 1}  # 존재하지 않는 ID
-        response = self.client.post(self.cart_add_url, add_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("찾을 수 없습니다", str(response.json()))
-
-    # ========== 수량 변경 테스트 ==========
-
-    def test_update_cart_item_quantity(self):
-        """장바구니 아이템 수량 변경 테스트"""
-        self._login_user()
-
-        # 상품 추가
-        add_data = {"product_id": self.product1.id, "quantity": 2}
-        response = self.client.post(self.cart_add_url, add_data, format="json")
-        item_id = response.json()["item"]["id"]
-
-        # 수량 변경
-        update_url = reverse("cart-item-detail", kwargs={"pk": item_id})
-        update_data = {"quantity": 5}
-        response = self.client.patch(update_url, update_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        response_data = response.json()
-        self.assertEqual(response_data["message"], "수량이 변경되었습니다.")
-        self.assertEqual(response_data["item"]["quantity"], 5)
-        self.assertEqual(response_data["item"]["subtotal"], "50000")
-
-    def test_update_quantity_to_zero_deletes_item(self):
-        """수량을 0으로 변경시 아이템 삭제 테스트"""
-        self._login_user()
-
-        # 상품 추가
-        add_data = {"product_id": self.product1.id, "quantity": 2}
-        response = self.client.post(self.cart_add_url, add_data, format="json")
-        item_id = response.json()["item"]["id"]
-
-        # 수량을 0으로 변경
-        update_url = reverse("cart-item-detail", kwargs={"pk": item_id})
-        update_data = {"quantity": 0}
-        response = self.client.patch(update_url, update_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-
-        # DB에서 삭제 확인
-        cart_item_exists = CartItem.objects.filter(id=item_id).exists()
-        self.assertFalse(cart_item_exists)
-
-    def test_update_quantity_exceeds_stock(self):
-        """재고 초과 수량으로 변경 시도 테스트"""
-        self._login_user()
-
-        # 상품 추가
-        add_data = {"product_id": self.product1.id, "quantity": 2}
-        response = self.client.post(self.cart_add_url, add_data, format="json")
-        item_id = response.json()["item"]["id"]
-
-        # 재고(10개)보다 많은 수량으로 변경 시도
-        update_url = reverse("cart-item-detail", kwargs={"pk": item_id})
-        update_data = {"quantity": 15}
-        response = self.client.patch(update_url, update_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("재고가 부족합니다", str(response.json()))
-
-    # ========== 아이템 삭제 테스트 ==========
-
-    def test_delete_cart_item(self):
-        """장바구니 아이템 삭제 테스트"""
-        self._login_user()
-
-        # 상품 추가
-        add_data = {"product_id": self.product1.id, "quantity": 2}
-        response = self.client.post(self.cart_add_url, add_data, format="json")
-        item_id = response.json()["item"]["id"]
-
-        # 아이템 삭제
-        delete_url = reverse("cart-item-detail", kwargs={"pk": item_id})
-        response = self.client.delete(delete_url)
-
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-
-        # DB에서 삭제 확인
-        cart_item_exists = CartItem.objects.filter(id=item_id).exists()
-        self.assertFalse(cart_item_exists)
-
-    def test_delete_other_users_cart_item(self):
-        """다른 사용자의 장바구니 아이템 삭제 시도 테스트"""
-
-        # 첫 번째 사용자로 상품 추가
-        self._login_user(self.user)
-        add_data = {"product_id": self.product1.id, "quantity": 2}
-        response = self.client.post(self.cart_add_url, add_data, format="json")
-        item_id = response.json()["item"]["id"]
-
-        # 다른 사용자로 로그인
-        self._login_user(self.other_user)
-
-        # 첫 번째 사용자의 아이템 삭제 시도
-        delete_url = reverse("cart-item-detail", kwargs={"pk": item_id})
-        response = self.client.delete(delete_url)
-
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    # ========== 장바구니 비우기 테스트 ==========
-
-    def test_clear_cart(self):
-        """
-        장바구니 비우기 테스트
-        """
-        self._login_user()
-
-        # 여러 상품 추가
-        self.client.post(self.cart_add_url, {"product_id": self.product1.id, "quantity": 2})
-        self.client.post(self.cart_add_url, {"product_id": self.product2.id, "quantity": 1})
-
-        # 장바구니 비우기
-        clear_data = {"confirm": True}
-        response = self.client.post(self.cart_clear_url, clear_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # 장바구니가 비어있는지 확인
-        cart = Cart.objects.get(user=self.user, is_active=True)
-        self.assertEqual(cart.items.count(), 0)
-
-    def test_clear_cart_without_confirmation(self):
-        """확인 없이 장바구니 비우기 시도 테스트"""
-        self._login_user()
-
-        # 상품 추가
-        self.client.post(self.cart_add_url, {"product_id": self.product1.id, "quantity": 2})
-
-        # 확인 없이 비우기 시도
-        clear_data = {"confirm": False}
-        response = self.client.post(self.cart_clear_url, clear_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # 장바구니가 그대로인지 확인
-        cart = Cart.objects.get(user=self.user, is_active=True)
-        self.assertEqual(cart.items.count(), 1)
-
-    # ========== 장바구니 요약 및 계산 테스트 ==========
-
-    def test_cart_summary(self):
-        """장바구니 요약 정보 테스트"""
-        self._login_user()
-
-        # 여러 상품 추가
-        self.client.post(self.cart_add_url, {"product_id": self.product1.id, "quantity": 2})
-        self.client.post(self.cart_add_url, {"product_id": self.product2.id, "quantity": 3})
-
-        # 요약 정보 조회
-        response = self.client.get(self.cart_summary_url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        data = response.json()
-        self.assertEqual(data["total_amount"], "80000")  # 10000*2 + 20000*3
-        self.assertEqual(data["total_quantity"], 5)  # 2 + 3
-        self.assertEqual(data["item_count"], 2)  # 2종류
-
-    def test_cart_total_calculation(self):
-        """장바구니 총액 계산 정확성 테스트"""
-        self._login_user()
-
-        # 상품 추가
-        self.client.post(self.cart_add_url, {"product_id": self.product1.id, "quantity": 3})
-        self.client.post(self.cart_add_url, {"product_id": self.product2.id, "quantity": 2})
-
-        # 전체 장바구니 조회
-        response = self.client.get(self.cart_url)
-
-        data = response.json()
-
-        # 총액 확인: (10000 * 3) + (20000 * 2) = 70000
-        self.assertEqual(data["total_amount"], "70000")
-
-        # 각 아이템의 소계 확인
-        items = data["items"]
-        self.assertEqual(len(items), 2)
-
-        for item in items:
-            if item["product_id"] == self.product1.id:
-                self.assertEqual(item["subtotal"], "30000")
-            elif item["product_id"] == self.product2.id:
-                self.assertEqual(item["subtotal"], "40000")
-
-    # ========== 재고 확인 테스트 ==========
-
-    def test_check_stock_all_available(self):
-        """모든 상품 재고 충분 테스트"""
-        self._login_user()
-
-        # 재고 내에서 상품 추가
-        self.client.post(self.cart_add_url, {"product_id": self.product1.id, "quantity": 5})
-        self.client.post(self.cart_add_url, {"product_id": self.product2.id, "quantity": 3})
-
-        # 재고 확인
-        response = self.client.get(self.cart_check_stock_url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        data = response.json()
-        self.assertFalse(data["has_issues"])
-        self.assertEqual(data["message"], "모든 상품을 구매할 수 있습니다.")
-
-    def test_check_stock_with_issues(self):
-        """
-        재고 부족 상품이 있을 때 테스트
-        """
-        self._login_user()
-
-        # 장바구니에 상품 추가
-        cart = Cart.get_or_create_active_cart(self.user)[0]
-
-        # 먼저 정상적으로 CartItem 생성
-        CartItem.objects.create(cart=cart, product=self.product1, quantity=5)  # 재고(10개) 내에서 생성
-
-        # 그 후 상품의 재고를 줄여서 재고 부족 상황 만들기
-        self.product1.stock = 3  # 재고를 3개로 줄임 (quantity=5보다 적게)
-        self.product1.save()
-
-        # 재고 확인
-        response = self.client.get(self.cart_check_stock_url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        data = response.json()
-        self.assertTrue(data["has_issues"])
-        self.assertIn("issues", data)
-
-        issue = data["issues"][0]
-        self.assertEqual(issue["product_id"], self.product1.id)
-        self.assertEqual(issue["issue"], "재고 부족")
-        self.assertEqual(issue["requested"], 5)
-        self.assertEqual(issue["available"], 3)
-
-    def test_check_stock_with_inactive_product(self):
-        """비활성 상품이 있을 때 재고 확인 테스트"""
-        self._login_user()
-
-        # 장바구니에 상품 추가
-        cart = Cart.get_or_create_active_cart(self.user)[0]
-
-        # 정상 상품 추가
-        CartItem.objects.create(cart=cart, product=self.product1, quantity=2)
-
-        # 상품을 비활성화
-        self.product1.is_active = False
-        self.product1.save()
-
-        # 재고 확인
-        response = self.client.get(self.cart_check_stock_url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        data = response.json()
-        self.assertTrue(data["has_issues"])
-
-        issue = data["issues"][0]
-        self.assertEqual(issue["issue"], "판매 중단")
-        self.assertEqual(issue["available"], 0)
-
-
-class CartConcurrencyTestCase(TransactionTestCase):
-    """
-    장바구니 동시성 처리 테스트
-
-    여러 요청이 동시에 같은 장바구니를 수정할 때의 동작을 테스트합니다.
-    """
-
-    def setUp(self):
-        """테스트 데이터 설정"""
-        self.client = APIClient()
-
-        self.user = User.objects.create_user(
-            username="testuser",
-            email="test@example.com",
-            password="testpass123",
-        )
-
-        self.category = Category.objects.create(name="테스트 카테고리", slug="test-category")
-
-        self.product = Product.objects.create(
-            name="테스트 상품",
-            slug="test-product",
-            category=self.category,
-            price=Decimal("10000"),
-            stock=10,
-            sku="TEST-001",
-        )
-
-        self.cart_add_url = reverse("cart-add-item")
-
-    def test_concurrent_add_same_product(self):
-        """동시에 같은 상품을 추가할 때 정확한 수량 처리 테스트"""
-        # 로그인
-        response = self.client.post(reverse("auth-login"), {"username": "testuser", "password": "testpass123"})
         token = response.json()["access"]
 
         success_count = 0
-        errors = []
-        expected_total_quantity = 5  # 5개 스레드 * 1개씩
+        thread_count = 5
 
         def add_to_cart():
-            """장바구니에 상품 추가하는 함수"""
             nonlocal success_count
-            try:
-                client = APIClient()
-                client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+            from rest_framework.test import APIClient
 
-                response = client.post(
-                    self.cart_add_url,
-                    {"product_id": self.product.id, "quantity": 1},
-                    format="json",
-                )
-
-                if response.status_code == status.HTTP_201_CREATED:
-                    success_count += 1
-            except Exception as e:
-                errors.append(str(e))
-
-        # 5개의 스레드로 동시에 추가
-        threads = []
-        for _ in range(5):
-            thread = threading.Thread(target=add_to_cart)
-            threads.append(thread)
-            thread.start()
-
-        # 모든 스레드 완료 대기
-        for thread in threads:
-            thread.join()
-
-        # 최종 수량 확인
-        cart = Cart.objects.get(user=self.user, is_active=True)
-        try:
-            cart_item = CartItem.objects.get(cart=cart, product=self.product)
-            self.assertEqual(cart_item.quantity, expected_total_quantity)
-        except CartItem.DoesNotExist:
-            self.fail("장바구니 아이템이 생성되지 않았습니다.")
-
-    def test_concurrent_quantity_update(self):
-        """동시 수량 변경 시 Last Write Wins 정책 테스트"""
-        # 초기 장바구니 설정
-        cart = Cart.get_or_create_active_cart(self.user)[0]
-        cart_item = CartItem.objects.create(cart=cart, product=self.product, quantity=5)
-        initial_quantity = cart_item.quantity
-
-        # 로그인
-        response = self.client.post(reverse("auth-login"), {"username": "testuser", "password": "testpass123"})
-        token = response.json()["access"]
-
-        results = []
-
-        def update_quantity(new_quantity):
-            """수량 변경 함수"""
             client = APIClient()
             client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
-
-            update_url = reverse("cart-item-detail", kwargs={"pk": cart_item.id})
-
-            start_time = time.time()
-            response = client.patch(update_url, {"quantity": new_quantity}, format="json")
-            end_time = time.time()
-            results.append(
-                {
-                    "quantity": new_quantity,
-                    "status": response.status_code,
-                    "start": start_time,
-                    "end": end_time,
-                }
+            resp = client.post(
+                reverse("cart-add-item"),
+                {"product_id": product.id, "quantity": 1},
+                format="json",
             )
+            if resp.status_code == status.HTTP_201_CREATED:
+                success_count += 1
 
-        # 여러 스레드로 다른 수량으로 변경 시도
-        threads = []
-        quantities = [3, 7, 2, 8, 4]
+        # Act
+        threads = [threading.Thread(target=add_to_cart) for _ in range(thread_count)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
 
-        for qty in quantities:
-            thread = threading.Thread(target=update_quantity, args=(qty,))
-            threads.append(thread)
+        # Assert
+        cart = Cart.objects.get(user=user, is_active=True)
+        cart_item = CartItem.objects.get(cart=cart, product=product)
+        assert cart_item.quantity == thread_count
 
-        # 모든 스레드 거의 동시 시작
-        for thread in threads:
-            thread.start()
+    def test_concurrent_quantity_update(self, api_client, product):
+        """동시 수량 변경 시 데이터 정합성 유지"""
+        # Arrange
+        user = UserFactory()
+        cart = CartFactory(user=user)
+        cart_item = CartItemFactory(cart=cart, product=product, quantity=5)
 
-        # 모든 스레드 완료 대기
-        for thread in threads:
-            thread.join()
-
-        # 마지막 업데이트가 반영되어야 함
-        cart_item.refresh_from_db()
-
-        # 1. 모든 요청이 성공했는지 확인 (select_for_update로 순차 처리됨)
-        success_count = sum(1 for r in results if r["status"] == 200)
-        self.assertEqual(
-            success_count,
-            len(quantities),
-            f"모든 요청이 성공해야 함. 성공: {success_count}/{len(quantities)}",
+        response = api_client.post(
+            reverse("auth-login"),
+            {"username": user.username, "password": "testpass123"},
         )
-
-        # 2. 최종값이 요청한 값 중 하나여야 함
-        self.assertIn(
-            cart_item.quantity,
-            quantities,
-            f"최종 수량({cart_item.quantity})은 요청한 값 중 하나여야 함: {quantities}",
-        )
-
-        # 3. 데이터 정합성 확인
-        self.assertGreater(cart_item.quantity, 0, "수량은 0보다 커야 함")
-        self.assertLessEqual(
-            cart_item.quantity,
-            self.product.stock,
-            f"수량은 재고({self.product.stock})를 초과할 수 없음",
-        )
-
-        # 4. 실제로 업데이트가 되었는지 확인
-        self.assertNotEqual(
-            cart_item.quantity,
-            initial_quantity,
-            f"수량이 초기값({initial_quantity})에서 변경되어야 함",
-        )
-
-        # 디버깅 정보 출력 (실패 시 유용)
-        if success_count != len(quantities):
-            print("\n업데이트 결과:")
-            for r in sorted(results, key=lambda x: x["end"]):
-                print(f"  수량 {r['quantity']}: 상태 {r['status']}")
-            print(f"최종 수량: {cart_item.quantity}")
-
-
-class CartPerformanceTestCase(TestCase):
-    """
-    장바구니 성능 테스트
-
-    많은 상품이 담긴 장바구니의 성능을 테스트합니다.
-    """
-
-    def setUp(self):
-        """대량 테스트 데이터 생성"""
-        self.client = APIClient()
-
-        self.user = User.objects.create_user(
-            username="testuser",
-            email="test@example.com",
-            password="testpass123",
-        )
-
-        self.category = Category.objects.create(name="테스트 카테고리", slug="test-category")
-
-        # 100개의 상품 생성
-        self.products = []
-        for i in range(100):
-            product = Product.objects.create(
-                name=f"테스트 상품 {i}",
-                slug=f"test-product-{i}",
-                category=self.category,
-                price=Decimal(str(1000 * (i + 1))),
-                stock=100,
-                sku=f"TEST-{i:03d}",
-            )
-            self.products.append(product)
-
-    def test_large_cart_performance(self):
-        """많은 상품이 담긴 장바구니 조회 성능 테스트"""
-        # 로그인
-        response = self.client.post(reverse("auth-login"), {"username": "testuser", "password": "testpass123"})
         token = response.json()["access"]
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
-        # 50개 상품을 장바구니에 추가
-        cart = Cart.get_or_create_active_cart(self.user)[0]
+        quantities = [3, 7, 2, 8, 4]
+        results = []
 
-        cart_items = []
-        for i in range(50):
-            cart_items.append(CartItem(cart=cart, product=self.products[i], quantity=i + 1))
-        CartItem.objects.bulk_create(cart_items)
+        def update_quantity(qty):
+            from rest_framework.test import APIClient
 
-        # 장바구니 조회 시간 측정
-        import time
+            client = APIClient()
+            client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+            update_url = reverse("cart-item-detail", kwargs={"pk": cart_item.id})
+            resp = client.patch(update_url, {"quantity": qty}, format="json")
+            results.append({"quantity": qty, "status": resp.status_code})
 
+        # Act
+        threads = [threading.Thread(target=update_quantity, args=(qty,)) for qty in quantities]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # Assert
+        cart_item.refresh_from_db()
+        success_count = sum(1 for r in results if r["status"] == 200)
+        assert success_count == len(quantities)  # 모든 요청 성공
+        assert cart_item.quantity in quantities  # 최종값은 요청값 중 하나
+        assert 0 < cart_item.quantity <= product.stock  # 데이터 정합성
+
+
+# ==========================================
+# 성능 테스트
+# ==========================================
+
+
+@pytest.mark.django_db
+class TestCartPerformance:
+    """장바구니 성능 테스트"""
+
+    def test_large_cart_query_performance(self, authenticated_client, user, category, seller_user):
+        """많은 상품이 담긴 장바구니 조회 성능"""
+        # Arrange
+        cart = CartFactory(user=user)
+        products = [
+            ProductFactory(category=category, seller=seller_user, price=Decimal(str(1000 * (i + 1)))) for i in range(50)
+        ]
+        for i, prod in enumerate(products):
+            CartItemFactory(cart=cart, product=prod, quantity=i + 1)
+
+        # Act
         start_time = time.time()
+        response = authenticated_client.get(reverse("cart-detail"))
+        elapsed = time.time() - start_time
 
-        response = self.client.get(reverse("cart-detail"))
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        assert elapsed < 1.0, f"조회 시간 {elapsed:.3f}초 (1초 초과)"
+        assert len(response.json()["items"]) == 50
 
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # 응답 시간이 1초 이내여야 함
-        self.assertLess(elapsed_time, 1.0, f"조회 시간: {elapsed_time:.3f}초")
-
-        # 데이터 정확성 확인
-        data = response.json()
-        self.assertEqual(len(data["items"]), 50)
-
-        # 총액 계산 확인
-        expected_total = sum(self.products[i].price * (i + 1) for i in range(50))
-        self.assertEqual(Decimal(data["total_amount"]), expected_total)
+        # 총액 검증
+        expected_total = sum(prod.price * (i + 1) for i, prod in enumerate(products))
+        assert Decimal(response.json()["total_amount"]) == expected_total

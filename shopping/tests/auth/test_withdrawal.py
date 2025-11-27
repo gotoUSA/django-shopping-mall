@@ -207,6 +207,7 @@ class TestWithdrawalDataPreservation:
 
         # 인증 클라이언트 설정
         from rest_framework_simplejwt.tokens import RefreshToken
+
         refresh = RefreshToken.for_user(user_with_points)
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(refresh.access_token)}")
 

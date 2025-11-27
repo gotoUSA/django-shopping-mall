@@ -165,10 +165,13 @@ class TestPointHistoryListView:
         # Act - 5~10일 전 범위 (timezone-aware ISO format)
         start_date = (now - timedelta(days=10)).isoformat()
         end_date = (now - timedelta(days=3)).isoformat()
-        response = api_client.get(url, {
-            "start_date": start_date,
-            "end_date": end_date,
-        })
+        response = api_client.get(
+            url,
+            {
+                "start_date": start_date,
+                "end_date": end_date,
+            },
+        )
 
         # Assert
         assert response.status_code == status.HTTP_200_OK

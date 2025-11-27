@@ -251,13 +251,15 @@ def user_factory(db):
         user2 = user_factory(username="custom", points=10000)  # 커스텀
         user3 = user_factory(is_email_verified=False)  # 미인증
     """
+    import uuid
 
     def _create_user(**kwargs):
+        unique_id = uuid.uuid4().hex[:8]
         defaults = {
-            "username": "testuser",
-            "email": "test@example.com",
+            "username": f"testuser_{unique_id}",
+            "email": f"test_{unique_id}@example.com",
             "password": "testpass123",
-            "phone_number": "010-1234-5678",
+            "phone_number": f"010-{unique_id[:4]}-{unique_id[4:8]}",
             "points": DEFAULT_USER_POINTS,
             "is_email_verified": True,
         }
@@ -272,7 +274,16 @@ def user_factory(db):
             username = f"{original_username}{counter}"
             counter += 1
 
-        return User.objects.create_user(username=username, **defaults)
+        # email이 중복될 수 있으므로 카운터 추가
+        email = defaults.pop("email")
+        counter = 1
+        original_email = email
+        while User.objects.filter(email=email).exists():
+            email_parts = original_email.split("@")
+            email = f"{email_parts[0]}{counter}@{email_parts[1]}"
+            counter += 1
+
+        return User.objects.create_user(username=username, email=email, **defaults)
 
     return _create_user
 

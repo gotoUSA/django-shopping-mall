@@ -546,39 +546,6 @@ def alternative_shipping_info():
 
 
 @pytest.fixture
-def user_factory(db):
-    """
-    동적 사용자 생성 팩토리
-
-    동시성 테스트 및 다수의 사용자가 필요한 경우 사용
-    고유한 username, email, phone_number 자동 생성
-
-    Usage:
-        user1 = user_factory()
-        user2 = user_factory(username="custom_user", points=10000)
-    """
-    from shopping.models.user import User
-    import uuid
-
-    def _create_user(username=None, email=None, phone_number=None, **kwargs):
-        unique_id = uuid.uuid4().hex[:8]
-        username = username or f"user_{unique_id}"
-        email = email or f"{username}@test.com"
-        phone_number = phone_number or f"010-{unique_id[:4]}-{unique_id[4:8]}"
-
-        defaults = {
-            "password": "testpass123",
-            "points": 5000,
-            "is_email_verified": True,
-        }
-        defaults.update(kwargs)
-
-        return User.objects.create_user(username=username, email=email, phone_number=phone_number, **defaults)
-
-    return _create_user
-
-
-@pytest.fixture
 def create_order(db, default_shipping_info):
     """
     Order 생성 헬퍼 함수 (매개변수화)

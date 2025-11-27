@@ -37,9 +37,7 @@ SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = "DENY"
 
 # CSRF 추가 설정
-CSRF_TRUSTED_ORIGINS = os.environ.get(
-    "CSRF_TRUSTED_ORIGINS", "https://yourdomain.com"
-).split(",")
+CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "https://yourdomain.com").split(",")
 
 # ==========================================================================
 # Database (PostgreSQL - Production)
@@ -130,7 +128,4 @@ REST_AUTH["JWT_AUTH_SECURE"] = True  # noqa: F405
 # ==========================================================================
 
 if not ENCRYPTION_KEY:  # noqa: F405
-    raise ValueError(
-        "❌ ENCRYPTION_KEY가 설정되지 않았습니다! "
-        "프로덕션 환경에서는 암호화 키가 필수입니다."
-    )
+    raise ValueError("❌ ENCRYPTION_KEY가 설정되지 않았습니다! " "프로덕션 환경에서는 암호화 키가 필수입니다.")

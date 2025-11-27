@@ -124,6 +124,7 @@ LOGGING = get_logging_config(debug=True)
 
 if not ENCRYPTION_KEY:  # noqa: F405
     import warnings
+
     warnings.warn(
         "⚠️ ENCRYPTION_KEY가 설정되지 않았습니다. "
         "계좌번호 암호화 기능이 작동하지 않습니다. "

@@ -10,7 +10,7 @@ Django Settings Package
 예시:
     # .env 파일
     DJANGO_ENV=local
-    
+
     # 또는 명령줄에서
     DJANGO_ENV=production python manage.py runserver
 """

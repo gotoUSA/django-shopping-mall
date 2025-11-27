@@ -89,6 +89,4 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 
 # 소셜 로그인 리다이렉트 URI (프론트엔드)
-SOCIAL_LOGIN_REDIRECT_URI = os.getenv(
-    "SOCIAL_LOGIN_REDIRECT_URI", "http://localhost:8000/social/test/"
-)
+SOCIAL_LOGIN_REDIRECT_URI = os.getenv("SOCIAL_LOGIN_REDIRECT_URI", "http://localhost:8000/social/test/")

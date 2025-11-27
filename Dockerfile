@@ -22,7 +22,7 @@ COPY requirements-dev.txt /code/
 
 # Python 패키지 설치
 # requirements-dev.txt가 이미 requirements.txt를 포함(-r)하므로 한 번만 설치
-RUN pip install --upgrade pip 
+RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements-dev.txt
 
 # 프로젝트 파일 복사

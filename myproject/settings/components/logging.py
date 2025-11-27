@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 def get_logging_config(debug: bool = False) -> dict:
     """
     환경에 맞는 로깅 설정을 반환합니다.
-    
+
     Args:
         debug: DEBUG 모드 여부
     """

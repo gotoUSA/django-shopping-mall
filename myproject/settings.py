@@ -40,6 +40,12 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "TRUE") == "TRUE"
 
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
+# CSRF 설정
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+
 
 # Application definition
 
@@ -209,6 +215,7 @@ ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "")
 
 if not ENCRYPTION_KEY and not TESTING:
     import warnings
+
     warnings.warn(
         "⚠️ ENCRYPTION_KEY가 설정되지 않았습니다. "
         "계좌번호 암호화 기능이 작동하지 않습니다. "
@@ -419,8 +426,6 @@ CELERY_ENABLE_UTC = False  # 로컬 시간대 사용
 
 # Celery Beat 설정 (데이터베이스 스케줄러 사용)
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
-
-
 
 
 # ========== 이메일 설정 (포인트 만료 알림용) ==========

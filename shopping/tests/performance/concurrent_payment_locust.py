@@ -34,27 +34,10 @@ class ConcurrentPaymentUser(HttpUser):
         timestamp = int(time.time() * 1000)
         user_id = id(self)
 
-        self.username = f"locust_user_{timestamp}_{user_id}"
-        self.email = f"{self.username}@test.com"
-        self.password = "testpass123!"
-        self.phone_number = f"010-{random.randint(3000, 9999):04d}-{random.randint(0, 9999):04d}"
-
-        # 회원가입
-        register_response = self.client.post(
-            "/api/auth/register/",
-            json={
-                "username": self.username,
-                "email": self.email,
-                "password": self.password,
-                "password2": self.password,
-                "phone_number": self.phone_number,
-            },
-            name="/api/auth/register/",
-        )
-
-        if register_response.status_code != 201:
-            self.register_error = f"Register failed: {register_response.status_code}"
-            return
+        # 미리 생성된 사용자 사용
+        self.user_id = random.randint(0, 999)
+        self.username = f"load_test_user_{self.user_id}"
+        self.password = "testpass123"
 
         # 로그인
         login_response = self.client.post(
@@ -71,10 +54,10 @@ class ConcurrentPaymentUser(HttpUser):
 
         # 장바구니에 상품 추가 (product_id=1 사용, 미리 생성되어 있어야 함)
         cart_response = self.client.post(
-            "/api/cart/items/",
+            "/api/cart-items/",
             json={"product_id": 1, "quantity": 1},
             headers={"Authorization": f"Bearer {self.access_token}"},
-            name="/api/cart/items/",
+            name="/api/cart-items/",
         )
 
         if cart_response.status_code not in [200, 201]:
@@ -85,8 +68,8 @@ class ConcurrentPaymentUser(HttpUser):
         order_response = self.client.post(
             "/api/orders/",
             json={
-                "shipping_name": "테스트",
-                "shipping_phone": self.phone_number,
+                "shipping_name": f"테스트유저{self.user_id}",
+                "shipping_phone": f"010-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}",
                 "shipping_postal_code": "12345",
                 "shipping_address": "서울시 강남구",
                 "shipping_address_detail": "101동",

@@ -328,9 +328,7 @@ class TestCategoryTree:
     def test_tree_uses_cache_when_available(self, api_client):
         """캐시에 데이터가 있으면 캐시 사용 (DB 조회 스킵)"""
         # Arrange
-        cached_tree = [
-            {"id": 999, "name": "캐시된카테고리", "slug": "cached", "product_count": 5, "children": []}
-        ]
+        cached_tree = [{"id": 999, "name": "캐시된카테고리", "slug": "cached", "product_count": 5, "children": []}]
 
         # Act - mock으로 캐시 히트 시뮬레이션 (병렬 테스트 환경에서 안전)
         with patch("django.core.cache.cache.get", return_value=cached_tree):

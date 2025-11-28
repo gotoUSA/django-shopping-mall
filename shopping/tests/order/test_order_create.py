@@ -591,3 +591,52 @@ class TestOrderCreateException:
         # Assert
         # 0원 상품 허용 여부는 비즈니스 로직에 따라 다름
         assert response.status_code in [status.HTTP_400_BAD_REQUEST, status.HTTP_202_ACCEPTED]
+
+    def test_order_service_error_returns_400(
+        self, authenticated_client, user, product, add_to_cart_helper, shipping_data, mocker
+    ):
+        """OrderServiceError 발생 시 400 반환"""
+        # Arrange
+        add_to_cart_helper(user, product, quantity=1)
+
+        from shopping.serializers.order_serializers import OrderCreateSerializer
+        from shopping.services.order_service import OrderServiceError
+
+        mocker.patch.object(
+            OrderCreateSerializer,
+            "create_hybrid",
+            side_effect=OrderServiceError("재고가 부족합니다.")
+        )
+
+        url = "/api/orders/"
+
+        # Act
+        response = authenticated_client.post(url, shipping_data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "재고가 부족합니다" in response.data["error"]
+
+    def test_unexpected_exception_returns_500(
+        self, authenticated_client, user, product, add_to_cart_helper, shipping_data, mocker
+    ):
+        """예상치 못한 Exception 발생 시 500 반환"""
+        # Arrange
+        add_to_cart_helper(user, product, quantity=1)
+
+        from shopping.serializers.order_serializers import OrderCreateSerializer
+
+        mocker.patch.object(
+            OrderCreateSerializer,
+            "create_hybrid",
+            side_effect=Exception("Unexpected DB Error")
+        )
+
+        url = "/api/orders/"
+
+        # Act
+        response = authenticated_client.post(url, shipping_data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert response.data["error"] == "주문 생성 중 오류가 발생했습니다."

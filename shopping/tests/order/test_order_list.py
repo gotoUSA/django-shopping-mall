@@ -469,3 +469,35 @@ class TestOrderListException:
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["count"] == 10
+
+    def test_list_without_pagination_returns_raw_list(
+        self, authenticated_client, user, order_factory, mocker
+    ):
+        """페이지네이션 비활성화 시 raw 리스트 반환"""
+        # Arrange
+        order_factory(
+            user, status="pending", total_amount=Decimal("10000"),
+            shipping_name="주문자1", shipping_address_detail="101호"
+        )
+        order_factory(
+            user, status="paid", total_amount=Decimal("20000"),
+            shipping_name="주문자2", shipping_address_detail="102호"
+        )
+
+        from shopping.views.order_views import OrderViewSet
+
+        mocker.patch.object(
+            OrderViewSet,
+            "paginate_queryset",
+            return_value=None
+        )
+
+        url = reverse("order-list")
+
+        # Act
+        response = authenticated_client.get(url)
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        assert isinstance(response.data, list)
+        assert len(response.data) == 2

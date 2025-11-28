@@ -207,6 +207,53 @@ class TestPointHistoryListView:
         # Assert
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
+    def test_invalid_start_date_format_returns_400(self, api_client):
+        """잘못된 start_date 형식 - 400 에러 (DateParseError)"""
+        # Arrange
+        user = UserFactory.with_points(1000)
+        api_client.force_authenticate(user=user)
+
+        url = reverse("point_history")
+
+        # Act - 잘못된 날짜 형식 (YYYY-MM-DD가 아님)
+        response = api_client.get(url, {"start_date": "2025/01/15"})
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "error" in response.data
+        assert "start_date" in response.data["error"]
+
+    def test_invalid_end_date_format_returns_400(self, api_client):
+        """잘못된 end_date 형식 - 400 에러 (DateParseError)"""
+        # Arrange
+        user = UserFactory.with_points(1000)
+        api_client.force_authenticate(user=user)
+
+        url = reverse("point_history")
+
+        # Act - 잘못된 날짜 형식
+        response = api_client.get(url, {"end_date": "15-01-2025"})
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "error" in response.data
+        assert "end_date" in response.data["error"]
+
+    def test_invalid_date_text_returns_400(self, api_client):
+        """문자열 날짜 - 400 에러"""
+        # Arrange
+        user = UserFactory.with_points(1000)
+        api_client.force_authenticate(user=user)
+
+        url = reverse("point_history")
+
+        # Act - 텍스트 입력
+        response = api_client.get(url, {"start_date": "invalid-date"})
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "error" in response.data
+
 
 # ==========================================
 # PointCheckView 테스트
@@ -281,6 +328,87 @@ class TestPointCheckView:
 
         # Assert
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_missing_order_amount_returns_400(self, api_client):
+        """order_amount 누락 - 400 에러"""
+        # Arrange
+        user = UserFactory.with_points(5000)
+        api_client.force_authenticate(user=user)
+
+        url = reverse("point_check")
+        data = {"use_points": 500}  # order_amount 누락
+
+        # Act
+        response = api_client.post(url, data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "order_amount" in response.data
+
+    def test_missing_use_points_returns_400(self, api_client):
+        """use_points 누락 - 400 에러"""
+        # Arrange
+        user = UserFactory.with_points(5000)
+        api_client.force_authenticate(user=user)
+
+        url = reverse("point_check")
+        data = {"order_amount": 10000}  # use_points 누락
+
+        # Act
+        response = api_client.post(url, data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "use_points" in response.data
+
+    def test_invalid_order_amount_type_returns_400(self, api_client):
+        """order_amount가 숫자가 아닌 경우 - 400 에러"""
+        # Arrange
+        user = UserFactory.with_points(5000)
+        api_client.force_authenticate(user=user)
+
+        url = reverse("point_check")
+        data = {"order_amount": "not_a_number", "use_points": 500}
+
+        # Act
+        response = api_client.post(url, data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_exceeds_order_amount_returns_cannot_use(self, api_client):
+        """주문 금액 초과 사용 시 can_use=False 반환"""
+        # Arrange
+        user = UserFactory.with_points(50000)
+        api_client.force_authenticate(user=user)
+
+        url = reverse("point_check")
+        data = {"order_amount": 10000, "use_points": 15000}
+
+        # Act
+        response = api_client.post(url, data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["can_use"] is False
+        assert "초과" in response.data["message"]
+
+    def test_zero_points_returns_can_use_true(self, api_client):
+        """0 포인트 사용 시 can_use=True 반환"""
+        # Arrange
+        user = UserFactory.with_points(5000)
+        api_client.force_authenticate(user=user)
+
+        url = reverse("point_check")
+        data = {"order_amount": 10000, "use_points": 0}
+
+        # Act
+        response = api_client.post(url, data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["can_use"] is True
+        assert "사용하지 않습니다" in response.data["message"]
 
 
 # ==========================================

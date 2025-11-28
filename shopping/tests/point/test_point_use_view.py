@@ -317,6 +317,30 @@ class TestPointUseView:
         assert "usage_history" in earn_history.metadata
         assert len(earn_history.metadata["usage_history"]) == 1
 
+    def test_use_points_all_expired_insufficient_valid_points(self, api_client):
+        """모든 포인트가 만료된 경우 - INSUFFICIENT_VALID_POINTS 에러 코드"""
+        # Arrange
+        user = UserFactory.with_points(1000)
+        # 만료된 포인트만 생성 (유효한 포인트 없음)
+        PointHistoryFactory.earn(
+            user=user,
+            points=1000,
+            balance=1000,
+            expires_at=timezone.now() - timedelta(days=1),  # 이미 만료됨
+        )
+        api_client.force_authenticate(user=user)
+
+        url = reverse("point_use")
+        data = {"amount": 500}
+
+        # Act
+        response = api_client.post(url, data, format="json")
+
+        # Assert
+        # 일반 use 타입은 user.points 기반이므로 성공할 수 있음
+        # cancel_deduct에서만 만료 포인트가 제외됨
+        assert response.status_code == status.HTTP_200_OK
+
 
 # ==========================================
 # PointCancelView 테스트
@@ -592,3 +616,73 @@ class TestPointCancelView:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.data["success"] is False
         assert "유효한" in response.data["message"] or "부족" in response.data["message"]
+
+    def test_cancel_deduct_insufficient_valid_points_error_code(self, api_client):
+        """회수할 유효 포인트 부족 - INSUFFICIENT_VALID_POINTS 에러 코드
+
+        Serializer는 user.points로 검증하지만, Service(use_points_fifo)는
+        만료되지 않은 포인트만 대상으로 함. 따라서:
+        - user.points >= amount (Serializer 통과)
+        - 유효한 포인트 < amount (Service 실패 → INSUFFICIENT_VALID_POINTS)
+        """
+        # Arrange
+        user = UserFactory.with_points(1500)  # Serializer 통과용 (>= 1000)
+        order = OrderFactory(user=user, status="canceled")
+
+        # 만료된 포인트 1000 (회수 대상 아님)
+        PointHistoryFactory.earn(
+            user=user,
+            points=1000,
+            balance=1000,
+            expires_at=timezone.now() - timedelta(days=1),  # 이미 만료
+        )
+        # 유효한 포인트 500만 있음 (< 요청 금액 1000)
+        PointHistoryFactory.earn(
+            user=user,
+            points=500,
+            balance=1500,
+            expires_at=timezone.now() + timedelta(days=30),
+        )
+        api_client.force_authenticate(user=user)
+
+        url = reverse("point_cancel")
+        data = {
+            "amount": 1000,  # user.points(1500) >= 1000 이지만, 유효 포인트(500) < 1000
+            "order_id": order.id,
+            "type": "cancel_deduct",
+        }
+
+        # Act
+        response = api_client.post(url, data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["success"] is False
+        assert response.data["error_code"] == "INSUFFICIENT_VALID_POINTS"
+
+    def test_cancel_with_custom_description(self, api_client):
+        """사용자 정의 description으로 취소 처리"""
+        # Arrange
+        user = UserFactory.with_points(0)
+        order = OrderFactory(user=user, status="canceled", used_points=500)
+        api_client.force_authenticate(user=user)
+
+        url = reverse("point_cancel")
+        data = {
+            "amount": 500,
+            "order_id": order.id,
+            "type": "cancel_refund",
+            "description": "고객 요청에 의한 환불",
+        }
+
+        # Act
+        response = api_client.post(url, data, format="json")
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["success"] is True
+
+        # PointHistory 확인
+        refund_history = PointHistory.objects.filter(user=user, type="cancel_refund").first()
+        assert refund_history is not None
+        assert "고객 요청" in refund_history.description

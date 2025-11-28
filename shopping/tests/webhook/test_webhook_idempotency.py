@@ -310,9 +310,9 @@ class TestWebhookRapidRequests:
         assert self.product.stock == initial_stock - 1
         assert self.product.sold_count == 1
 
-        # Assert - 포인트는 한 번만 적립
+        # Assert - 포인트는 한 번만 적립 (배송비 제외된 order.total_amount 기준)
         self.user.refresh_from_db()
-        expected_points = int(payment.amount * Decimal("0.01"))
+        expected_points = int(order.total_amount * Decimal("0.01"))
         assert self.user.points == initial_points + expected_points
 
         # Assert - 로그는 첫 처리만 (중복은 early return으로 로그 생성 안 됨)
@@ -338,10 +338,14 @@ class TestWebhookRapidRequests:
         self.product.sold_count = 1
         self.product.save()
 
-        # 포인트 적립 시뮬레이션
-        earned_points = int(payment.amount * Decimal("0.01"))
+        # 포인트 적립 시뮬레이션 (배송비 제외된 order.total_amount 기준)
+        earned_points = int(order.total_amount * Decimal("0.01"))
         self.user.points += earned_points
         self.user.save()
+        
+        # order.earned_points도 설정 (회수 시 이 값 사용)
+        order.earned_points = earned_points
+        order.save()
 
         mock_verify_webhook()
         stock_after_deduction = self.product.stock

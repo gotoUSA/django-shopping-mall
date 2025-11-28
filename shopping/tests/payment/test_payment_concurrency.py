@@ -388,10 +388,11 @@ class TestPaymentConcurrencyHappyPath:
         success_count = sum(1 for r in results if r.get("success", False))
         assert success_count == 3
 
-        # 포인트 확인 (5000 - 1000(사용) + 90(적립, 9000원의 1%))
+        # 포인트 확인 (5000 - 1000(사용) + 100(적립, 상품금액 10000원의 1%))
+        # 적립은 total_amount(순수 상품금액) 기준, 포인트 사용과 무관
         for user in users:
             user.refresh_from_db()
-            expected_points = 4090
+            expected_points = 4100
             assert user.points == expected_points, f"포인트 {expected_points}. 실제: {user.points}"
 
 

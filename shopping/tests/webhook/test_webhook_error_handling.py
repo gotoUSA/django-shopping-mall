@@ -382,7 +382,8 @@ class TestWebhookTransactionRollback:
 
         assert self.payment.status == "done"
         assert self.product.stock == initial_stock - 1
-        expected_points = initial_points + int(self.payment.amount * Decimal("0.01"))
+        # 배송비 제외된 order.total_amount 기준 포인트 적립
+        expected_points = initial_points + int(self.order.total_amount * Decimal("0.01"))
         assert self.user.points == expected_points
 
     # ==========================================
@@ -663,6 +664,11 @@ class TestWebhookEventSpecificErrors:
         # Arrange
         mock_verify_webhook()
 
+        # 포인트 계산은 order.total_amount 기준 (배송비 제외된 순수 상품금액)
+        self.order.total_amount = Decimal("50")
+        self.order.final_amount = Decimal("50")
+        self.order.save()
+
         self.payment.amount = Decimal("50")
         self.payment.save()
 
@@ -733,12 +739,18 @@ class TestWebhookEventSpecificErrors:
         # Arrange
         mock_verify_webhook()
 
+        # 적립 포인트 설정 (배송비 제외된 total_amount 기준 1%)
+        earned_points = int(self.order.total_amount * Decimal("0.01"))
         self.order.status = "paid"
+        self.order.earned_points = earned_points
         self.order.save()
 
         self.payment.status = "done"
         self.payment.save()
 
+        # 유저 포인트에 적립분 추가 (실제 시나리오 시뮬레이션)
+        self.user.points += earned_points
+        self.user.save()
         initial_points = self.user.points
 
         webhook_data = webhook_data_builder(
@@ -757,10 +769,9 @@ class TestWebhookEventSpecificErrors:
         # Assert - 응답 검증
         assert response.status_code == status.HTTP_200_OK
 
-        # Assert - 포인트 회수됨
+        # Assert - 포인트 회수됨 (order.earned_points 기준)
         self.user.refresh_from_db()
-        expected_deduction = int(self.payment.amount * Decimal("0.01"))
-        assert self.user.points == initial_points - expected_deduction
+        assert self.user.points == initial_points - earned_points
 
     def test_canceled_event_user_none_skips_point_deduction(
         self, mock_verify_webhook, webhook_data_builder, webhook_signature

@@ -152,9 +152,10 @@ class TestPaymentServiceConfirmPayment:
         assert product.stock == stock_after_order  # 재고는 변하지 않음
         assert product.sold_count == initial_sold_count + 1
 
-        # 포인트 적립 확인 (silver: 2% 적립)
+        # 포인트 적립 확인 (silver: 2% 적립, 배송비 제외)
         user.refresh_from_db()
-        expected_points = initial_points + int(order.final_amount * Decimal("0.02"))
+        # total_amount는 이미 순수 상품금액 (배송비 미포함)
+        expected_points = initial_points + int(order.total_amount * Decimal("0.02"))
         assert user.points == expected_points
         assert result["points_earned"] > 0
 

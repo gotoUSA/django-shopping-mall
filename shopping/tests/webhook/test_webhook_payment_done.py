@@ -69,9 +69,9 @@ class TestPaymentDoneWebhook:
         assert self.product.stock == 8
         assert self.product.sold_count == 1
 
-        # Assert - 포인트 적립 확인 (1%)
+        # Assert - 포인트 적립 확인 (배송비 제외된 order.total_amount 기준, 1%)
         self.user.refresh_from_db()
-        expected_points = int(self.payment.amount * Decimal("0.01"))
+        expected_points = int(self.order.total_amount * Decimal("0.01"))
         assert self.user.points == 5000 + expected_points
 
         # Assert - 장바구니 비활성화 확인

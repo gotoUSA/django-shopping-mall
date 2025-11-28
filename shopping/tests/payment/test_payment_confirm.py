@@ -85,9 +85,10 @@ class TestPaymentConfirm:
         assert order.status == "paid"
         assert order.payment_method == "카드"
 
-        # Assert - 포인트 적립 (final_amount의 1%)
+        # Assert - 포인트 적립 (순수 상품금액 기준, 배송비 제외)
         user.refresh_from_db()
-        expected_earn = int(order.final_amount * Decimal("0.01"))
+        # total_amount는 이미 순수 상품금액 (배송비 미포함)
+        expected_earn = int(order.total_amount * Decimal("0.01"))
         assert user.points == 5000 + expected_earn
 
         # Assert - 포인트 이력 기록
@@ -188,8 +189,9 @@ class TestPaymentConfirm:
         user.refresh_from_db()
         order.refresh_from_db()
 
-        # Assert - 포인트 계산 (5000 - 2000 + 적립)
-        expected_earn = int(order.final_amount * Decimal("0.01"))
+        # Assert - 포인트 계산 (5000 - 2000 + 적립, 배송비 제외)
+        # total_amount는 이미 순수 상품금액
+        expected_earn = int(order.total_amount * Decimal("0.01"))
         assert user.points == 3000 + expected_earn
 
     def test_multiple_products_sold_count_increase(
@@ -417,7 +419,8 @@ class TestPaymentConfirmBoundary:
 
             user.refresh_from_db()
             expected_rate = expected_rates[level]
-            expected_earn = int(order.final_amount * Decimal(expected_rate) / Decimal("100"))
+            # total_amount는 이미 순수 상품금액 (배송비 미포함)
+            expected_earn = int(order.total_amount * Decimal(expected_rate) / Decimal("100"))
             actual_earn = user.points - 10000
 
             assert actual_earn == expected_earn, f"{level} 등급 적립률 검증 실패"

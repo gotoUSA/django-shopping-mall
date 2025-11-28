@@ -49,11 +49,15 @@ class TestPaymentCanceledWebhook:
         self.product.sold_count = 1
         self.product.save()
 
-        # 포인트 적립 시뮬레이션
+        # 포인트 적립 시뮬레이션 (배송비 제외된 total_amount 기준)
         initial_points = self.user.points
-        earned_points = int(self.payment.amount * Decimal("0.01"))
+        earned_points = int(self.order.total_amount * Decimal("0.01"))
         self.user.points = initial_points + earned_points
         self.user.save()
+        
+        # order.earned_points도 설정 (회수 시 이 값 사용)
+        self.order.earned_points = earned_points
+        self.order.save()
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
@@ -118,11 +122,15 @@ class TestPaymentCanceledWebhook:
         self.product.sold_count = 1
         self.product.save()
 
-        # 포인트 적립 시뮬레이션
+        # 포인트 적립 시뮬레이션 (배송비 제외된 total_amount 기준)
         initial_points = self.user.points
-        earned_points = int(self.payment.amount * Decimal("0.01"))
+        earned_points = int(self.order.total_amount * Decimal("0.01"))
         self.user.points = initial_points + earned_points
         self.user.save()
+        
+        # order.earned_points도 설정 (회수 시 이 값 사용)
+        self.order.earned_points = earned_points
+        self.order.save()
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
@@ -362,11 +370,15 @@ class TestPaymentCanceledWebhook:
         self.product.sold_count = 1
         self.product.save()
 
-        # 포인트 적립 시뮬레이션
+        # 포인트 적립 시뮬레이션 (배송비 제외된 total_amount 기준)
         initial_points = self.user.points
-        earned_points = int(self.payment.amount * Decimal("0.01"))
+        earned_points = int(self.order.total_amount * Decimal("0.01"))
         self.user.points = initial_points + earned_points
         self.user.save()
+        
+        # order.earned_points도 설정 (회수 시 이 값 사용)
+        self.order.earned_points = earned_points
+        self.order.save()
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",
@@ -490,10 +502,14 @@ class TestPaymentCanceledWebhook:
         self.product.sold_count = 1
         self.product.save()
 
-        # 포인트 부족 시뮬레이션 (적립된 100P 중 이미 사용함)
-        earned_points = int(self.payment.amount * Decimal("0.01"))
+        # 포인트 부족 시뮬레이션 (배송비 제외된 total_amount 기준으로 적립된 포인트)
+        earned_points = int(self.order.total_amount * Decimal("0.01"))
         self.user.points = earned_points - 50  # 부족한 상태
         self.user.save()
+        
+        # order.earned_points도 설정 (회수 시 이 값 사용)
+        self.order.earned_points = earned_points
+        self.order.save()
 
         webhook_data = webhook_data_builder(
             event_type="PAYMENT.CANCELED",

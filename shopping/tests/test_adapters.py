@@ -128,9 +128,7 @@ class TestCustomSocialAccountAdapterUnit:
 
         # Assert
         assert result.is_email_verified is True
-        mock_parent_populate.assert_called_once_with(
-            mock_request, mock_sociallogin, mock_data
-        )
+        mock_parent_populate.assert_called_once_with(mock_request, mock_sociallogin, mock_data)
 
     @patch("shopping.adapters.DefaultSocialAccountAdapter.populate_user")
     def test_populate_user_preserves_other_attributes(self, mock_parent_populate):
@@ -212,9 +210,7 @@ class TestCustomSocialAccountAdapterUnit:
         self.adapter.save_user(mock_request, mock_sociallogin, mock_form)
 
         # Assert
-        mock_parent_save.assert_called_once_with(
-            mock_request, mock_sociallogin, mock_form
-        )
+        mock_parent_save.assert_called_once_with(mock_request, mock_sociallogin, mock_form)
 
 
 # ==========================================

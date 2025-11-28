@@ -602,11 +602,7 @@ class TestOrderCreateException:
         from shopping.serializers.order_serializers import OrderCreateSerializer
         from shopping.services.order_service import OrderServiceError
 
-        mocker.patch.object(
-            OrderCreateSerializer,
-            "create_hybrid",
-            side_effect=OrderServiceError("재고가 부족합니다.")
-        )
+        mocker.patch.object(OrderCreateSerializer, "create_hybrid", side_effect=OrderServiceError("재고가 부족합니다."))
 
         url = "/api/orders/"
 
@@ -626,11 +622,7 @@ class TestOrderCreateException:
 
         from shopping.serializers.order_serializers import OrderCreateSerializer
 
-        mocker.patch.object(
-            OrderCreateSerializer,
-            "create_hybrid",
-            side_effect=Exception("Unexpected DB Error")
-        )
+        mocker.patch.object(OrderCreateSerializer, "create_hybrid", side_effect=Exception("Unexpected DB Error"))
 
         url = "/api/orders/"
 

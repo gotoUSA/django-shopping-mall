@@ -11,6 +11,7 @@ Locust 로드 테스트 - Weight 기반 시나리오
     아래 WebsiteUser의 tasks 딕셔너리에서 weight만 변경하면 됩니다.
     5가지 프리셋이 주석으로 제공되어 있습니다.
 """
+
 from locust import HttpUser, task, TaskSet, between, LoadTestShape
 import random
 import time
@@ -32,7 +33,7 @@ class BrowsingUser(TaskSet):
     @task(5)
     def view_product_detail(self):
         """상품 상세 조회"""
-        if hasattr(self.user, 'product_ids') and self.user.product_ids:
+        if hasattr(self.user, "product_ids") and self.user.product_ids:
             product_id = random.choice(self.user.product_ids)
             self.client.get(f"/api/products/{product_id}/")
 
@@ -59,7 +60,7 @@ class CartUser(TaskSet):
     @task(3)
     def browse_and_add_to_cart(self):
         """상품 보고 장바구니에 담기"""
-        if hasattr(self.user, 'product_ids') and self.user.product_ids:
+        if hasattr(self.user, "product_ids") and self.user.product_ids:
             product_id = random.choice(self.user.product_ids)
 
             # 상세 조회
@@ -67,10 +68,7 @@ class CartUser(TaskSet):
 
             # 50% 확률로 장바구니 추가
             if random.random() < 0.5:
-                self.client.post("/api/cart-items/", json={
-                    "product_id": product_id,
-                    "quantity": random.randint(1, 2)
-                })
+                self.client.post("/api/cart-items/", json={"product_id": product_id, "quantity": random.randint(1, 2)})
 
     @task(2)
     def view_cart(self):
@@ -91,9 +89,7 @@ class CartUser(TaskSet):
                         self.client.delete(f"/api/cart-items/{item_id}/")
                     else:
                         # PUT 메서드 사용 (API가 PATCH를 지원하지 않음)
-                        self.client.put(f"/api/cart-items/{item_id}/", json={
-                            "quantity": random.randint(1, 3)
-                        })
+                        self.client.put(f"/api/cart-items/{item_id}/", json={"quantity": random.randint(1, 3)})
 
 
 class OrderUser(TaskSet):
@@ -107,10 +103,10 @@ class OrderUser(TaskSet):
     def add_to_cart_and_create_order(self):
         """장바구니 추가 -> 주문 생성"""
         # 주문 생성은 로그인 필수
-        if not hasattr(self.user, 'is_logged_in') or not self.user.is_logged_in:
+        if not hasattr(self.user, "is_logged_in") or not self.user.is_logged_in:
             self.user.login()
 
-        if not hasattr(self.user, 'product_ids') or not self.user.product_ids:
+        if not hasattr(self.user, "product_ids") or not self.user.product_ids:
             return
 
         # 1. 장바구니에 상품 추가 (1~2개)
@@ -119,10 +115,7 @@ class OrderUser(TaskSet):
 
         for _ in range(num_items):
             product_id = random.choice(self.user.product_ids)
-            response = self.client.post("/api/cart-items/", json={
-                "product_id": product_id,
-                "quantity": random.randint(1, 2)
-            })
+            response = self.client.post("/api/cart-items/", json={"product_id": product_id, "quantity": random.randint(1, 2)})
             if response.status_code == 201:
                 added_items += 1
 
@@ -130,14 +123,22 @@ class OrderUser(TaskSet):
         if added_items == 0:
             return
 
-        # 2. 주문 생성
-        self.client.post("/api/orders/", json={
-            "shipping_name": "테스트",
-            "shipping_phone": "010-1234-5678",
-            "shipping_postal_code": "12345",
-            "shipping_address": "서울시 강남구",
-            "shipping_address_detail": "101호"
-        })
+        # 2. 주문 생성 전 장바구니 확인 (레이스 컨디션 방지)
+        cart_response = self.client.get("/api/cart-items/")
+        if cart_response.status_code != 200 or not cart_response.json():
+            return  # 장바구니 비어있으면 주문 생성 스킵
+
+        # 3. 주문 생성
+        self.client.post(
+            "/api/orders/",
+            json={
+                "shipping_name": "테스트",
+                "shipping_phone": "010-1234-5678",
+                "shipping_postal_code": "12345",
+                "shipping_address": "서울시 강남구",
+                "shipping_address_detail": "101호",
+            },
+        )
 
         # 결제는 안 함 (여기서 이탈)
 
@@ -153,10 +154,10 @@ class PaymentUser(TaskSet):
     def complete_purchase_flow(self):
         """완전한 구매 플로우"""
         # 결제는 로그인 필수
-        if not hasattr(self.user, 'is_logged_in') or not self.user.is_logged_in:
+        if not hasattr(self.user, "is_logged_in") or not self.user.is_logged_in:
             self.user.login()
 
-        if not hasattr(self.user, 'product_ids') or not self.user.product_ids:
+        if not hasattr(self.user, "product_ids") or not self.user.product_ids:
             return
 
         # 1. 상품 상세 조회
@@ -164,10 +165,7 @@ class PaymentUser(TaskSet):
         self.client.get(f"/api/products/{product_id}/")
 
         # 2. 장바구니 추가
-        response = self.client.post("/api/cart-items/", json={
-            "product_id": product_id,
-            "quantity": random.randint(1, 2)
-        })
+        response = self.client.post("/api/cart-items/", json={"product_id": product_id, "quantity": random.randint(1, 2)})
 
         if response.status_code != 201:
             return  # 실패하면 포기
@@ -176,17 +174,22 @@ class PaymentUser(TaskSet):
         if random.random() < 0.1:
             return
 
-        # 3. 장바구니 확인
-        self.client.get("/api/cart-items/")
+        # 3. 장바구니 확인 (레이스 컨디션 방지 - 결과도 검증)
+        cart_response = self.client.get("/api/cart-items/")
+        if cart_response.status_code != 200 or not cart_response.json():
+            return  # 장바구니 비어있으면 주문 생성 스킵
 
         # 4. 주문 생성
-        response = self.client.post("/api/orders/", json={
-            "shipping_name": "테스트",
-            "shipping_phone": "010-1234-5678",
-            "shipping_postal_code": "12345",
-            "shipping_address": "서울시 강남구",
-            "shipping_address_detail": "101호"
-        })
+        response = self.client.post(
+            "/api/orders/",
+            json={
+                "shipping_name": "테스트",
+                "shipping_phone": "010-1234-5678",
+                "shipping_postal_code": "12345",
+                "shipping_address": "서울시 강남구",
+                "shipping_address_detail": "101호",
+            },
+        )
 
         if response.status_code not in [201, 202]:
             return  # 실패하면 포기
@@ -203,11 +206,9 @@ class PaymentUser(TaskSet):
         # 5. 결제 승인
         payment_key = f"test_key_{int(time.time() * 1000)}_{random.randint(1, 100000)}"
 
-        self.client.post("/api/payments/confirm/", json={
-            "payment_key": payment_key,
-            "order_id": order_id,
-            "amount": int(final_amount)
-        })
+        self.client.post(
+            "/api/payments/confirm/", json={"payment_key": payment_key, "order_id": order_id, "amount": int(final_amount)}
+        )
 
 
 # ==================== 🔥 시나리오 프리셋 ====================
@@ -220,7 +221,7 @@ LIGHT_TRAFFIC = {
     BrowsingUser: 80,
     CartUser: 15,
     OrderUser: 5,
-    PaymentUser: 0
+    PaymentUser: 0,
 }
 
 # 📌 프리셋 2: Medium Traffic (장바구니 진입)
@@ -230,7 +231,7 @@ MEDIUM_TRAFFIC = {
     BrowsingUser: 70,
     CartUser: 20,
     OrderUser: 10,
-    PaymentUser: 0
+    PaymentUser: 0,
 }
 
 # 📌 프리셋 3: High Intent (주문 생성 포함)
@@ -240,7 +241,7 @@ HIGH_INTENT_TRAFFIC = {
     BrowsingUser: 60,
     CartUser: 25,
     OrderUser: 12,
-    PaymentUser: 3
+    PaymentUser: 3,
 }
 
 # 📌 프리셋 4: Realistic Traffic (현실적 혼합)
@@ -250,7 +251,7 @@ REALISTIC_TRAFFIC = {
     BrowsingUser: 65,
     CartUser: 25,
     OrderUser: 8,
-    PaymentUser: 2
+    PaymentUser: 2,
 }
 
 # 📌 프리셋 5: Stress Test (극단 시나리오)
@@ -260,12 +261,12 @@ STRESS_TEST = {
     BrowsingUser: 0,
     CartUser: 0,
     OrderUser: 0,
-    PaymentUser: 100
+    PaymentUser: 100,
 }
 
 # ==================== 실제 사용할 시나리오 선택 ====================
 # 👇 여기서 원하는 프리셋을 선택하세요
-CURRENT_SCENARIO = HIGH_INTENT_TRAFFIC  # ✅ 기본값: 현실적 트래픽
+CURRENT_SCENARIO = REALISTIC_TRAFFIC  # ✅ 기본값: 현실적 트래픽
 
 
 class WebsiteUser(HttpUser):
@@ -300,15 +301,12 @@ class WebsiteUser(HttpUser):
             return
 
         user_id = random.randint(0, 999)
-        response = self.client.post("/api/auth/login/", json={
-            "username": f"load_test_user_{user_id}",
-            "password": "testpass123"
-        })
+        response = self.client.post(
+            "/api/auth/login/", json={"username": f"load_test_user_{user_id}", "password": "testpass123"}
+        )
         if response.status_code == 200:
             token = response.json().get("access")
-            self.client.headers.update({
-                "Authorization": f"Bearer {token}"
-            })
+            self.client.headers.update({"Authorization": f"Bearer {token}"})
             self.is_logged_in = True
 
 

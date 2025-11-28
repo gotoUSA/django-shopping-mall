@@ -29,7 +29,7 @@ services:
   # Django 웹 애플리케이션 (Gunicorn)
   web:
     build: .
-    command: gunicorn myproject.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120 --access-logfile - --error-logfile -
+    command: gunicorn myproject.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 4 --timeout 60 --worker-class gthread --access-logfile - --error-logfile -
     volumes:
       - .:/code
       - static_volume:/code/staticfiles

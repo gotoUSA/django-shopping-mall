@@ -332,11 +332,7 @@ class PointService:
         if type == "cancel_deduct":
             query = query.filter(expires_at__gt=now)
 
-        available_points = (
-            query
-            .exclude(metadata__contains={"expired": True})
-            .order_by("expires_at", "created_at")
-        )
+        available_points = query.exclude(metadata__contains={"expired": True}).order_by("expires_at", "created_at")
 
         used_details = []
         remaining_to_use = amount

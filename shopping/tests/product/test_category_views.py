@@ -20,7 +20,7 @@ class TestCategoryViews:
     """카테고리 조회 기능 테스트"""
 
     def test_get_category_tree(self, api_client):
-        """계층 구조로 카테고리 트리를 조회할 수 있다"""
+        """계층 구조로 카테고리 트리 조회"""
         # Arrange
         cache.delete("category_tree_v2")  # 캐시 초기화
         parent = CategoryFactory(name="전자제품", parent=None)
@@ -48,7 +48,7 @@ class TestCategoryViews:
         assert "스마트폰" in child_names
 
     def test_list_products_by_category(self, api_client):
-        """특정 카테고리의 상품 목록을 조회할 수 있다"""
+        """특정 카테고리의 상품 목록 조회"""
         # Arrange
         category = CategoryFactory(name="의류")
         ProductFactory(category=category, name="티셔츠")
@@ -71,7 +71,7 @@ class TestCategoryViews:
         assert "과자" not in product_names
 
     def test_list_products_includes_subcategories(self, api_client):
-        """상위 카테고리 조회 시 하위 카테고리 상품도 포함된다"""
+        """상위 카테고리 조회 시 하위 카테고리 상품 포함"""
         # Arrange
         parent = CategoryFactory(name="전자제품", parent=None)
         child = CategoryFactory(name="컴퓨터", parent=parent)

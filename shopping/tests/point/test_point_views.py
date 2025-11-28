@@ -34,7 +34,7 @@ class TestMyPointView:
     """내 포인트 정보 조회 테스트"""
 
     def test_returns_point_info_and_recent_histories(self, api_client):
-        """포인트 정보와 최근 이력을 반환한다"""
+        """포인트 정보와 최근 이력 반환"""
         # Arrange
         user = UserFactory.with_points(5000)
         order = OrderFactory(user=user)
@@ -55,7 +55,7 @@ class TestMyPointView:
         assert len(response.data["recent_histories"]) == 2
 
     def test_returns_max_5_recent_histories(self, api_client):
-        """이력이 5개 초과해도 최근 5개만 반환한다"""
+        """이력이 5개 초과해도 최근 5개만 반환"""
         # Arrange
         user = UserFactory.with_points(10000)
         for i in range(7):
@@ -72,7 +72,7 @@ class TestMyPointView:
         assert len(response.data["recent_histories"]) == 5
 
     def test_unauthenticated_returns_403(self, api_client):
-        """미인증 사용자는 403을 반환한다"""
+        """미인증 사용자 403 반환"""
         # Arrange
         url = reverse("my_points")
 
@@ -93,7 +93,7 @@ class TestPointHistoryListView:
     """포인트 이력 목록 조회 테스트"""
 
     def test_returns_paginated_history_with_summary(self, api_client):
-        """페이지네이션된 이력과 summary를 반환한다"""
+        """페이지네이션된 이력과 summary 반환"""
         # Arrange
         user = UserFactory.with_points(1500)
         PointHistoryFactory.earn(user=user, points=2000, balance=2000)
@@ -116,7 +116,7 @@ class TestPointHistoryListView:
         assert response.data["summary"]["total_used"] == 500
 
     def test_filter_by_type_earned_and_used(self, api_client):
-        """earned/used 타입으로 필터링한다"""
+        """earned/used 타입으로 필터링"""
         # Arrange
         user = UserFactory.with_points(1000)
         PointHistoryFactory.earn(user=user, points=1000, balance=1000)
@@ -143,7 +143,7 @@ class TestPointHistoryListView:
         assert all(h["points"] < 0 for h in response_used.data["results"])
 
     def test_filter_by_date_range(self, api_client):
-        """날짜 범위로 필터링한다"""
+        """날짜 범위로 필터링"""
         # Arrange
         user = UserFactory.with_points(3000)
         now = timezone.now()
@@ -178,7 +178,7 @@ class TestPointHistoryListView:
         assert response.data["count"] == 1
 
     def test_custom_page_and_page_size(self, api_client):
-        """page와 page_size 파라미터가 동작한다"""
+        """page와 page_size 파라미터 동작 확인"""
         # Arrange
         user = UserFactory.with_points(5000)
         for i in range(15):
@@ -197,7 +197,7 @@ class TestPointHistoryListView:
         assert len(response.data["results"]) == 5
 
     def test_unauthenticated_returns_403(self, api_client):
-        """미인증 사용자는 403을 반환한다"""
+        """미인증 사용자 403 반환"""
         # Arrange
         url = reverse("point_history")
 
@@ -218,7 +218,7 @@ class TestPointCheckView:
     """포인트 사용 가능 여부 확인 테스트"""
 
     def test_can_use_points_success(self, api_client):
-        """사용 가능한 포인트 확인 시 can_use=True를 반환한다"""
+        """사용 가능한 포인트 확인 시 can_use=True 반환"""
         # Arrange
         user = UserFactory.with_points(5000)
         api_client.force_authenticate(user=user)
@@ -237,7 +237,7 @@ class TestPointCheckView:
         assert "3000" in response.data["message"]
 
     def test_insufficient_points_returns_cannot_use(self, api_client):
-        """보유 포인트 부족 시 can_use=False를 반환한다"""
+        """보유 포인트 부족 시 can_use=False 반환"""
         # Arrange
         user = UserFactory.with_points(1000)
         api_client.force_authenticate(user=user)
@@ -254,7 +254,7 @@ class TestPointCheckView:
         assert "부족" in response.data["message"]
 
     def test_minimum_100_points_required(self, api_client):
-        """100 포인트 미만 사용 시 can_use=False를 반환한다"""
+        """100 포인트 미만 사용 시 can_use=False 반환"""
         # Arrange
         user = UserFactory.with_points(5000)
         api_client.force_authenticate(user=user)
@@ -271,7 +271,7 @@ class TestPointCheckView:
         assert "100" in response.data["message"]
 
     def test_unauthenticated_returns_403(self, api_client):
-        """미인증 사용자는 403을 반환한다"""
+        """미인증 사용자 403 반환"""
         # Arrange
         url = reverse("point_check")
         data = {"order_amount": 10000, "use_points": 500}
@@ -293,7 +293,7 @@ class TestExpiringPointsView:
     """만료 예정 포인트 조회 테스트"""
 
     def test_returns_expiring_points_with_monthly_summary(self, api_client):
-        """만료 예정 포인트와 월별 요약을 반환한다"""
+        """만료 예정 포인트와 월별 요약 반환"""
         # Arrange
         user = UserFactory.with_points(3000)
         now = timezone.now()
@@ -328,7 +328,7 @@ class TestExpiringPointsView:
         assert response.data["total_expiring"] == 1000
 
     def test_custom_days_parameter(self, api_client):
-        """days 파라미터로 조회 기간을 변경한다"""
+        """days 파라미터로 조회 기간 변경"""
         # Arrange
         user = UserFactory.with_points(3000)
         now = timezone.now()
@@ -368,7 +368,7 @@ class TestExpiringPointsView:
         assert response_60.data["total_expiring"] == 2000
 
     def test_unauthenticated_returns_403(self, api_client):
-        """미인증 사용자는 403을 반환한다"""
+        """미인증 사용자 403 반환"""
         # Arrange
         url = reverse("expiring_points")
 
@@ -389,7 +389,7 @@ class TestPointStatistics:
     """포인트 통계 정보 테스트"""
 
     def test_returns_complete_statistics_structure(self, api_client):
-        """전체 통계 구조를 반환한다"""
+        """전체 통계 구조 반환"""
         # Arrange
         user = UserFactory.with_points(5000)
         PointHistoryFactory.earn(user=user, points=3000, balance=3000)
@@ -410,7 +410,7 @@ class TestPointStatistics:
         assert response.data["current_points"] == 5000
 
     def test_this_month_and_all_time_accurate(self, api_client):
-        """이번달/전체 통계가 정확하다"""
+        """이번달/전체 통계 정확성 검증"""
         # Arrange
         user = UserFactory.with_points(4000)
         now = timezone.now()
@@ -446,7 +446,7 @@ class TestPointStatistics:
         assert response.data["all_time"]["used"] == 1000
 
     def test_unauthenticated_returns_403(self, api_client):
-        """미인증 사용자는 403을 반환한다"""
+        """미인증 사용자 403 반환"""
         # Arrange
         url = reverse("point_statistics")
 

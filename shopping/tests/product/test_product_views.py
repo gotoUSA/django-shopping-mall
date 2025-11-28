@@ -115,7 +115,7 @@ class TestProductCRUD:
     """상품 생성/수정/삭제 테스트"""
 
     def test_seller_can_create_product(self, api_client):
-        """판매자는 상품을 생성할 수 있다"""
+        """판매자 상품 생성 가능"""
         # Arrange
         seller = UserFactory.seller()
         category = CategoryFactory()
@@ -140,7 +140,7 @@ class TestProductCRUD:
         assert Product.objects.filter(name="신규 상품", seller=seller).exists()
 
     def test_non_seller_cannot_create_product(self, api_client):
-        """일반 사용자는 상품을 생성할 수 없다"""
+        """일반 사용자 상품 생성 불가"""
         # Arrange
         user = UserFactory()  # is_seller=False
         category = CategoryFactory()
@@ -163,7 +163,7 @@ class TestProductCRUD:
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_owner_can_update_product(self, api_client):
-        """판매자는 본인 상품을 수정할 수 있다"""
+        """판매자 본인 상품 수정 가능"""
         # Arrange
         seller = UserFactory.seller()
         product = ProductFactory(seller=seller, name="원래 이름", price=Decimal("10000"))
@@ -180,7 +180,7 @@ class TestProductCRUD:
         assert product.name == "수정된 이름"
 
     def test_non_owner_cannot_update_product(self, api_client):
-        """다른 판매자의 상품은 수정할 수 없다"""
+        """다른 판매자의 상품 수정 불가"""
         # Arrange
         owner = UserFactory.seller()
         other_seller = UserFactory.seller()
@@ -196,7 +196,7 @@ class TestProductCRUD:
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_owner_can_delete_product(self, api_client):
-        """판매자는 본인 상품을 삭제할 수 있다"""
+        """판매자 본인 상품 삭제 가능"""
         # Arrange
         seller = UserFactory.seller()
         product = ProductFactory(seller=seller)
@@ -223,7 +223,7 @@ class TestProductReview:
     """상품 리뷰 기능 테스트"""
 
     def test_list_product_reviews(self, api_client):
-        """상품의 리뷰 목록을 조회할 수 있다"""
+        """상품의 리뷰 목록 조회"""
         # Arrange
         product = ProductFactory()
         ProductReviewFactory(product=product, rating=5, comment="좋아요")
@@ -239,7 +239,7 @@ class TestProductReview:
         assert len(response.data["results"]) == 2
 
     def test_authenticated_user_can_add_review(self, api_client):
-        """인증된 사용자는 리뷰를 작성할 수 있다"""
+        """인증된 사용자 리뷰 작성 가능"""
         # Arrange
         user = UserFactory()
         product = ProductFactory()
@@ -256,7 +256,7 @@ class TestProductReview:
         assert ProductReview.objects.filter(product=product, user=user).exists()
 
     def test_duplicate_review_returns_400(self, api_client):
-        """같은 상품에 두 번째 리뷰는 작성할 수 없다"""
+        """같은 상품에 중복 리뷰 작성 불가"""
         # Arrange
         user = UserFactory()
         product = ProductFactory()
@@ -274,7 +274,7 @@ class TestProductReview:
         assert "이미" in response.data.get("error", "")
 
     def test_unauthenticated_user_cannot_add_review(self, api_client):
-        """비로그인 사용자는 리뷰를 작성할 수 없다"""
+        """비로그인 사용자 리뷰 작성 불가"""
         # Arrange
         product = ProductFactory()
         review_data = {"rating": 5, "comment": "좋아요"}
@@ -343,7 +343,7 @@ class TestProductCustomActions:
         assert response.data[0]["name"] == "고평점상품"
 
     def test_seller_can_view_low_stock_products(self, api_client):
-        """판매자는 본인의 재고 부족 상품을 조회할 수 있다"""
+        """판매자 본인의 재고 부족 상품 조회"""
         # Arrange
         seller = UserFactory.seller()
         ProductFactory(seller=seller, name="재고부족", stock=5)
@@ -362,7 +362,7 @@ class TestProductCustomActions:
         assert "재고충분" not in product_names
 
     def test_non_seller_cannot_view_low_stock(self, api_client):
-        """일반 사용자는 재고 부족 상품을 조회할 수 없다"""
+        """일반 사용자 재고 부족 상품 조회 불가"""
         # Arrange
         user = UserFactory()  # is_seller=False
         api_client.force_authenticate(user=user)

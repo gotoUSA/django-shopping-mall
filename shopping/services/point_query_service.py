@@ -139,14 +139,10 @@ class PointQueryService:
 
         # 날짜 필터 (date를 timezone-aware datetime으로 변환)
         if filter_params.start_date:
-            start_datetime = timezone.make_aware(
-                datetime.combine(filter_params.start_date, datetime.min.time())
-            )
+            start_datetime = timezone.make_aware(datetime.combine(filter_params.start_date, datetime.min.time()))
             queryset = queryset.filter(created_at__gte=start_datetime)
         if filter_params.end_date:
-            end_datetime = timezone.make_aware(
-                datetime.combine(filter_params.end_date, datetime.max.time())
-            )
+            end_datetime = timezone.make_aware(datetime.combine(filter_params.end_date, datetime.max.time()))
             queryset = queryset.filter(created_at__lte=end_datetime)
 
         # 정렬
@@ -261,14 +257,10 @@ class PointQueryService:
             PointStatistics: 종합 통계
         """
         # 이번달 시작일
-        this_month_start = timezone.now().replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0
-        )
+        this_month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         # 이번달 적립/사용 - Manager 메서드 활용
-        this_month_stats = PointHistory.objects.get_month_statistics(
-            user, this_month_start
-        )
+        this_month_stats = PointHistory.objects.get_month_statistics(user, this_month_start)
 
         # 전체 통계 - Manager 메서드 활용
         total_earned = PointHistory.objects.get_total_earned(user)
@@ -276,9 +268,7 @@ class PointQueryService:
 
         # 타입별 통계 - 단일 쿼리로 집계
         type_stats = list(
-            PointHistory.objects.filter(user=user)
-            .values("type")
-            .annotate(count=Count("id"), total=Sum("points"))
+            PointHistory.objects.filter(user=user).values("type").annotate(count=Count("id"), total=Sum("points"))
         )
 
         return PointStatistics(
@@ -303,11 +293,7 @@ class PointQueryService:
         Returns:
             QuerySet: 최근 이력
         """
-        return (
-            PointHistory.objects.filter(user=user)
-            .select_related("order")
-            .order_by("-created_at")[:limit]
-        )
+        return PointHistory.objects.filter(user=user).select_related("order").order_by("-created_at")[:limit]
 
     @staticmethod
     def build_filter_from_request(request) -> PointHistoryFilter:
@@ -326,12 +312,8 @@ class PointQueryService:
         """
         return PointHistoryFilter(
             type_filter=request.GET.get("type"),
-            start_date=PointHistoryFilter.parse_date(
-                request.GET.get("start_date"), "start_date"
-            ),
-            end_date=PointHistoryFilter.parse_date(
-                request.GET.get("end_date"), "end_date"
-            ),
+            start_date=PointHistoryFilter.parse_date(request.GET.get("start_date"), "start_date"),
+            end_date=PointHistoryFilter.parse_date(request.GET.get("end_date"), "end_date"),
             page=int(request.GET.get("page", 1)),
             page_size=int(request.GET.get("page_size", 20)),
         )

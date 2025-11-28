@@ -124,9 +124,7 @@ class ExpiringPointsView(APIView):
         days = int(request.GET.get("days", 30))  # 기본 30일
 
         # Service 레이어에서 월별 만료 예정 요약 조회
-        monthly_summary, expiring_histories, total_expiring = (
-            PointQueryService.get_monthly_expiring_summary(user, days=days)
-        )
+        monthly_summary, expiring_histories, total_expiring = PointQueryService.get_monthly_expiring_summary(user, days=days)
 
         serializer = PointHistorySerializer(expiring_histories, many=True)
 
@@ -135,8 +133,7 @@ class ExpiringPointsView(APIView):
                 "total_expiring": total_expiring,
                 "days": days,
                 "monthly_summary": [
-                    {"month": item.month, "points": item.points, "count": item.count}
-                    for item in monthly_summary
+                    {"month": item.month, "points": item.points, "count": item.count} for item in monthly_summary
                 ],
                 "histories": serializer.data,
             }

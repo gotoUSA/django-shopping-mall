@@ -418,9 +418,7 @@ class TestCartItemViewSetDestroy:
         client.force_authenticate(user=user)
 
         # Act
-        response = client.delete(
-            reverse("cart-item-detail", kwargs={"pk": item_id})
-        )
+        response = client.delete(reverse("cart-item-detail", kwargs={"pk": item_id}))
 
         # Assert
         assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -435,9 +433,7 @@ class TestCartItemViewSetDestroy:
         client.force_authenticate(user=user)
 
         # Act
-        response = client.delete(
-            reverse("cart-item-detail", kwargs={"pk": 99999})
-        )
+        response = client.delete(reverse("cart-item-detail", kwargs={"pk": 99999}))
 
         # Assert
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -457,9 +453,7 @@ class TestCartItemViewSetDestroy:
         CartFactory(user=user)
 
         # Act
-        response = client.delete(
-            reverse("cart-item-detail", kwargs={"pk": other_item.id})
-        )
+        response = client.delete(reverse("cart-item-detail", kwargs={"pk": other_item.id}))
 
         # Assert
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -479,9 +473,7 @@ class TestCartDeleteItemNotFound:
         client.force_authenticate(user=user)
 
         # Act
-        response = client.delete(
-            reverse("cart-item-detail", kwargs={"pk": 99999})
-        )
+        response = client.delete(reverse("cart-item-detail", kwargs={"pk": 99999}))
 
         # Assert
         assert response.status_code == status.HTTP_404_NOT_FOUND

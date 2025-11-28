@@ -229,6 +229,8 @@ urlpatterns = [
         name="point_history",
     ),
     path("points/check/", point_views.PointCheckView.as_view(), name="point_check"),
+    path("points/use/", point_views.PointUseView.as_view(), name="point_use"),
+    path("points/cancel/", point_views.PointCancelView.as_view(), name="point_cancel"),
     path(
         "points/expiring/",
         point_views.ExpiringPointsView.as_view(),

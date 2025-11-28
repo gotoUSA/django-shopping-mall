@@ -730,3 +730,33 @@ class TestPaymentCancelException:
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "error" in response.data
+
+    def test_unexpected_exception_500_error(
+        self,
+        authenticated_client,
+        paid_payment,
+        mocker,
+    ):
+        """기타 예외 500 에러"""
+        # Arrange - 예상치 못한 예외 발생
+        mocker.patch(
+            "shopping.services.payment_service.PaymentService.cancel_payment",
+            side_effect=RuntimeError("데이터베이스 연결 오류"),
+        )
+
+        request_data = {
+            "payment_id": paid_payment.id,
+            "cancel_reason": "500 에러 테스트",
+        }
+
+        # Act
+        response = authenticated_client.post(
+            "/api/payments/cancel/",
+            request_data,
+            format="json",
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert "결제 취소 중 오류가 발생했습니다" in str(response.data)
+        assert "message" in response.data

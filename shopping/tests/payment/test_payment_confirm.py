@@ -705,3 +705,134 @@ class TestPaymentConfirmException:
         # Assert - Payment는 실패 상태로 변경됨 (에러 로그를 위해)
         payment.refresh_from_db()
         assert payment.status == "aborted"
+
+    def test_payment_confirm_error_exception(
+        self,
+        authenticated_client,
+        user,
+        order,
+        payment,
+        mocker,
+    ):
+        """PaymentConfirmError 예외 핸들링 (중복 결제, 잘못된 상태 등)"""
+        # Arrange
+        from shopping.services.payment_service import PaymentConfirmError
+
+        mocker.patch(
+            "shopping.services.payment_service.PaymentService.confirm_payment_async",
+            side_effect=PaymentConfirmError("이미 처리 중인 결제입니다."),
+        )
+
+        request_data = {
+            "order_id": order.id,
+            "payment_key": "test_key",
+            "amount": int(payment.amount),
+        }
+
+        # Act
+        response = authenticated_client.post(
+            "/api/payments/confirm/",
+            request_data,
+            format="json",
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "이미 처리 중인 결제입니다" in str(response.data)
+
+    def test_toss_error_already_aborted(
+        self,
+        authenticated_client,
+        user,
+        order,
+        payment,
+        mocker,
+    ):
+        """TossPaymentError 발생 시 이미 aborted 상태인 경우 (라인 204 커버)
+
+        시나리오: 요청 시 pending 상태로 Serializer 통과 → confirm_payment_async에서 TossPaymentError 발생
+        → payment.refresh_from_db() 후 aborted 상태로 확인됨 → mark_as_failed 호출 안 함
+        """
+        # Arrange - pending 상태로 Serializer 검증 통과
+
+        # TossPaymentError 발생하도록 설정
+        mocker.patch(
+            "shopping.services.payment_service.PaymentService.confirm_payment_async",
+            side_effect=TossPaymentError("ALREADY_PROCESSED", "이미 처리된 결제입니다."),
+        )
+
+        # refresh_from_db 호출 시 aborted 상태가 되도록 설정
+        original_refresh = payment.refresh_from_db
+
+        def mock_refresh(*args, **kwargs):
+            original_refresh(*args, **kwargs)
+            # refresh 후 status를 aborted로 변경 (다른 프로세스에서 변경된 것처럼)
+            Payment.objects.filter(pk=payment.pk).update(status="aborted")
+
+        mocker.patch.object(payment, "refresh_from_db", mock_refresh)
+
+        request_data = {
+            "order_id": order.id,
+            "payment_key": "test_key",
+            "amount": int(payment.amount),
+        }
+
+        # Act
+        response = authenticated_client.post(
+            "/api/payments/confirm/",
+            request_data,
+            format="json",
+        )
+
+        # Assert - 202 반환 (비동기 처리 중)
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.data["status"] == "processing"
+        assert response.data["task_id"] == "error"
+
+        # Assert - aborted 상태 확인
+        payment.refresh_from_db()
+        assert payment.status == "aborted"
+
+    def test_generic_exception_500_error(
+        self,
+        authenticated_client,
+        user,
+        order,
+        payment,
+        mocker,
+    ):
+        """기타 예외 500 에러"""
+        # Arrange
+        mocker.patch(
+            "shopping.services.payment_service.PaymentService.confirm_payment_async",
+            side_effect=RuntimeError("예상치 못한 서버 오류"),
+        )
+
+        request_data = {
+            "order_id": order.id,
+            "payment_key": "test_key",
+            "amount": int(payment.amount),
+        }
+
+        # Act
+        response = authenticated_client.post(
+            "/api/payments/confirm/",
+            request_data,
+            format="json",
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert "결제 처리 중 오류가 발생했습니다" in str(response.data)
+
+        # Assert - Payment 실패 상태로 변경
+        payment.refresh_from_db()
+        assert payment.status == "aborted"
+
+        # Assert - 에러 로그 기록
+        error_logs = PaymentLog.objects.filter(
+            payment=payment,
+            log_type="error",
+            message__contains="서버 오류",
+        )
+        assert error_logs.exists()

@@ -436,3 +436,26 @@ class TestPaymentRequestException:
 
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_order_without_items(self, authenticated_client, user):
+        """주문 항목이 없는 주문"""
+        # Arrange - OrderItem 없이 주문만 생성
+        order = OrderFactory(
+            user=user,
+            status="confirmed",
+            total_amount=Decimal("10000"),
+        )
+        # OrderItem을 생성하지 않음
+
+        request_data = {"order_id": order.id}
+
+        # Act
+        response = authenticated_client.post(
+            "/api/payments/request/",
+            request_data,
+            format="json",
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "주문 항목이 아직 생성되지 않았습니다" in str(response.json())

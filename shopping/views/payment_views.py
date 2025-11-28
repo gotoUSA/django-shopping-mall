@@ -563,7 +563,7 @@ def payment_test_page(request, order_id):
 
     # 이미 결제된 주문인지 확인
     if hasattr(order, "payment") and order.payment.is_paid:
-        return redirect("shopping:order_detail", order_id=order.id)
+        return redirect("order-detail", pk=order.id)
 
     context = {
         "order": order,
@@ -602,7 +602,7 @@ def payment_success(request):
         payment = Payment.objects.get(toss_order_id=order_id)
 
         # PaymentService를 통한 결제 승인 처리
-        result = PaymentService.confirm_payment(
+        result = PaymentService.confirm_payment_sync(
             payment=payment,
             payment_key=payment_key,
             order_id=int(order_id),  # int로 변환

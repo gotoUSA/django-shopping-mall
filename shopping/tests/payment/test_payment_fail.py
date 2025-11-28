@@ -577,3 +577,72 @@ class TestPaymentFailException:
 
         # Assert
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_other_user_payment_fail_attempt(
+        self,
+        api_client,
+        user,
+        other_user,
+        product,
+    ):
+        """타인의 결제 실패 처리 시도"""
+        # Arrange - user의 주문/결제 생성
+        order = OrderFactory(user=user)
+        OrderItemFactory(order=order, product=product)
+        payment = PaymentFactory(order=order)
+
+        # other_user로 인증
+        api_client.force_authenticate(user=other_user)
+
+        request_data = {
+            "code": "USER_CANCEL",
+            "message": "권한 없는 실패 처리",
+            "order_id": payment.toss_order_id,
+        }
+
+        # Act
+        response = api_client.post(
+            "/api/payments/fail/",
+            request_data,
+            format="json",
+        )
+
+        # Assert - 보안: 본인 결제만 실패 처리 가능
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert "결제 정보를 찾을 수 없습니다" in str(response.data)
+
+        # Assert - Payment 상태 변경 없음
+        payment.refresh_from_db()
+        assert payment.status == "ready"
+
+    def test_unexpected_exception_500_error(
+        self,
+        authenticated_client,
+        payment,
+        mocker,
+    ):
+        """Exception 500 에러 핸들링"""
+        # Arrange - mark_as_failed에서 예외 발생
+        mocker.patch.object(
+            payment.__class__,
+            "mark_as_failed",
+            side_effect=RuntimeError("데이터베이스 오류"),
+        )
+
+        request_data = {
+            "code": "USER_CANCEL",
+            "message": "결제 취소",
+            "order_id": payment.toss_order_id,
+        }
+
+        # Act
+        response = authenticated_client.post(
+            "/api/payments/fail/",
+            request_data,
+            format="json",
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert "결제 실패 처리 중 오류가 발생했습니다" in str(response.data)
+        assert "message" in response.data

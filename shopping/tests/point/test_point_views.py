@@ -162,9 +162,9 @@ class TestPointHistoryListView:
         api_client.force_authenticate(user=user)
         url = reverse("point_history")
 
-        # Act - 5~10일 전 범위 (timezone-aware ISO format)
-        start_date = (now - timedelta(days=10)).isoformat()
-        end_date = (now - timedelta(days=3)).isoformat()
+        # Act - 5~10일 전 범위 (YYYY-MM-DD format)
+        start_date = (now - timedelta(days=10)).strftime("%Y-%m-%d")
+        end_date = (now - timedelta(days=3)).strftime("%Y-%m-%d")
         response = api_client.get(
             url,
             {

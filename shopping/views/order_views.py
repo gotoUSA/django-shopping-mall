@@ -84,6 +84,21 @@ class OrderPagination(PageNumberPagination):
         description="주문 상세 정보를 조회합니다. 본인 주문 또는 관리자만 조회 가능합니다.",
         tags=["Orders"],
     ),
+    update=extend_schema(
+        summary="주문 전체 수정",
+        description="주문 정보를 전체 수정합니다. 관리자만 사용 가능합니다.",
+        tags=["Orders"],
+    ),
+    partial_update=extend_schema(
+        summary="주문 부분 수정",
+        description="주문 정보를 부분 수정합니다. 관리자만 사용 가능합니다.",
+        tags=["Orders"],
+    ),
+    destroy=extend_schema(
+        summary="주문 삭제",
+        description="주문을 삭제합니다. 관리자만 사용 가능합니다.",
+        tags=["Orders"],
+    ),
 )
 class OrderViewSet(viewsets.ModelViewSet):
     """

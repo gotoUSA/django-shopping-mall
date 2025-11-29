@@ -65,6 +65,17 @@ class ProfileView(generics.RetrieveUpdateAPIView):
         return self.request.user
 
     @extend_schema(
+        responses={200: UserSerializer},
+        summary="내 프로필 조회",
+        description="현재 로그인한 사용자의 프로필 정보를 조회합니다.",
+    )
+    def retrieve(self, request: Request, *args, **kwargs) -> Response:
+        """GET 요청 처리 - 프로필 조회"""
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    @extend_schema(
         request=UserSerializer,
         responses={
             200: ProfileUpdateResponseSerializer,

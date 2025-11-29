@@ -96,6 +96,8 @@ class ReturnViewSet(viewsets.ModelViewSet):
 
     permission_classes = [IsAuthenticated]
     queryset = Return.objects.all()
+    # PUT(전체 수정)은 불필요 - PATCH(부분 수정)만 허용
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_serializer_class(self) -> type[BaseSerializer]:
         """액션별 Serializer 선택"""
@@ -218,7 +220,7 @@ class ReturnViewSet(viewsets.ModelViewSet):
         responses={200: ReturnActionResponseSerializer, 403: ReturnErrorResponseSerializer},
         summary="교환/환불 승인",
         description="판매자가 교환/환불 요청을 승인합니다.",
-        tags=["교환/환불"],
+        tags=["Returns / Refunds"],
     )
     @action(detail=True, methods=["post"], url_path="approve")
     def approve(self, request: Request, pk: int | None = None) -> Response:
@@ -243,7 +245,7 @@ class ReturnViewSet(viewsets.ModelViewSet):
         responses={200: ReturnActionResponseSerializer, 403: ReturnErrorResponseSerializer},
         summary="교환/환불 거부",
         description="판매자가 교환/환불 요청을 거부합니다. 거부 사유를 함께 입력합니다.",
-        tags=["교환/환불"],
+        tags=["Returns / Refunds"],
     )
     @action(detail=True, methods=["post"], url_path="reject")
     def reject(self, request: Request, pk: int | None = None) -> Response:
@@ -268,7 +270,7 @@ class ReturnViewSet(viewsets.ModelViewSet):
         responses={200: ReturnActionResponseSerializer, 403: ReturnErrorResponseSerializer},
         summary="반품 도착 확인",
         description="판매자가 반품 상품의 도착을 확인합니다.",
-        tags=["교환/환불"],
+        tags=["Returns / Refunds"],
     )
     @action(detail=True, methods=["post"], url_path="confirm-receive")
     def confirm_receive(self, request: Request, pk: int | None = None) -> Response:
@@ -297,7 +299,7 @@ class ReturnViewSet(viewsets.ModelViewSet):
         },
         summary="교환/환불 완료 처리",
         description="판매자가 교환/환불을 완료 처리합니다. 환불은 자동 환불 처리되고, 교환은 교환 상품 송장번호를 입력합니다.",
-        tags=["교환/환불"],
+        tags=["Returns / Refunds"],
     )
     @action(detail=True, methods=["post"], url_path="complete")
     def complete(self, request: Request, pk: int | None = None) -> Response:

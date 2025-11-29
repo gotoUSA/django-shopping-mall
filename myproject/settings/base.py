@@ -200,6 +200,7 @@ SPECTACULAR_SETTINGS = {
     # 태그 변환 함수
     "PREPROCESSING_HOOKS": ["shopping.utils.spectacular_hooks.preprocess_exclude_endpoints"],
     "POSTPROCESSING_HOOKS": ["shopping.utils.spectacular_hooks.postprocess_tags"],
+
 }
 
 

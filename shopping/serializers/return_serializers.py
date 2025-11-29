@@ -37,10 +37,12 @@ class ReturnCreateSerializer(serializers.ModelSerializer):
     """교환/환불 신청 Serializer"""
 
     items = ReturnItemSerializer(many=True, write_only=True, source="return_items")
+    order_id = serializers.IntegerField(write_only=True, required=False, help_text="주문 ID")
 
     class Meta:
         model = Return
         fields = [
+            "order_id",  # body에서 order_id를 받을 수 있도록 추가
             "type",
             "reason",
             "reason_detail",
@@ -56,7 +58,11 @@ class ReturnCreateSerializer(serializers.ModelSerializer):
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """데이터 유효성 검증"""
         request = self.context.get("request")
-        order_id = self.context.get("order_id")
+        # context에서 order_id를 먼저 확인하고, 없으면 body에서 확인
+        order_id = self.context.get("order_id") or attrs.get("order_id")
+        
+        if not order_id:
+            raise serializers.ValidationError("주문 ID가 필요합니다.")
 
         # 주문 존재 여부 확인
         try:

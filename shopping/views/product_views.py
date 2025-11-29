@@ -152,6 +152,19 @@ class ProductViewSet(viewsets.ModelViewSet):
     ]  # 가격, 등록일, 재고, 이름순 정렬
     ordering = ["-created_at"]  # 기본 정렬: 최신순
 
+    def get_permissions(self) -> list:
+        """
+        액션별 권한 설정
+
+        - reviews, create_review: 인증된 사용자면 리뷰 작성 가능 (판매자 아니어도 됨)
+        - create, update, partial_update, destroy: 판매자만 가능
+        - list, retrieve: 누구나 가능
+        """
+        if self.action in ["reviews", "create_review"]:
+            # 리뷰는 인증된 사용자면 작성 가능
+            return [permissions.IsAuthenticatedOrReadOnly()]
+        return super().get_permissions()
+
     def get_serializer_class(self) -> type[BaseSerializer]:
         """
         액션별 Serializer 선택
@@ -322,7 +335,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 - 페이지네이션을 적용한다.""",
         tags=["Products"],
     )
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get"], permission_classes=[permissions.AllowAny])
     def reviews(self, request: Request, pk: int | None = None) -> Response:
         product = self.get_object()
         reviews = product.reviews.all().select_related("user")

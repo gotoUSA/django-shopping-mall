@@ -207,7 +207,8 @@ class ReturnViewSet(viewsets.ModelViewSet):
         return True, ""
 
     def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        order_id = kwargs.get("order_id")
+        # URL kwargs 또는 request body에서 order_id를 받을 수 있음
+        order_id = kwargs.get("order_id") or request.data.get("order_id")
 
         serializer = self.get_serializer(data=request.data, context={"request": request, "order_id": order_id})
 

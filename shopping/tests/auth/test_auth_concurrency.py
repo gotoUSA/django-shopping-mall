@@ -101,11 +101,16 @@ class TestConcurrentLogin:
                     {"username": username, "password": password},
                     format="json"
                 )
+                # 새 구조: token.access
+                access = response.data.get("token", {}).get("access") if response.status_code == 200 else None
+                # refresh는 Cookie에서 가져옴
+                refresh = response.cookies.get("refresh_token")
+                refresh_value = refresh.value if refresh else None
                 return {
                     "username": username,
                     "status": response.status_code,
-                    "access": response.data.get("access") if response.status_code == 200 else None,
-                    "refresh": response.data.get("refresh") if response.status_code == 200 else None,
+                    "access": access,
+                    "refresh": refresh_value,
                 }
             except Exception as e:
                 return {"username": username, "error": str(e)}
@@ -156,9 +161,11 @@ class TestConcurrentLogin:
             client = APIClient()
             try:
                 response = client.post(login_url, {"username": username, "password": password}, format="json")
+                # 새 구조: token.access
+                access = response.data.get("token", {}).get("access") if response.status_code == 200 else None
                 return {
                     "status": response.status_code,
-                    "access": response.data.get("access") if response.status_code == 200 else None,
+                    "access": access,
                 }
             except Exception as e:
                 return {"error": str(e)}
@@ -188,10 +195,15 @@ class TestConcurrentLogin:
             client = APIClient()
             try:
                 response = client.post(login_url, {"username": "sameuser", "password": "testpass123"}, format="json")
+                # 새 구조: token.access
+                access = response.data.get("token", {}).get("access") if response.status_code == 200 else None
+                # refresh는 Cookie에서 가져옴
+                refresh = response.cookies.get("refresh_token")
+                refresh_value = refresh.value if refresh else None
                 return {
                     "status": response.status_code,
-                    "access": response.data.get("access") if response.status_code == 200 else None,
-                    "refresh": response.data.get("refresh") if response.status_code == 200 else None,
+                    "access": access,
+                    "refresh": refresh_value,
                 }
             except Exception as e:
                 return {"error": str(e)}
@@ -272,7 +284,10 @@ class TestRefreshTokenConcurrency:
 
         # Assert - 첫 번째 갱신 성공
         assert first_response.status_code == status.HTTP_200_OK
-        new_refresh_token = first_response.data["refresh"]
+        # 새 구조: refresh token은 Cookie에서 가져옴
+        new_refresh_cookie = first_response.cookies.get("refresh_token")
+        assert new_refresh_cookie is not None, "새 refresh token이 Cookie에 있어야 합니다"
+        new_refresh_token = new_refresh_cookie.value
 
         # Act - 새 refresh token으로 다시 갱신
         second_response = client.post(refresh_url, {"refresh": new_refresh_token}, format="json")
@@ -280,7 +295,8 @@ class TestRefreshTokenConcurrency:
         # Assert - 두 번째 갱신도 성공
         assert second_response.status_code == status.HTTP_200_OK
         assert "access" in second_response.data
-        assert "refresh" in second_response.data
+        # refresh는 Cookie에서 확인
+        assert "refresh_token" in second_response.cookies
 
         close_db_connections()
 

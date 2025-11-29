@@ -682,7 +682,7 @@ class TestCartConcurrency:
             reverse("auth-login"),
             {"username": user.username, "password": "testpass123"},
         )
-        token = response.json()["access"]
+        token = response.json()["token"]["access"]
 
         success_count = 0
         thread_count = 5
@@ -724,7 +724,7 @@ class TestCartConcurrency:
             reverse("auth-login"),
             {"username": user.username, "password": "testpass123"},
         )
-        token = response.json()["access"]
+        token = response.json()["token"]["access"]
 
         quantities = [3, 7, 2, 8, 4]
         results = []

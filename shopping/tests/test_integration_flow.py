@@ -53,8 +53,8 @@ class UserIntegrationTest(TestCase):
 
         response = self.client.post(self.register_url, register_data, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn("tokens", response.data)
-        self.assertIn("access", response.data["tokens"])
+        self.assertIn("token", response.data)
+        self.assertIn("access", response.data["token"])
 
         user = User.objects.get(username="testuser")
         self.assertFalse(user.is_email_verified)  # 아직 미인증 상태
@@ -69,7 +69,7 @@ class UserIntegrationTest(TestCase):
         response = self.client.post(self.login_url, login_data, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        access_token = response.data["access"]
+        access_token = response.data["token"]["access"]
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
 
         # 4. 장바구니에 상품 추가
@@ -118,7 +118,7 @@ class UserIntegrationTest(TestCase):
         }
 
         response = self.client.post(self.register_url, register_data, format="json")
-        access_token = response.data["tokens"]["access"]
+        access_token = response.data["token"]["access"]
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
 
         user = User.objects.get(username="unverified")

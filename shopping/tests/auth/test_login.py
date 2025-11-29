@@ -23,11 +23,13 @@ class TestLoginSuccess:
 
         response_data = response.json()
 
-        # JWT 토큰 발급 확인
-        assert "access" in response_data
-        assert "refresh" in response_data
-        assert response_data["access"]  # 토큰이 비어있지 않은지
-        assert response_data["refresh"]
+        # JWT 토큰 발급 확인 (새 구조: token.access)
+        assert "token" in response_data
+        assert "access" in response_data["token"]
+        assert response_data["token"]["access"]  # 토큰이 비어있지 않은지
+
+        # Refresh 토큰은 HTTP Only Cookie로 전달됨
+        assert "refresh_token" in response.cookies
 
         # 사용자 정보 확인
         assert "user" in response_data
@@ -46,17 +48,20 @@ class TestLoginSuccess:
 
         response_data = response.json()
 
-        # 최상위 필수 키 확인
-        required_keys = ["access", "refresh", "user", "message"]
+        # 최상위 필수 키 확인 (새 구조)
+        required_keys = ["token", "user", "message"]
         for key in required_keys:
             assert key in response_data, f"응답에 '{key}' 키가 없습니다"
+        
+        # token 객체 내 access 확인
+        assert "access" in response_data["token"], "token 객체에 'access' 키가 없습니다"
 
         # 성공 메세지 확인
         assert response_data["message"] == "로그인 되었습니다."
 
-        # user 객체 필드 확인
+        # user 객체 필드 확인 (최소 정보만 반환)
         user_data = response_data["user"]
-        user_required_fields = ["id", "username", "email"]
+        user_required_fields = ["username", "email"]
         for field in user_required_fields:
             assert field in user_data, f"user 객체에 '{field}' 필드가 없습니다"
 
@@ -76,15 +81,17 @@ class TestLoginSuccess:
 
         response_data = response.json()
 
-        # 토큰 타입 확인
-        assert isinstance(response_data["access"], str)
-        assert isinstance(response_data["refresh"], str)
+        # Access 토큰 타입 확인 (새 구조: token.access)
+        assert isinstance(response_data["token"]["access"], str)
 
         # JWT 형식 확인 (header.payload.signature)
-        access_parts = response_data["access"].split(".")
-        refresh_parts = response_data["refresh"].split(".")
-
+        access_parts = response_data["token"]["access"].split(".")
         assert len(access_parts) == 3, "Access 토큰이 JWT 형식이 아닙니다"
+        
+        # Refresh 토큰은 Cookie에서 확인
+        refresh_cookie = response.cookies.get("refresh_token")
+        assert refresh_cookie is not None, "Refresh 토큰이 Cookie에 없습니다"
+        refresh_parts = refresh_cookie.value.split(".")
         assert len(refresh_parts) == 3, "Refresh 토큰이 JWT 형식이 아닙니다"
 
 

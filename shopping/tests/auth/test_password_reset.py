@@ -178,10 +178,12 @@ class TestPasswordResetConfirm:
         login_data = login_data_factory(username=user.username, password=new_password)
         login_response = api_client.post(login_url, login_data, format="json")
 
-        # Assert
+        # Assert (새 구조: token.access)
         assert login_response.status_code == status.HTTP_200_OK
-        assert "access" in login_response.data
-        assert "refresh" in login_response.data
+        assert "token" in login_response.data
+        assert "access" in login_response.data["token"]
+        # refresh는 Cookie에서 확인
+        assert "refresh_token" in login_response.cookies
 
     def test_old_password_invalid_after_reset(self, api_client, user, password_reset_confirm_data_factory, login_data_factory):
         """재설정 후 이전 비밀번호는 사용 불가"""

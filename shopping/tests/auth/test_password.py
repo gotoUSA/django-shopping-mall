@@ -57,10 +57,12 @@ class TestPasswordChangeSuccess:
         }
         new_password_response = api_client.post(login_url, new_password_data)
 
-        # Assert
+        # Assert (새 구조: token.access)
         assert new_password_response.status_code == status.HTTP_200_OK
-        assert "access" in new_password_response.data
-        assert "refresh" in new_password_response.data
+        assert "token" in new_password_response.data
+        assert "access" in new_password_response.data["token"]
+        # refresh는 Cookie에서 확인
+        assert "refresh_token" in new_password_response.cookies
 
 
 @pytest.mark.django_db
@@ -395,8 +397,8 @@ class TestPasswordChangeTokens:
         )
         assert initial_login.status_code == status.HTTP_200_OK
 
-        # 토큰으로 비밀번호 변경
-        access_token = initial_login.data["access"]
+        # 토큰으로 비밀번호 변경 (새 구조: token.access)
+        access_token = initial_login.data["token"]["access"]
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
 
         change_url = reverse("user-password-change")
@@ -424,10 +426,12 @@ class TestPasswordChangeTokens:
             {"username": "testuser", "password": "SuperNewPass888!"},  # 새 비밀번호
         )
 
-        # Assert - 검증: 새 비밀번호로는 로그인 성공
+        # Assert - 검증: 새 비밀번호로는 로그인 성공 (새 구조)
         assert new_login_attempt.status_code == status.HTTP_200_OK
-        assert "access" in new_login_attempt.data
-        assert "refresh" in new_login_attempt.data
+        assert "token" in new_login_attempt.data
+        assert "access" in new_login_attempt.data["token"]
+        # refresh는 Cookie에서 확인
+        assert "refresh_token" in new_login_attempt.cookies
 
 
 @pytest.mark.django_db

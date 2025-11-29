@@ -337,14 +337,14 @@ def login_helper(api_client):
             reverse("auth-login"), {"username": user.username, "password": TEST_USER_PASSWORD}, format="json"
         )
         if response.status_code == 200:
-            token = response.json()["access"]
+            token = response.json()["token"]["access"]
             api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
             return api_client, token
         # admin의 경우 비밀번호가 다를 수 있음
         response = api_client.post(
             reverse("auth-login"), {"username": user.username, "password": TEST_ADMIN_PASSWORD}, format="json"
         )
-        token = response.json()["access"]
+        token = response.json()["token"]["access"]
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
         return api_client, token
 

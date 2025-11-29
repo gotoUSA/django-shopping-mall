@@ -169,7 +169,7 @@ class TestOrderEmailVerification:
         )
 
         login_response = api_client.post(reverse("auth-login"), {"username": "unverified2", "password": TEST_USER_PASSWORD})
-        token = login_response.json()["access"]
+        token = login_response.json()["token"]["access"]
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
         cart, _ = Cart.get_or_create_active_cart(unverified)
@@ -321,7 +321,7 @@ class TestAdminOrderPermissions:
 
         # 관리자 로그인
         login_response = api_client.post(reverse("auth-login"), {"username": "admin2", "password": TEST_ADMIN_PASSWORD})
-        token = login_response.json()["access"]
+        token = login_response.json()["token"]["access"]
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
         url = reverse("order-detail", kwargs={"pk": user_order.id})
@@ -355,7 +355,7 @@ class TestAdminOrderPermissions:
 
         # 관리자 로그인
         login_response = api_client.post(reverse("auth-login"), {"username": "admin3", "password": TEST_ADMIN_PASSWORD})
-        token = login_response.json()["access"]
+        token = login_response.json()["token"]["access"]
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
         url = reverse("order-list")
@@ -386,7 +386,7 @@ class TestAdminOrderPermissions:
 
         # 관리자 로그인
         login_response = api_client.post(reverse("auth-login"), {"username": "admin4", "password": TEST_ADMIN_PASSWORD})
-        token = login_response.json()["access"]
+        token = login_response.json()["token"]["access"]
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
         url = reverse("order-list")

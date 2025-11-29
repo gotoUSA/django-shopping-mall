@@ -24,14 +24,15 @@ class TestRegistrationSuccess:
         # Assert - 201 Created 응답 확인
         assert response.status_code == status.HTTP_201_CREATED
 
-        # 응답 데이터 구조 확인
-        assert "tokens" in response.data
-        assert "access" in response.data["tokens"]
-        assert "refresh" in response.data["tokens"]
+        # 응답 데이터 구조 확인 (새 구조)
+        assert "token" in response.data
+        assert "access" in response.data["token"]
+        # refresh는 HTTP Only Cookie로 전달됨
+        assert "refresh_token" in response.cookies
         assert "user" in response.data
         assert "message" in response.data
 
-        # 사용자 정보 확인
+        # 사용자 정보 확인 (최소 정보만 반환)
         assert response.data["user"]["username"] == "newuser"
         assert response.data["user"]["email"] == "newuser@example.com"
 
@@ -44,11 +45,14 @@ class TestRegistrationSuccess:
         # Act
         response = api_client.post(url, data, format="json")
 
-        # Assert - 토큰이 문자열이고 비어있지 않은지 확인
-        assert isinstance(response.data["tokens"]["access"], str)
-        assert isinstance(response.data["tokens"]["refresh"], str)
-        assert len(response.data["tokens"]["access"]) > 0
-        assert len(response.data["tokens"]["refresh"]) > 0
+        # Assert - Access 토큰이 문자열이고 비어있지 않은지 확인 (새 구조)
+        assert isinstance(response.data["token"]["access"], str)
+        assert len(response.data["token"]["access"]) > 0
+        
+        # Refresh 토큰은 Cookie에서 확인
+        refresh_cookie = response.cookies.get("refresh_token")
+        assert refresh_cookie is not None
+        assert len(refresh_cookie.value) > 0
 
     def test_user_created_in_database(self, api_client, registration_data_factory):
         """DB에 사용자 실제 생성 확인"""

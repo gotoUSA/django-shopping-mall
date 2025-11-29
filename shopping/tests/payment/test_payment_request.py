@@ -268,7 +268,7 @@ class TestPaymentRequestException:
             reverse("auth-login"),
             {"username": "unverified", "password": "testpass123"},
         )
-        token = response.json()["access"]
+        token = response.json()["token"]["access"]
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
         # 미인증 사용자의 주문 생성

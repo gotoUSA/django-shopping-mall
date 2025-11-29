@@ -48,7 +48,7 @@ class TestRegistrationSuccess:
         # Assert - Access 토큰이 문자열이고 비어있지 않은지 확인 (새 구조)
         assert isinstance(response.data["token"]["access"], str)
         assert len(response.data["token"]["access"]) > 0
-        
+
         # Refresh 토큰은 Cookie에서 확인
         refresh_cookie = response.cookies.get("refresh_token")
         assert refresh_cookie is not None

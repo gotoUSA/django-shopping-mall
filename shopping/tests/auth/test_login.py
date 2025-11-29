@@ -1,4 +1,3 @@
-
 from django.urls import reverse
 from django.utils import timezone
 
@@ -52,7 +51,7 @@ class TestLoginSuccess:
         required_keys = ["token", "user", "message"]
         for key in required_keys:
             assert key in response_data, f"응답에 '{key}' 키가 없습니다"
-        
+
         # token 객체 내 access 확인
         assert "access" in response_data["token"], "token 객체에 'access' 키가 없습니다"
 
@@ -87,7 +86,7 @@ class TestLoginSuccess:
         # JWT 형식 확인 (header.payload.signature)
         access_parts = response_data["token"]["access"].split(".")
         assert len(access_parts) == 3, "Access 토큰이 JWT 형식이 아닙니다"
-        
+
         # Refresh 토큰은 Cookie에서 확인
         refresh_cookie = response.cookies.get("refresh_token")
         assert refresh_cookie is not None, "Refresh 토큰이 Cookie에 없습니다"

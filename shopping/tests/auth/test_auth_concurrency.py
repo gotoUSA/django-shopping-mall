@@ -26,12 +26,7 @@ User = get_user_model()
 # ==========================================
 
 
-def concurrent_api_call(
-    thread_func: Callable,
-    thread_count: int,
-    *args,
-    **kwargs
-) -> List[Dict[str, Any]]:
+def concurrent_api_call(thread_func: Callable, thread_count: int, *args, **kwargs) -> List[Dict[str, Any]]:
     """
     동시 API 호출 헬퍼 함수
 
@@ -56,7 +51,7 @@ def concurrent_api_call(
     threads = []
     for i in range(thread_count):
         # kwargs에 index 추가하여 전달
-        thread_kwargs = {**kwargs, 'index': i}
+        thread_kwargs = {**kwargs, "index": i}
         t = threading.Thread(target=wrapper, args=args, kwargs=thread_kwargs)
         threads.append(t)
         t.start()
@@ -82,11 +77,7 @@ class TestConcurrentLogin:
         """동시 로그인 - 모두 성공하고 고유한 JWT 발급"""
         # Arrange
         users = [
-            UserFactory(
-                username=f"concurrentuser{i}",
-                email=f"concurrent{i}@test.com",
-                password="testpass123"
-            )
+            UserFactory(username=f"concurrentuser{i}", email=f"concurrent{i}@test.com", password="testpass123")
             for i in range(user_count)
         ]
 
@@ -96,11 +87,7 @@ class TestConcurrentLogin:
             """개별 로그인 스레드"""
             client = APIClient()
             try:
-                response = client.post(
-                    login_url,
-                    {"username": username, "password": password},
-                    format="json"
-                )
+                response = client.post(login_url, {"username": username, "password": password}, format="json")
                 # 새 구조: token.access
                 access = response.data.get("token", {}).get("access") if response.status_code == 200 else None
                 # refresh는 Cookie에서 가져옴
@@ -146,11 +133,7 @@ class TestConcurrentLogin:
         # Arrange
         user_count = 100
         users = [
-            UserFactory(
-                username=f"scaleuser{i}",
-                email=f"scale{i}@test.com",
-                password="testpass123"
-            )
+            UserFactory(username=f"scaleuser{i}", email=f"scale{i}@test.com", password="testpass123")
             for i in range(user_count)
         ]
 
@@ -310,11 +293,7 @@ class TestAuthenticationEdgeCases:
         # Arrange
         user_count = 20
         users = [
-            UserFactory(
-                username=f"mixeduser{i}",
-                email=f"mixed{i}@test.com",
-                password="testpass123"
-            )
+            UserFactory(username=f"mixeduser{i}", email=f"mixed{i}@test.com", password="testpass123")
             for i in range(user_count)
         ]
 
@@ -338,7 +317,7 @@ class TestAuthenticationEdgeCases:
         results = []
         for i, user in enumerate(users):
             password = "testpass123" if i % 2 == 0 else "wrongpass"
-            should_succeed = (i % 2 == 0)
+            should_succeed = i % 2 == 0
             result_list = concurrent_api_call(login_thread, 1, user.username, password, should_succeed)
             results.extend(result_list)
 
@@ -372,17 +351,15 @@ class TestAuthenticationEdgeCases:
             """로그인"""
             client = APIClient()
             try:
-                response = client.post(
-                    login_url,
-                    {"username": user.username, "password": "testpass123"},
-                    format="json"
-                )
+                response = client.post(login_url, {"username": user.username, "password": "testpass123"}, format="json")
                 with lock:
-                    results.append({
-                        "action": "login",
-                        "status": response.status_code,
-                        "success": response.status_code == status.HTTP_200_OK,
-                    })
+                    results.append(
+                        {
+                            "action": "login",
+                            "status": response.status_code,
+                            "success": response.status_code == status.HTTP_200_OK,
+                        }
+                    )
             except Exception as e:
                 with lock:
                     results.append({"action": "login", "error": str(e)})
@@ -391,17 +368,15 @@ class TestAuthenticationEdgeCases:
             """토큰 갱신"""
             client = APIClient()
             try:
-                response = client.post(
-                    refresh_url,
-                    {"refresh": str(refresh)},
-                    format="json"
-                )
+                response = client.post(refresh_url, {"refresh": str(refresh)}, format="json")
                 with lock:
-                    results.append({
-                        "action": "refresh",
-                        "status": response.status_code,
-                        "success": response.status_code == status.HTTP_200_OK,
-                    })
+                    results.append(
+                        {
+                            "action": "refresh",
+                            "status": response.status_code,
+                            "success": response.status_code == status.HTTP_200_OK,
+                        }
+                    )
             except Exception as e:
                 with lock:
                     results.append({"action": "refresh", "error": str(e)})
@@ -453,10 +428,12 @@ class TestJWTTokenValidation:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
                 response = client.get(profile_url)
                 with lock:
-                    results.append({
-                        "status": response.status_code,
-                        "success": response.status_code == status.HTTP_200_OK,
-                    })
+                    results.append(
+                        {
+                            "status": response.status_code,
+                            "success": response.status_code == status.HTTP_200_OK,
+                        }
+                    )
             except Exception as e:
                 with lock:
                     results.append({"error": str(e)})
@@ -490,16 +467,14 @@ class TestJWTTokenValidation:
             client = APIClient()
             try:
                 client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
-                response = client.post(
-                    logout_url,
-                    {"refresh": refresh_token_str},
-                    format="json"
-                )
+                response = client.post(logout_url, {"refresh": refresh_token_str}, format="json")
                 with lock:
-                    results.append({
-                        "status": response.status_code,
-                        "success": response.status_code == status.HTTP_200_OK,
-                    })
+                    results.append(
+                        {
+                            "status": response.status_code,
+                            "success": response.status_code == status.HTTP_200_OK,
+                        }
+                    )
             except Exception as e:
                 with lock:
                     results.append({"error": str(e)})

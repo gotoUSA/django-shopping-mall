@@ -40,7 +40,7 @@ class RegisterTokenResponseSerializer(drf_serializers.Serializer):
 
 class RegisterResponseSerializer(drf_serializers.Serializer):
     """회원가입 성공 응답 스키마
-    
+
     Note:
         - Refresh Token은 보안상 HTTP Only Cookie로 전달됩니다.
         - Response body에는 Access Token만 포함됩니다.
@@ -91,14 +91,14 @@ class RegisterView(CreateAPIView):
 
     def create(self, request: Request, *args, **kwargs) -> Response:
         """회원가입 응답 커스터마이징
-        
+
         보안 고려사항:
         - Refresh Token은 HTTP Only Cookie로 전달하여 XSS 공격으로부터 보호
         - Response body에는 Access Token만 포함
         - 사용자 정보는 최소한(username, email)만 노출
         """
         from django.conf import settings
-        
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -120,15 +120,15 @@ class RegisterView(CreateAPIView):
             response_data["verification_code"] = self._result["verification_result"]["verification_code"]
 
         response = Response(response_data, status=status.HTTP_201_CREATED)
-        
+
         # Refresh Token은 HTTP Only Cookie로 전달 (XSS 방지)
         refresh_token = self._result["tokens"]["refresh"]
-        
+
         # Cookie 설정
         cookie_max_age = 7 * 24 * 60 * 60  # 7일 (초 단위)
         cookie_secure = not settings.DEBUG  # 프로덕션에서는 HTTPS만 허용
         cookie_samesite = "Lax"  # CSRF 방지
-        
+
         response.set_cookie(
             key="refresh_token",
             value=refresh_token,
@@ -137,7 +137,7 @@ class RegisterView(CreateAPIView):
             secure=cookie_secure,  # HTTPS에서만 전송
             samesite=cookie_samesite,
         )
-        
+
         return response
 
 
@@ -197,14 +197,14 @@ class LoginView(APIView):
             }
 
             response = Response(response_data, status=status.HTTP_200_OK)
-            
+
             # Refresh Token은 HTTP Only Cookie로 전달 (XSS 방지)
             from django.conf import settings
-            
+
             cookie_max_age = 7 * 24 * 60 * 60  # 7일 (초 단위)
             cookie_secure = not settings.DEBUG  # 프로덕션에서는 HTTPS만 허용
             cookie_samesite = "Lax"  # CSRF 방지
-            
+
             response.set_cookie(
                 key="refresh_token",
                 value=str(refresh),
@@ -247,7 +247,7 @@ class CustomTokenRefreshView(TokenRefreshView):
 
         # Cookie에서 refresh token 읽기 (우선), 없으면 body에서 읽기
         refresh_token = request.COOKIES.get("refresh_token") or request.data.get("refresh")
-        
+
         if not refresh_token:
             return Response({"error": "refresh token이 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -256,10 +256,10 @@ class CustomTokenRefreshView(TokenRefreshView):
             # JWT에서 jti 추출하여 블랙리스트 확인
             decoded = pyjwt.decode(refresh_token, options={"verify_signature": False})
             jti = decoded.get("jti")
-            
+
             if jti and BlacklistedToken.objects.filter(token__jti=jti).exists():
                 raise InvalidToken("Token is blacklisted")
-            
+
             # SimpleJWT의 RefreshToken 검증 (만료, 서명 등)
             token = RefreshToken(refresh_token)
         except pyjwt.exceptions.DecodeError:
@@ -269,9 +269,9 @@ class CustomTokenRefreshView(TokenRefreshView):
             raise InvalidToken(e.args[0])
 
         # request.data를 수정하여 serializer에 전달
-        mutable_data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+        mutable_data = request.data.copy() if hasattr(request.data, "copy") else dict(request.data)
         mutable_data["refresh"] = refresh_token
-        
+
         serializer = self.get_serializer(data=mutable_data)
         try:
             serializer.is_valid(raise_exception=True)
@@ -279,31 +279,31 @@ class CustomTokenRefreshView(TokenRefreshView):
             raise InvalidToken(e.args[0])
 
         validated_data = serializer.validated_data
-        
+
         # Access Token만 body에 반환
         response_data = {
             "access": validated_data.get("access"),
             "message": "토큰이 갱신되었습니다.",
         }
-        
+
         response = Response(response_data, status=status.HTTP_200_OK)
-        
+
         # 새 Refresh Token이 있으면 Cookie 갱신 (ROTATE_REFRESH_TOKENS=True인 경우)
         new_refresh = validated_data.get("refresh")
         if new_refresh:
-                cookie_max_age = 7 * 24 * 60 * 60  # 7일
-                cookie_secure = not settings.DEBUG
-                cookie_samesite = "Lax"
-                
-                response.set_cookie(
-                    key="refresh_token",
-                    value=new_refresh,
-                    max_age=cookie_max_age,
-                    httponly=True,
-                    secure=cookie_secure,
-                    samesite=cookie_samesite,
-                )
-            
+            cookie_max_age = 7 * 24 * 60 * 60  # 7일
+            cookie_secure = not settings.DEBUG
+            cookie_samesite = "Lax"
+
+            response.set_cookie(
+                key="refresh_token",
+                value=new_refresh,
+                max_age=cookie_max_age,
+                httponly=True,
+                secure=cookie_secure,
+                samesite=cookie_samesite,
+            )
+
         return response
 
 
@@ -331,10 +331,10 @@ class LogoutView(APIView):
             token.blacklist()
 
             response = Response({"message": "로그아웃 되었습니다."}, status=status.HTTP_200_OK)
-            
+
             # Refresh Token Cookie 삭제
             response.delete_cookie("refresh_token")
-            
+
             return response
 
         except TokenError:

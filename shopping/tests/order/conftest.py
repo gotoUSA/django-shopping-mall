@@ -439,4 +439,3 @@ def async_test_config():
         "max_wait_seconds": 5,
         "polling_interval": 0.1,
     }
-

@@ -63,46 +63,47 @@ class TestTokenRefresh:
     def test_old_token_after_refresh(self, api_client, get_tokens):
         """토큰 갱신 후 이전 토큰 사용 불가 (ROTATE + BLACKLIST 설정 필요)"""
         from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
-        
+
         # ROTATE_REFRESH_TOKENS와 BLACKLIST_AFTER_ROTATION 둘 다 True인 경우만 테스트
         if not settings.SIMPLE_JWT.get("ROTATE_REFRESH_TOKENS"):
             pytest.skip("ROTATE_REFRESH_TOKENS가 비활성화되어 있습니다")
         if not settings.SIMPLE_JWT.get("BLACKLIST_AFTER_ROTATION"):
             pytest.skip("BLACKLIST_AFTER_ROTATION이 비활성화되어 있습니다")
-            
+
         # Arrange
         tokens = get_tokens
         old_refresh_token = tokens["refresh"]
         refresh_url = reverse("token-refresh")
-        
+
         # 갱신 전 OutstandingToken 수 확인
         outstanding_before = OutstandingToken.objects.count()
         assert outstanding_before >= 1, f"로그인 시 OutstandingToken이 생성되어야 합니다. 현재: {outstanding_before}"
 
         # Act - 첫 번째 갱신
         first_refresh_response = api_client.post(refresh_url, {"refresh": old_refresh_token})
-        assert first_refresh_response.status_code == status.HTTP_200_OK, \
-            f"첫 번째 갱신 실패: {first_refresh_response.data}"
-        
+        assert first_refresh_response.status_code == status.HTTP_200_OK, f"첫 번째 갱신 실패: {first_refresh_response.data}"
+
         # 갱신 후 OutstandingToken과 BlacklistedToken 수 확인
         outstanding_after = OutstandingToken.objects.count()
         blacklisted_count = BlacklistedToken.objects.count()
-        
+
         # ROTATE_REFRESH_TOKENS=True이면 새 토큰이 생성되어 OutstandingToken 수가 증가해야 함
         # BLACKLIST_AFTER_ROTATION=True이면 이전 토큰이 블랙리스트에 추가되어야 함
-        assert blacklisted_count >= 1, \
-            f"블랙리스트에 토큰이 추가되어야 합니다. Outstanding: {outstanding_before}->{outstanding_after}, Blacklisted: {blacklisted_count}"
+        assert (
+            blacklisted_count >= 1
+        ), f"블랙리스트에 토큰이 추가되어야 합니다. Outstanding: {outstanding_before}->{outstanding_after}, Blacklisted: {blacklisted_count}"
 
         # 중요: Cookie를 삭제하여 이전 토큰(body)만 사용하도록 함
         # api_client가 첫 번째 응답에서 받은 새 Cookie를 자동으로 사용하는 것을 방지
         api_client.cookies.clear()
-        
+
         # Act - 이전 refresh token으로 다시 갱신 시도 (body로 전달)
         second_refresh_response = api_client.post(refresh_url, {"refresh": old_refresh_token})
 
         # Assert - 이전 토큰은 블랙리스트되어 사용 불가
-        assert second_refresh_response.status_code == status.HTTP_401_UNAUTHORIZED, \
-            f"블랙리스트된 토큰은 401을 반환해야 합니다. 응답: {second_refresh_response.data}"
+        assert (
+            second_refresh_response.status_code == status.HTTP_401_UNAUTHORIZED
+        ), f"블랙리스트된 토큰은 401을 반환해야 합니다. 응답: {second_refresh_response.data}"
 
     def test_rotated_refresh_token_success(self, api_client, get_tokens):
         """Refresh Token 회전 후 새 토큰으로 갱신 성공"""

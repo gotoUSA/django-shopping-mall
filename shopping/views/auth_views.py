@@ -5,8 +5,11 @@ from typing import Any
 from django.db import transaction
 from django.utils import timezone
 
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers as drf_serializers
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.generics import CreateAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -15,67 +18,81 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
+from shopping.models.user import User
 from shopping.serializers.user_serializers import LoginSerializer, PasswordChangeSerializer, RegisterSerializer, UserSerializer
 from shopping.services.user_service import UserService
 from shopping.throttles import LoginRateThrottle, RegisterRateThrottle, TokenRefreshRateThrottle
 
 
-class RegisterView(APIView):
+# 회원가입 응답용 Serializer (Swagger 문서화용)
+class RegisterResponseSerializer(drf_serializers.Serializer):
+    """회원가입 성공 응답 스키마"""
+    message = drf_serializers.CharField()
+    user = UserSerializer()
+    tokens = inline_serializer(
+        name="TokensSerializer",
+        fields={
+            "access": drf_serializers.CharField(),
+            "refresh": drf_serializers.CharField(),
+        },
+    )
+    verification_code = drf_serializers.CharField(required=False, help_text="DEBUG 모드에서만 포함")
+
+
+class RegisterView(CreateAPIView):
     """
     회원가입 API (비동기 이메일 발송)
     - POST: 새 사용자 생성 및 JWT 토큰 발급
     """
 
+    queryset = User.objects.all()
+    serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
     throttle_classes = [RegisterRateThrottle]
 
-    def post(self, request: Request) -> Response:
+    @extend_schema(
+        request=RegisterSerializer,
+        responses={201: RegisterResponseSerializer},
+        summary="회원가입",
+        description="새 사용자를 생성하고 JWT 토큰을 발급합니다.",
+    )
+    def post(self, request: Request, *args, **kwargs) -> Response:
+        return super().post(request, *args, **kwargs)
+
+    def perform_create(self, serializer: RegisterSerializer) -> None:
         """
-        회원가입 처리 (동시성 안전)
+        사용자 생성 후 후처리 (토큰 생성 + 이메일 발송)
 
         트랜잭션을 사용하여 동시 가입 시도 시 race condition 방지:
         - 여러 요청이 동시에 validation을 통과할 수 있음
         - atomic 트랜잭션 내에서 DB constraint가 최종 방어선
         - IntegrityError 발생 시 ValidationError로 변환하여 400 반환
         """
-        serializer = RegisterSerializer(data=request.data)
+        with transaction.atomic():
+            user = serializer.save()
+            # UserService로 회원가입 후처리 (토큰 생성 + 이메일 발송)
+            result = UserService.register_user(user)
+            # create() 메서드에서 접근할 수 있도록 인스턴스에 저장
+            self._user = user
+            self._result = result
 
-        if serializer.is_valid():
-            try:
-                # 트랜잭션 내에서 사용자 생성 및 후처리
-                # 동시성 상황에서 IntegrityError 발생 시 롤백됨
-                with transaction.atomic():
-                    # 사용자 생성
-                    user = serializer.save()
+    def create(self, request: Request, *args, **kwargs) -> Response:
+        """회원가입 응답 커스터마이징"""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
 
-                    # UserService로 회원가입 후처리 (토큰 생성 + 이메일 발송)
-                    result = UserService.register_user(user)
+        response_data = {
+            "message": "회원가입이 완료되었습니다. 인증 이메일을 확인해주세요.",
+            "user": UserSerializer(self._user).data,
+            "tokens": self._result["tokens"],
+        }
 
-                response_data = {
-                    "message": "회원가입이 완료되었습니다. 인증 이메일을 확인해주세요.",
-                    "user": UserSerializer(user).data,
-                    "tokens": result["tokens"],
-                }
+        # DEBUG 모드에서만 verification_code 포함
+        if "verification_code" in self._result["verification_result"]:
+            response_data["verification_code"] = self._result["verification_result"]["verification_code"]
 
-                # DEBUG 모드에서만 verification_code 포함
-                if "verification_code" in result["verification_result"]:
-                    response_data["verification_code"] = result["verification_result"]["verification_code"]
-
-                return Response(response_data, status=status.HTTP_201_CREATED)
-
-            except Exception as e:
-                # serializer.save()에서 발생한 ValidationError는 여기서 잡힘
-                # ValidationError는 serializer.errors 형태로 반환
-                from rest_framework.exceptions import ValidationError
-
-                if isinstance(e, ValidationError):
-                    # ValidationError의 detail을 그대로 반환 (400 Bad Request)
-                    return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
-
-                # 예상치 못한 에러는 재발생 (500 Internal Server Error)
-                raise
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 

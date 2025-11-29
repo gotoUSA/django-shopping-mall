@@ -139,10 +139,12 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
 
         serializer = NotificationListSerializer(result.notifications, many=True)
 
-        return Response({
-            "count": result.count,
-            "notifications": serializer.data,
-        })
+        return Response(
+            {
+                "count": result.count,
+                "notifications": serializer.data,
+            }
+        )
 
     # ===== 알림 읽음 처리 =====
 
@@ -178,10 +180,12 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
             notification_ids=notification_ids if notification_ids else None,
         )
 
-        return Response({
-            "message": result.message,
-            "count": result.count,
-        })
+        return Response(
+            {
+                "message": result.message,
+                "count": result.count,
+            }
+        )
 
     # ===== 읽은 알림 삭제 =====
 
@@ -199,10 +203,12 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         """읽은 알림 전체 삭제"""
         result = NotificationService.clear_read(user=request.user)
 
-        return Response({
-            "message": result.message,
-            "count": result.count,
-        })
+        return Response(
+            {
+                "message": result.message,
+                "count": result.count,
+            }
+        )
 
     # ===== Private Helper Methods =====
 

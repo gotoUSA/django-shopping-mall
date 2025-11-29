@@ -9,6 +9,7 @@
 
 from .base import ServiceError, log_service_call
 from .cart_service import CartService, CartServiceError
+from .email_verification_service import EmailVerificationService, EmailVerificationServiceError
 from .notification_service import NotificationService, NotificationServiceError
 from .point_query_service import PointQueryService
 from .point_service import PointService
@@ -25,6 +26,8 @@ __all__ = [
     # Services
     "CartService",
     "CartServiceError",
+    "EmailVerificationService",
+    "EmailVerificationServiceError",
     "NotificationService",
     "NotificationServiceError",
     "PointQueryService",

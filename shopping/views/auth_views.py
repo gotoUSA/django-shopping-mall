@@ -52,6 +52,62 @@ class RegisterResponseSerializer(drf_serializers.Serializer):
     verification_code = drf_serializers.CharField(required=False, help_text="DEBUG 모드에서만 포함")
 
 
+# 로그인 응답용 Serializer (Swagger 문서화용)
+class LoginResponseSerializer(drf_serializers.Serializer):
+    """로그인 성공 응답 스키마"""
+
+    message = drf_serializers.CharField()
+    user = RegisterUserResponseSerializer()
+    token = RegisterTokenResponseSerializer()
+
+
+class LoginErrorResponseSerializer(drf_serializers.Serializer):
+    """로그인 실패 응답 스키마"""
+
+    username = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
+    password = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
+    non_field_errors = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
+
+
+# 로그아웃 응답용 Serializer
+class LogoutResponseSerializer(drf_serializers.Serializer):
+    """로그아웃 응답 스키마"""
+
+    message = drf_serializers.CharField()
+
+
+class LogoutErrorResponseSerializer(drf_serializers.Serializer):
+    """로그아웃 에러 응답 스키마"""
+
+    error = drf_serializers.CharField()
+
+
+# 토큰 갱신 응답용 Serializer
+class TokenRefreshResponseSerializer(drf_serializers.Serializer):
+    """토큰 갱신 응답 스키마"""
+
+    access = drf_serializers.CharField(help_text="새로운 JWT Access Token")
+    message = drf_serializers.CharField()
+
+
+class TokenRefreshRequestSerializer(drf_serializers.Serializer):
+    """토큰 갱신 요청 스키마 (선택적)"""
+
+    refresh = drf_serializers.CharField(
+        required=False,
+        help_text="Refresh Token (Cookie에서 자동으로 읽어오므로 선택사항)"
+    )
+
+
+# 토큰 확인 응답용 Serializer
+class CheckTokenResponseSerializer(drf_serializers.Serializer):
+    """토큰 유효성 확인 응답 스키마"""
+
+    valid = drf_serializers.BooleanField()
+    user = RegisterUserResponseSerializer()
+    message = drf_serializers.CharField()
+
+
 class RegisterView(CreateAPIView):
     """
     회원가입 API (비동기 이메일 발송)
@@ -151,6 +207,25 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [LoginRateThrottle]
 
+    @extend_schema(
+        request=LoginSerializer,
+        responses={
+            200: LoginResponseSerializer,
+            400: LoginErrorResponseSerializer,
+        },
+        summary="로그인",
+        description="""
+사용자 인증 후 JWT 토큰을 발급합니다.
+
+**인증 방식:**
+- Access Token은 응답 body에 포함됩니다.
+- Refresh Token은 HTTP Only Cookie로 자동 설정됩니다.
+
+**비회원 장바구니:**
+- 로그인 전 비회원 장바구니가 있으면 회원 장바구니로 자동 병합됩니다.
+        """,
+        tags=["인증"],
+    )
     def post(self, request: Request) -> Response:
         serializer = LoginSerializer(data=request.data, context={"request": request})
 
@@ -240,6 +315,27 @@ class CustomTokenRefreshView(TokenRefreshView):
 
     throttle_classes = [TokenRefreshRateThrottle]
 
+    @extend_schema(
+        request=TokenRefreshRequestSerializer,
+        responses={
+            200: TokenRefreshResponseSerializer,
+            400: LogoutErrorResponseSerializer,
+            401: LogoutErrorResponseSerializer,
+        },
+        summary="토큰 갱신",
+        description="""
+Refresh Token을 사용하여 새로운 Access Token을 발급합니다.
+
+**요청 방식:**
+- Cookie의 `refresh_token`에서 자동으로 읽어옵니다. (권장)
+- 또는 body에 `{"refresh": "토큰값"}` 형식으로 전달할 수 있습니다.
+
+**응답:**
+- 새로운 Access Token이 body에 반환됩니다.
+- 새로운 Refresh Token은 HTTP Only Cookie로 자동 갱신됩니다.
+        """,
+        tags=["인증"],
+    )
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         from django.conf import settings
         from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
@@ -315,6 +411,26 @@ class LogoutView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        request=None,
+        responses={
+            200: LogoutResponseSerializer,
+            400: LogoutErrorResponseSerializer,
+        },
+        summary="로그아웃",
+        description="""
+로그아웃 처리를 수행합니다.
+
+**처리 내용:**
+- Refresh Token을 블랙리스트에 추가하여 무효화합니다.
+- HTTP Only Cookie에서 refresh_token을 삭제합니다.
+
+**요청:**
+- Request body가 필요 없습니다.
+- Cookie의 refresh_token이 자동으로 처리됩니다.
+        """,
+        tags=["인증"],
+    )
     def post(self, request: Request) -> Response:
         try:
             # Cookie에서 refresh token 읽기 (우선), 없으면 body에서 읽기
@@ -351,6 +467,12 @@ class LogoutView(APIView):
             return response
 
 
+@extend_schema(
+    responses={200: CheckTokenResponseSerializer},
+    summary="토큰 유효성 확인",
+    description="현재 Access Token이 유효한지 확인합니다.",
+    tags=["인증"],
+)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def check_token(request: Request) -> Response:

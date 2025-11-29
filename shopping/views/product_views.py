@@ -5,7 +5,8 @@ from typing import Any
 from django.db.models import Avg, Count, Q
 from django.utils.text import slugify
 
-from rest_framework import filters, permissions, status, viewsets
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
+from rest_framework import filters, permissions, serializers as drf_serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
@@ -26,8 +27,33 @@ from shopping.serializers import (
 )
 
 # 권한
-
 from shopping.permissions import IsSeller, IsSellerAndOwner
+
+
+# ===== Swagger 문서화용 응답 Serializers =====
+
+
+class ProductErrorResponseSerializer(drf_serializers.Serializer):
+    """상품 에러 응답"""
+    error = drf_serializers.CharField()
+
+
+class ReviewAddResponseSerializer(drf_serializers.Serializer):
+    """리뷰 작성 응답"""
+    id = drf_serializers.IntegerField()
+    rating = drf_serializers.IntegerField()
+    comment = drf_serializers.CharField()
+    user = drf_serializers.CharField()
+    created_at = drf_serializers.DateTimeField()
+
+
+class CategoryTreeItemSerializer(drf_serializers.Serializer):
+    """카테고리 트리 아이템"""
+    id = drf_serializers.IntegerField()
+    name = drf_serializers.CharField()
+    slug = drf_serializers.CharField()
+    product_count = drf_serializers.IntegerField()
+    children = drf_serializers.ListField()
 
 
 class ProductPagination(PageNumberPagination):
@@ -42,32 +68,65 @@ class ProductPagination(PageNumberPagination):
     max_page_size = 100  # 최대 페이지 크기 제한
 
 
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter(name="search", description="검색어 (상품명, 설명, 카테고리명)", required=False, type=str),
+            OpenApiParameter(name="category", description="카테고리 ID", required=False, type=int),
+            OpenApiParameter(name="min_price", description="최소 가격", required=False, type=int),
+            OpenApiParameter(name="max_price", description="최대 가격", required=False, type=int),
+            OpenApiParameter(name="in_stock", description="재고 여부 (true/false)", required=False, type=str),
+            OpenApiParameter(name="seller", description="판매자 ID", required=False, type=int),
+            OpenApiParameter(name="ordering", description="정렬 (price, -price, created_at, -created_at)", required=False, type=str),
+        ],
+        summary="상품 목록 조회",
+        description="""
+상품 목록을 조회합니다.
+
+**필터링:**
+- search: 검색어 (상품명, 설명, 카테고리명)
+- category: 카테고리 ID (하위 카테고리 포함)
+- min_price/max_price: 가격 범위
+- in_stock: 재고 여부
+- seller: 판매자 ID
+        """,
+        tags=["상품"],
+    ),
+    retrieve=extend_schema(
+        summary="상품 상세 조회",
+        description="상품의 상세 정보를 조회합니다.",
+        tags=["상품"],
+    ),
+    create=extend_schema(
+        summary="상품 등록",
+        description="""
+새 상품을 등록합니다.
+
+**권한:** 인증 필요
+**자동 처리:**
+- seller: 현재 로그인한 사용자로 설정
+- slug: 상품명으로 자동 생성
+        """,
+        tags=["상품"],
+    ),
+    update=extend_schema(
+        summary="상품 전체 수정",
+        description="상품 정보를 전체 수정합니다. 판매자만 가능합니다.",
+        tags=["상품"],
+    ),
+    partial_update=extend_schema(
+        summary="상품 부분 수정",
+        description="상품 정보를 부분 수정합니다. 판매자만 가능합니다.",
+        tags=["상품"],
+    ),
+    destroy=extend_schema(
+        summary="상품 삭제",
+        description="상품을 삭제합니다. 판매자만 가능합니다.",
+        tags=["상품"],
+    ),
+)
 class ProductViewSet(viewsets.ModelViewSet):
-    """
-    상품 CRUD 및 검색/필터링 ViewSet
-
-    엔드포인트:
-    - GET    /api/products/              - 상품 목록 조회
-    - GET    /api/products/{id}/         - 상품 상세 조회
-    - POST   /api/products/              - 상품 생성 (인증 필요)
-    - PUT    /api/products/{id}/         - 상품 전체 수정 (판매자만)
-    - PATCH  /api/products/{id}/         - 상품 부분 수정 (판매자만)
-    - DELETE /api/products/{id}/         - 상품 삭제 (판매자만)
-    - GET    /api/products/{id}/reviews/ - 리뷰 목록
-    - POST   /api/products/{id}/add_review/ - 리뷰 작성
-    - GET    /api/products/popular/      - 인기 상품
-    - GET    /api/products/best_rating/  - 평점 높은 상품
-    - GET    /api/products/low_stock/    - 재고 부족 상품
-
-    검색/필터링 파라미터:
-    - search: 검색어 (상품명, 설명, 카테고리명)
-    - category: 카테고리 ID
-    - min_price: 최소 가격
-    - max_price: 최대 가격
-    - in_stock: 재고 여부 (true/false)
-    - seller: 판매자 ID
-    - ordering: 정렬 (price, -price, created_at, -created_at, stock, name)
-    """
+    """상품 CRUD 및 검색/필터링 ViewSet"""
 
     queryset = Product.objects.all()
     pagination_class = ProductPagination
@@ -246,18 +305,25 @@ class ProductViewSet(viewsets.ModelViewSet):
 
         serializer.save()
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name="ordering", description="정렬 (created_at, -created_at, rating, -rating)", required=False, type=str),
+        ],
+        responses={200: ProductReviewSerializer(many=True)},
+        summary="상품 리뷰 목록 조회",
+        description="""
+상품의 리뷰 목록을 조회합니다.
+
+**정렬 옵션:**
+- created_at: 등록일 오래된순
+- -created_at: 등록일 최신순 (기본)
+- rating: 평점 낮은순
+- -rating: 평점 높은순
+        """,
+        tags=["상품"],
+    )
     @action(detail=True, methods=["get"])
     def reviews(self, request: Request, pk: int | None = None) -> Response:
-        """
-        상품 리뷰 목록 조회
-        GET /api/products/{id}/reviews/
-
-        쿼리 파라미터:
-        - ordering: 정렬 (created_at, -created_at, rating, -rating)
-        - page: 페이지 번호
-
-        권한: 누구나 조회 가능
-        """
         product = self.get_object()
         reviews = product.reviews.all().select_related("user")
 
@@ -275,23 +341,23 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer = ProductReviewSerializer(reviews, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        request=ProductReviewSerializer,
+        responses={
+            201: ReviewAddResponseSerializer,
+            400: ProductErrorResponseSerializer,
+        },
+        summary="상품 리뷰 작성",
+        description="""
+상품에 리뷰를 작성합니다.
+
+**권한:** 인증 필요
+**제약:** 상품당 1개 리뷰만 작성 가능
+        """,
+        tags=["상품"],
+    )
     @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
     def add_review(self, request: Request, pk: int | None = None) -> Response:
-        """
-        상품 리뷰 작성
-        POST /api/products/{id}/add_review/
-
-        요청 본문:
-        {
-            "rating": 5,
-            "comment": "좋은 상품입니다!"
-        }
-
-        권한: 인증 필요
-        제약: 상품당 1개 리뷰만 작성 가능
-        에러:
-        - 400: 이미 리뷰 작성한 경우
-        """
         product = self.get_object()
 
         # 이미 리뷰를 작성했는지 확인
@@ -309,16 +375,19 @@ class ProductViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        responses={200: ProductListSerializer(many=True)},
+        summary="인기 상품 목록",
+        description="""
+인기 상품 목록을 조회합니다.
+
+**정렬:** 리뷰 많은 순
+**개수:** 최대 12개
+        """,
+        tags=["상품"],
+    )
     @action(detail=False, methods=["get"])
     def popular(self, request: Request) -> Response:
-        """
-        인기 상품 목록 조회
-        GET /api/products/popular/
-
-        정렬: 리뷰 많은 순
-        개수: 최대 12개
-        권한: 누구나 조회 가능
-        """
         popular_products = (
             self.get_queryset()
             .annotate(review_count=Count("reviews"))
@@ -329,17 +398,20 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer = ProductListSerializer(popular_products, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        responses={200: ProductListSerializer(many=True)},
+        summary="평점 높은 상품 목록",
+        description="""
+평점이 높은 상품 목록을 조회합니다.
+
+**조건:** 리뷰 3개 이상인 상품만
+**정렬:** 평균 평점 높은 순
+**개수:** 최대 12개
+        """,
+        tags=["상품"],
+    )
     @action(detail=False, methods=["get"])
     def best_rating(self, request: Request) -> Response:
-        """
-        평점 높은 상품 목록 조회
-        GET /api/products/best_rating/
-
-        조건: 리뷰 3개 이상인 상품만
-        정렬: 평균 평점 높은 순
-        개수: 최대 12개
-        권한: 누구나 조회 가능
-        """
         best_products = (
             self.get_queryset()
             .annotate(avg_rating=Avg("reviews__rating"), review_count=Count("reviews"))
@@ -350,19 +422,24 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer = ProductListSerializer(best_products, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        responses={
+            200: ProductListSerializer(many=True),
+            401: ProductErrorResponseSerializer,
+            403: ProductErrorResponseSerializer,
+        },
+        summary="재고 부족 상품 목록 (판매자 전용)",
+        description="""
+재고가 부족한 상품 목록을 조회합니다.
+
+**조건:** 재고 10개 이하
+**정렬:** 재고 적은 순
+**권한:** 판매자만 (본인 상품만 조회)
+        """,
+        tags=["상품"],
+    )
     @action(detail=False, methods=["get"])
     def low_stock(self, request: Request) -> Response:
-        """
-        재고 부족 상품 목록 조회 (판매자 전용)
-        GET /api/products/low_stock/
-
-        조건: 재고 10개 이하
-        정렬: 재고 적은 순
-        권한: 본인 상품만 조회 가능
-        에러:
-        - 401: 인증 필요
-        - 403: 판매자 권한 필요
-        """
         # 판매자 권한 체크
         if not request.user.is_authenticated:
             return Response({"error": "로그인이 필요합니다."}, status=status.HTTP_401_UNAUTHORIZED)
@@ -381,18 +458,20 @@ class ProductViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="카테고리 목록 조회",
+        description="활성화된 카테고리 목록을 조회합니다.",
+        tags=["카테고리"],
+    ),
+    retrieve=extend_schema(
+        summary="카테고리 상세 조회",
+        description="카테고리의 상세 정보를 조회합니다.",
+        tags=["카테고리"],
+    ),
+)
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    카테고리 조회 전용 ViewSet (읽기 전용)
-
-    엔드포인트:
-    - GET /api/categories/             - 카테고리 목록
-    - GET /api/categories/{id}/        - 카테고리 상세
-    - GET /api/categories/tree/        - 계층 구조 조회
-    - GET /api/categories/{id}/products/ - 카테고리별 상품 목록
-
-    권한: 누구나 조회 가능
-    """
+    """카테고리 조회 전용 ViewSet (읽기 전용)"""
 
     queryset = Category.objects.all()
     permission_classes = [permissions.AllowAny]  # 누구나 조회 가능
@@ -422,22 +501,21 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
             .annotate(products_count=Count("products", filter=Q(products__is_active=True)))
         )
 
+    @extend_schema(
+        responses={200: CategoryTreeItemSerializer(many=True)},
+        summary="카테고리 계층 구조 조회",
+        description="""
+카테고리를 계층 구조로 조회합니다.
+
+**성능 최적화:**
+- Redis 캐싱 (1시간 TTL)
+- 신호 기반 캐시 무효화
+- MPTT의 cache_tree_children 활용
+        """,
+        tags=["카테고리"],
+    )
     @action(detail=False, methods=["get"])
     def tree(self, request: Request) -> Response:
-        """
-        카테고리 계층 구조 조회 (최적화됨 + 캐싱)
-        GET /api/categories/tree/
-
-        응답: 최상위부터 하위까지 재귀적 구조
-        각 카테고리에 상품 개수 포함
-        권한: 누구나 조회 가능
-
-        성능 최적화:
-        - Redis 캐싱 (1시간 TTL)
-        - 신호 기반 캐시 무효화 (Category/Product 변경 시)
-        - 단일 쿼리로 모든 카테고리 가져오기
-        - MPTT의 cache_tree_children로 트리 캐싱
-        """
         from django.core.cache import cache
         from mptt.templatetags.mptt_tags import cache_tree_children
 
@@ -478,19 +556,21 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 
         return Response(tree)
 
+    @extend_schema(
+        responses={200: ProductListSerializer(many=True)},
+        summary="카테고리별 상품 목록",
+        description="""
+해당 카테고리의 상품 목록을 조회합니다.
+
+**특징:**
+- 하위 카테고리 상품 포함 (MPTT 활용)
+- 페이지네이션 적용
+- 활성 상품만 표시
+        """,
+        tags=["카테고리"],
+    )
     @action(detail=True, methods=["get"])
     def products(self, request: Request, pk: int | None = None) -> Response:
-        """
-        카테고리별 상품 목록 조회
-        GET /api/categories/{id}/products/
-
-        특징:
-        - 하위 카테고리 상품 포함 (MPTT 활용)
-        - 페이지네이션 적용
-        - 활성 상품만 표시
-
-        권한: 누구나 조회 가능
-        """
         from django.db.models import Case, When, Value, BooleanField
 
         category = self.get_object()

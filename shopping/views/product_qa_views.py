@@ -5,7 +5,8 @@ from typing import Any
 from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 
-from rest_framework import permissions, status, viewsets
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import permissions, serializers as drf_serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
@@ -26,6 +27,19 @@ from ..serializers.product_qa_serializers import (
 )
 
 
+# ===== Swagger 문서화용 응답 Serializers =====
+
+
+class QAErrorResponseSerializer(drf_serializers.Serializer):
+    """문의 에러 응답"""
+    error = drf_serializers.CharField()
+
+
+class QAMessageResponseSerializer(drf_serializers.Serializer):
+    """문의 메시지 응답"""
+    message = drf_serializers.CharField()
+
+
 class ProductQuestionPagination(PageNumberPagination):
     """상품 문의 페이지네이션"""
 
@@ -34,12 +48,65 @@ class ProductQuestionPagination(PageNumberPagination):
     max_page_size = 100
 
 
-class ProductQuestionViewSet(viewsets.ModelViewSet):
-    """
-    상품 문의 ViewSet
+@extend_schema_view(
+    list=extend_schema(
+        summary="상품 문의 목록 조회",
+        description="""
+상품의 문의 목록을 조회합니다.
 
-    상품 문의 CRUD 및 답변 관리 기능을 제공합니다.
-    """
+**비밀글 필터링:**
+- 비밀글 아님: 모두 조회
+- 비밀글: 작성자, 판매자, 관리자만 조회
+        """,
+        tags=["상품 문의"],
+    ),
+    retrieve=extend_schema(
+        summary="문의 상세 조회",
+        description="문의의 상세 정보와 답변을 조회합니다.",
+        tags=["상품 문의"],
+    ),
+    create=extend_schema(
+        summary="문의 작성",
+        description="""
+상품에 문의를 작성합니다.
+
+**권한:** 인증 필요
+        """,
+        tags=["상품 문의"],
+    ),
+    update=extend_schema(
+        summary="문의 수정",
+        description="""
+문의를 수정합니다.
+
+**권한:** 작성자만
+**제약:** 답변이 달린 문의는 수정 불가
+        """,
+        tags=["상품 문의"],
+    ),
+    partial_update=extend_schema(
+        summary="문의 부분 수정",
+        description="""
+문의를 부분 수정합니다.
+
+**권한:** 작성자만
+**제약:** 답변이 달린 문의는 수정 불가
+        """,
+        tags=["상품 문의"],
+    ),
+    destroy=extend_schema(
+        summary="문의 삭제",
+        description="""
+문의를 삭제합니다.
+
+**권한:** 작성자 또는 관리자
+**제약:** 답변이 달린 문의는 삭제 불가
+        """,
+        tags=["상품 문의"],
+    ),
+)
+class ProductQuestionViewSet(viewsets.ModelViewSet):
+    """상품 문의 ViewSet"""
 
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     pagination_class = ProductQuestionPagination
@@ -151,17 +218,23 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
 
         return super().destroy(request, *args, **kwargs)
 
+    @extend_schema(
+        request=ProductAnswerCreateSerializer,
+        responses={
+            201: ProductAnswerSerializer,
+            400: QAErrorResponseSerializer,
+        },
+        summary="답변 작성",
+        description="""
+문의에 답변을 작성합니다.
+
+**권한:** 판매자만 (본인 상품의 문의에만)
+**제약:** 이미 답변이 있는 문의는 답변 불가
+        """,
+        tags=["상품 문의"],
+    )
     @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
     def answer(self, request: Request, pk: int | None = None, product_pk: int | None = None) -> Response:
-        """
-        답변 작성
-        POST /api/products/{product_id}/questions/{id}/answer/
-
-        요청 본문:
-        {
-            "content": "내일 출발 예정입니다!"
-        }
-        """
         question = self.get_object()
 
         # 해당 상품의 판매자인지 확인
@@ -185,17 +258,23 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
             return Response(answer_serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        request=ProductAnswerUpdateSerializer,
+        responses={
+            200: ProductAnswerSerializer,
+            400: QAErrorResponseSerializer,
+            404: QAErrorResponseSerializer,
+        },
+        summary="답변 수정",
+        description="""
+답변을 수정합니다.
+
+**권한:** 판매자 또는 관리자
+        """,
+        tags=["상품 문의"],
+    )
     @action(detail=True, methods=["patch"], permission_classes=[permissions.IsAuthenticated])
     def update_answer(self, request: Request, pk: int | None = None, product_pk: int | None = None) -> Response:
-        """
-        답변 수정
-        PATCH /api/products/{product_id}/questions/{id}/update_answer/
-
-        요청 본문:
-        {
-            "content": "수정된 답변 내용"
-        }
-        """
         question = self.get_object()
 
         # 답변 존재 확인
@@ -216,16 +295,25 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        responses={
+            204: QAMessageResponseSerializer,
+            404: QAErrorResponseSerializer,
+        },
+        summary="답변 삭제",
+        description="""
+답변을 삭제합니다. 삭제 후 문의의 답변 완료 상태가 해제됩니다.
+
+**권한:** 판매자 또는 관리자
+        """,
+        tags=["상품 문의"],
+    )
     @action(
         detail=True,
         methods=["delete"],
         permission_classes=[permissions.IsAuthenticated],
     )
     def delete_answer(self, request: Request, pk: int | None = None, product_pk: int | None = None) -> Response:
-        """
-        답변 삭제
-        DELETE /api/products/{product_id}/questions/{id}/delete_answer/
-        """
         question = self.get_object()
 
         # 답변 존재 확인
@@ -248,14 +336,20 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         return Response({"message": "답변이 삭제되었습니다."}, status=status.HTTP_204_NO_CONTENT)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="내가 작성한 문의 목록",
+        description="현재 사용자가 작성한 문의 목록을 조회합니다.",
+        tags=["상품 문의"],
+    ),
+    retrieve=extend_schema(
+        summary="내 문의 상세 조회",
+        description="내가 작성한 문의의 상세 정보를 조회합니다.",
+        tags=["상품 문의"],
+    ),
+)
 class MyQuestionViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    내가 작성한 문의 ViewSet
-
-    엔드포인트:
-    - GET /api/my/questions/     - 내가 작성한 문의 목록
-    - GET /api/my/questions/{id}/ - 문의 상세
-    """
+    """내가 작성한 문의 ViewSet"""
 
     serializer_class = ProductQuestionDetailSerializer
     permission_classes = [permissions.IsAuthenticated]

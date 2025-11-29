@@ -35,11 +35,13 @@ from shopping.permissions import IsSeller, IsSellerAndOwner
 
 class ProductErrorResponseSerializer(drf_serializers.Serializer):
     """상품 에러 응답"""
+
     error = drf_serializers.CharField()
 
 
 class ReviewAddResponseSerializer(drf_serializers.Serializer):
     """리뷰 작성 응답"""
+
     id = drf_serializers.IntegerField()
     rating = drf_serializers.IntegerField()
     comment = drf_serializers.CharField()
@@ -49,6 +51,7 @@ class ReviewAddResponseSerializer(drf_serializers.Serializer):
 
 class CategoryTreeItemSerializer(drf_serializers.Serializer):
     """카테고리 트리 아이템"""
+
     id = drf_serializers.IntegerField()
     name = drf_serializers.CharField()
     slug = drf_serializers.CharField()
@@ -77,7 +80,9 @@ class ProductPagination(PageNumberPagination):
             OpenApiParameter(name="max_price", description="최대 가격", required=False, type=int),
             OpenApiParameter(name="in_stock", description="재고 여부 (true/false)", required=False, type=str),
             OpenApiParameter(name="seller", description="판매자 ID", required=False, type=int),
-            OpenApiParameter(name="ordering", description="정렬 (price, -price, created_at, -created_at)", required=False, type=str),
+            OpenApiParameter(
+                name="ordering", description="정렬 (price, -price, created_at, -created_at)", required=False, type=str
+            ),
         ],
         summary="상품 목록 조회",
         description="""
@@ -307,7 +312,9 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         parameters=[
-            OpenApiParameter(name="ordering", description="정렬 (created_at, -created_at, rating, -rating)", required=False, type=str),
+            OpenApiParameter(
+                name="ordering", description="정렬 (created_at, -created_at, rating, -rating)", required=False, type=str
+            ),
         ],
         responses={200: ProductReviewSerializer(many=True)},
         summary="상품 리뷰 목록 조회",

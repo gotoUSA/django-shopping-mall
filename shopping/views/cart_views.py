@@ -27,25 +27,30 @@ from shopping.serializers import (
 
 # ===== Swagger 문서화용 응답 Serializers =====
 
+
 class CartAddItemResponseSerializer(drf_serializers.Serializer):
     """장바구니 상품 추가 응답"""
+
     message = drf_serializers.CharField()
     item = CartItemSerializer()
 
 
 class CartUpdateItemResponseSerializer(drf_serializers.Serializer):
     """장바구니 수량 변경 응답"""
+
     message = drf_serializers.CharField()
     item = CartItemSerializer()
 
 
 class CartMessageResponseSerializer(drf_serializers.Serializer):
     """장바구니 일반 메시지 응답"""
+
     message = drf_serializers.CharField()
 
 
 class CartErrorResponseSerializer(drf_serializers.Serializer):
     """장바구니 에러 응답"""
+
     error = drf_serializers.CharField(required=False)
     message = drf_serializers.CharField(required=False)
     product_id = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
@@ -54,20 +59,20 @@ class CartErrorResponseSerializer(drf_serializers.Serializer):
 
 class CartBulkAddItemSerializer(drf_serializers.Serializer):
     """장바구니 일괄 추가 개별 아이템"""
+
     product_id = drf_serializers.IntegerField(help_text="상품 ID")
     quantity = drf_serializers.IntegerField(default=1, help_text="수량 (기본값: 1)")
 
 
 class CartBulkAddRequestSerializer(drf_serializers.Serializer):
     """장바구니 일괄 추가 요청"""
-    items = drf_serializers.ListField(
-        child=CartBulkAddItemSerializer(),
-        help_text="추가할 상품 목록"
-    )
+
+    items = drf_serializers.ListField(child=CartBulkAddItemSerializer(), help_text="추가할 상품 목록")
 
 
 class CartBulkAddResponseSerializer(drf_serializers.Serializer):
     """장바구니 일괄 추가 응답"""
+
     message = drf_serializers.CharField()
     added_items = CartItemSerializer(many=True)
     errors = drf_serializers.ListField(required=False)
@@ -76,6 +81,7 @@ class CartBulkAddResponseSerializer(drf_serializers.Serializer):
 
 class CartStockCheckResponseSerializer(drf_serializers.Serializer):
     """재고 확인 응답"""
+
     has_issues = drf_serializers.BooleanField()
     issues = drf_serializers.ListField(required=False)
     message = drf_serializers.CharField()

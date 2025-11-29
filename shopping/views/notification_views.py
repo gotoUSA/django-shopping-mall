@@ -21,18 +21,21 @@ from ..serializers.notification_serializers import (
 
 class UnreadNotificationResponseSerializer(drf_serializers.Serializer):
     """읽지 않은 알림 응답"""
+
     count = drf_serializers.IntegerField()
     notifications = NotificationListSerializer(many=True)
 
 
 class MarkReadResponseSerializer(drf_serializers.Serializer):
     """알림 읽음 처리 응답"""
+
     message = drf_serializers.CharField()
     count = drf_serializers.IntegerField()
 
 
 class ClearResponseSerializer(drf_serializers.Serializer):
     """알림 삭제 응답"""
+
     message = drf_serializers.CharField()
     count = drf_serializers.IntegerField()
 

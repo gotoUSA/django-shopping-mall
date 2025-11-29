@@ -24,13 +24,16 @@ from shopping.throttles import EmailVerificationRateThrottle, EmailVerificationR
 
 # ===== Swagger 문서화용 응답 Serializers =====
 
+
 class EmailVerificationMessageResponseSerializer(drf_serializers.Serializer):
     """이메일 인증 성공 응답"""
+
     message = drf_serializers.CharField()
 
 
 class EmailVerificationErrorResponseSerializer(drf_serializers.Serializer):
     """이메일 인증 에러 응답"""
+
     error = drf_serializers.CharField(required=False)
     code = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
     token = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
@@ -38,6 +41,7 @@ class EmailVerificationErrorResponseSerializer(drf_serializers.Serializer):
 
 class EmailVerificationStatusResponseSerializer(drf_serializers.Serializer):
     """이메일 인증 상태 응답"""
+
     is_verified = drf_serializers.BooleanField()
     email = drf_serializers.EmailField()
     pending_verification = drf_serializers.BooleanField(required=False)

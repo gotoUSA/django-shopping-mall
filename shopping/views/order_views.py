@@ -25,8 +25,10 @@ logger = logging.getLogger(__name__)
 
 # ===== Swagger 문서화용 응답 Serializers =====
 
+
 class OrderCreateResponseSerializer(drf_serializers.Serializer):
     """주문 생성 성공 응답"""
+
     order_id = drf_serializers.IntegerField(help_text="생성된 주문 ID")
     order_number = drf_serializers.CharField(help_text="주문 번호")
     status = drf_serializers.CharField(help_text="주문 상태 (pending)")
@@ -37,11 +39,13 @@ class OrderCreateResponseSerializer(drf_serializers.Serializer):
 
 class OrderCancelResponseSerializer(drf_serializers.Serializer):
     """주문 취소 성공 응답"""
+
     message = drf_serializers.CharField()
 
 
 class OrderErrorResponseSerializer(drf_serializers.Serializer):
     """주문 에러 응답"""
+
     error = drf_serializers.CharField()
     message = drf_serializers.CharField(required=False)
     detail = drf_serializers.CharField(required=False)

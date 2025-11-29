@@ -34,8 +34,10 @@ logger = logging.getLogger(__name__)
 
 # ===== Swagger 문서화용 응답 Serializers =====
 
+
 class PaymentRequestResponseSerializer(drf_serializers.Serializer):
     """결제 요청 성공 응답"""
+
     payment_id = drf_serializers.IntegerField(help_text="생성된 결제 ID")
     order_id = drf_serializers.IntegerField(help_text="주문 ID")
     order_name = drf_serializers.CharField(help_text="주문명 (예: 노트북 외 2건)")
@@ -49,6 +51,7 @@ class PaymentRequestResponseSerializer(drf_serializers.Serializer):
 
 class PaymentConfirmResponseSerializer(drf_serializers.Serializer):
     """결제 승인 성공 응답"""
+
     status = drf_serializers.CharField(help_text="처리 상태 (processing)")
     payment_id = drf_serializers.IntegerField(help_text="결제 ID")
     task_id = drf_serializers.CharField(help_text="비동기 작업 ID")
@@ -58,6 +61,7 @@ class PaymentConfirmResponseSerializer(drf_serializers.Serializer):
 
 class PaymentCancelResponseSerializer(drf_serializers.Serializer):
     """결제 취소 성공 응답"""
+
     message = drf_serializers.CharField()
     payment = PaymentSerializer()
     refund_amount = drf_serializers.IntegerField(help_text="환불 금액")
@@ -67,6 +71,7 @@ class PaymentCancelResponseSerializer(drf_serializers.Serializer):
 
 class PaymentStatusResponseSerializer(drf_serializers.Serializer):
     """결제 상태 응답"""
+
     payment_id = drf_serializers.IntegerField()
     status = drf_serializers.CharField(help_text="결제 상태 (ready, done, canceled, aborted)")
     is_paid = drf_serializers.BooleanField()
@@ -76,6 +81,7 @@ class PaymentStatusResponseSerializer(drf_serializers.Serializer):
 
 class PaymentFailResponseSerializer(drf_serializers.Serializer):
     """결제 실패 처리 응답"""
+
     message = drf_serializers.CharField()
     payment_id = drf_serializers.IntegerField()
     order_id = drf_serializers.IntegerField()
@@ -87,12 +93,14 @@ class PaymentFailResponseSerializer(drf_serializers.Serializer):
 
 class PaymentErrorResponseSerializer(drf_serializers.Serializer):
     """결제 에러 응답"""
+
     error = drf_serializers.CharField()
     message = drf_serializers.CharField(required=False)
 
 
 class PaymentListResponseSerializer(drf_serializers.Serializer):
     """결제 목록 응답"""
+
     count = drf_serializers.IntegerField()
     page = drf_serializers.IntegerField()
     page_size = drf_serializers.IntegerField()

@@ -28,12 +28,14 @@ logger = logging.getLogger(__name__)
 
 class MyPointResponseSerializer(drf_serializers.Serializer):
     """내 포인트 정보 응답"""
+
     point_info = UserPointSerializer()
     recent_histories = PointHistorySerializer(many=True)
 
 
 class PointHistorySummarySerializer(drf_serializers.Serializer):
     """포인트 이력 요약"""
+
     current_points = drf_serializers.IntegerField()
     total_earned = drf_serializers.IntegerField()
     total_used = drf_serializers.IntegerField()
@@ -41,6 +43,7 @@ class PointHistorySummarySerializer(drf_serializers.Serializer):
 
 class PointHistoryListResponseSerializer(drf_serializers.Serializer):
     """포인트 이력 목록 응답"""
+
     count = drf_serializers.IntegerField()
     page = drf_serializers.IntegerField()
     page_size = drf_serializers.IntegerField()
@@ -50,6 +53,7 @@ class PointHistoryListResponseSerializer(drf_serializers.Serializer):
 
 class PointCheckResponseSerializer(drf_serializers.Serializer):
     """포인트 사용 가능 여부 응답"""
+
     available_points = drf_serializers.IntegerField()
     can_use = drf_serializers.BooleanField()
     max_usable = drf_serializers.IntegerField()
@@ -58,6 +62,7 @@ class PointCheckResponseSerializer(drf_serializers.Serializer):
 
 class MonthlyExpiringSummarySerializer(drf_serializers.Serializer):
     """월별 만료 예정 요약"""
+
     month = drf_serializers.CharField()
     points = drf_serializers.IntegerField()
     count = drf_serializers.IntegerField()
@@ -65,6 +70,7 @@ class MonthlyExpiringSummarySerializer(drf_serializers.Serializer):
 
 class ExpiringPointsResponseSerializer(drf_serializers.Serializer):
     """만료 예정 포인트 응답"""
+
     total_expiring = drf_serializers.IntegerField()
     days = drf_serializers.IntegerField()
     monthly_summary = MonthlyExpiringSummarySerializer(many=True)
@@ -73,18 +79,21 @@ class ExpiringPointsResponseSerializer(drf_serializers.Serializer):
 
 class PointStatisticsThisMonthSerializer(drf_serializers.Serializer):
     """이번 달 포인트 통계"""
+
     earned = drf_serializers.IntegerField()
     used = drf_serializers.IntegerField()
 
 
 class PointStatisticsAllTimeSerializer(drf_serializers.Serializer):
     """전체 포인트 통계"""
+
     total_earned = drf_serializers.IntegerField()
     total_used = drf_serializers.IntegerField()
 
 
 class PointStatisticsResponseSerializer(drf_serializers.Serializer):
     """포인트 통계 응답"""
+
     current_points = drf_serializers.IntegerField()
     this_month = PointStatisticsThisMonthSerializer()
     all_time = PointStatisticsAllTimeSerializer()
@@ -93,6 +102,7 @@ class PointStatisticsResponseSerializer(drf_serializers.Serializer):
 
 class PointUseDetailSerializer(drf_serializers.Serializer):
     """포인트 사용 상세"""
+
     history_id = drf_serializers.IntegerField()
     amount = drf_serializers.IntegerField()
     expires_at = drf_serializers.DateTimeField()
@@ -100,6 +110,7 @@ class PointUseDetailSerializer(drf_serializers.Serializer):
 
 class PointUseDataSerializer(drf_serializers.Serializer):
     """포인트 사용 결과 데이터"""
+
     used_amount = drf_serializers.IntegerField()
     remaining_points = drf_serializers.IntegerField()
     used_details = PointUseDetailSerializer(many=True)
@@ -107,6 +118,7 @@ class PointUseDataSerializer(drf_serializers.Serializer):
 
 class PointUseSuccessResponseSerializer(drf_serializers.Serializer):
     """포인트 사용 성공 응답"""
+
     success = drf_serializers.BooleanField()
     message = drf_serializers.CharField()
     data = PointUseDataSerializer()
@@ -114,6 +126,7 @@ class PointUseSuccessResponseSerializer(drf_serializers.Serializer):
 
 class PointErrorResponseSerializer(drf_serializers.Serializer):
     """포인트 에러 응답"""
+
     success = drf_serializers.BooleanField(default=False)
     error_code = drf_serializers.CharField()
     message = drf_serializers.CharField()
@@ -122,6 +135,7 @@ class PointErrorResponseSerializer(drf_serializers.Serializer):
 
 class PointCancelDataSerializer(drf_serializers.Serializer):
     """포인트 취소 결과 데이터"""
+
     processed_amount = drf_serializers.IntegerField()
     remaining_points = drf_serializers.IntegerField()
     type = drf_serializers.CharField()
@@ -130,6 +144,7 @@ class PointCancelDataSerializer(drf_serializers.Serializer):
 
 class PointCancelSuccessResponseSerializer(drf_serializers.Serializer):
     """포인트 취소 성공 응답"""
+
     success = drf_serializers.BooleanField()
     message = drf_serializers.CharField()
     data = PointCancelDataSerializer()

@@ -32,11 +32,13 @@ from ..serializers.product_qa_serializers import (
 
 class QAErrorResponseSerializer(drf_serializers.Serializer):
     """문의 에러 응답"""
+
     error = drf_serializers.CharField()
 
 
 class QAMessageResponseSerializer(drf_serializers.Serializer):
     """문의 메시지 응답"""
+
     message = drf_serializers.CharField()
 
 
@@ -125,12 +127,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         queryset = (
             ProductQuestion.objects.filter(product_id=product_id)
             .select_related("user", "product", "product__seller")
-            .prefetch_related(
-                Prefetch(
-                    "answer",
-                    queryset=ProductAnswer.objects.select_related("seller")
-                )
-            )
+            .prefetch_related(Prefetch("answer", queryset=ProductAnswer.objects.select_related("seller")))
             .order_by("-created_at")
         )
 
@@ -360,11 +357,6 @@ class MyQuestionViewSet(viewsets.ReadOnlyModelViewSet):
         return (
             ProductQuestion.objects.filter(user=self.request.user)
             .select_related("product", "product__seller", "user")
-            .prefetch_related(
-                Prefetch(
-                    "answer",
-                    queryset=ProductAnswer.objects.select_related("seller")
-                )
-            )
+            .prefetch_related(Prefetch("answer", queryset=ProductAnswer.objects.select_related("seller")))
             .order_by("-created_at")
         )

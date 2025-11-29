@@ -30,12 +30,14 @@ from shopping.serializers.wishlist_serializers import (
 
 class WishlistListResponseSerializer(drf_serializers.Serializer):
     """찜 목록 조회 응답"""
+
     count = drf_serializers.IntegerField()
     results = WishlistProductSerializer(many=True)
 
 
 class WishlistToggleResponseSerializer(drf_serializers.Serializer):
     """찜하기 토글 응답"""
+
     is_wished = drf_serializers.BooleanField()
     message = drf_serializers.CharField()
     wishlist_count = drf_serializers.IntegerField()
@@ -43,6 +45,7 @@ class WishlistToggleResponseSerializer(drf_serializers.Serializer):
 
 class WishlistAddResponseSerializer(drf_serializers.Serializer):
     """찜 추가 응답"""
+
     message = drf_serializers.CharField()
     is_wished = drf_serializers.BooleanField()
     wishlist_count = drf_serializers.IntegerField(required=False)
@@ -50,16 +53,19 @@ class WishlistAddResponseSerializer(drf_serializers.Serializer):
 
 class WishlistMessageResponseSerializer(drf_serializers.Serializer):
     """일반 메시지 응답"""
+
     message = drf_serializers.CharField()
 
 
 class WishlistErrorResponseSerializer(drf_serializers.Serializer):
     """에러 응답"""
+
     error = drf_serializers.CharField()
 
 
 class WishlistBulkAddResponseSerializer(drf_serializers.Serializer):
     """일괄 찜하기 응답"""
+
     message = drf_serializers.CharField()
     added_count = drf_serializers.IntegerField()
     skipped_count = drf_serializers.IntegerField()
@@ -68,6 +74,7 @@ class WishlistBulkAddResponseSerializer(drf_serializers.Serializer):
 
 class WishlistCheckResponseSerializer(drf_serializers.Serializer):
     """찜 상태 확인 응답"""
+
     product_id = drf_serializers.IntegerField()
     is_wished = drf_serializers.BooleanField()
     wishlist_count = drf_serializers.IntegerField()
@@ -75,6 +82,7 @@ class WishlistCheckResponseSerializer(drf_serializers.Serializer):
 
 class WishlistMoveToCartResponseSerializer(drf_serializers.Serializer):
     """장바구니로 이동 응답"""
+
     message = drf_serializers.CharField()
     added_items = drf_serializers.ListField(child=drf_serializers.CharField())
     already_in_cart = drf_serializers.ListField(child=drf_serializers.CharField())
@@ -83,14 +91,9 @@ class WishlistMoveToCartResponseSerializer(drf_serializers.Serializer):
 
 class WishlistMoveToCartRequestSerializer(drf_serializers.Serializer):
     """장바구니로 이동 요청"""
-    product_ids = drf_serializers.ListField(
-        child=drf_serializers.IntegerField(),
-        help_text="이동할 상품 ID 목록"
-    )
-    remove_from_wishlist = drf_serializers.BooleanField(
-        default=False,
-        help_text="장바구니 추가 후 찜 목록에서 제거 여부"
-    )
+
+    product_ids = drf_serializers.ListField(child=drf_serializers.IntegerField(), help_text="이동할 상품 ID 목록")
+    remove_from_wishlist = drf_serializers.BooleanField(default=False, help_text="장바구니 추가 후 찜 목록에서 제거 여부")
 
 
 class WishlistViewSet(GenericViewSet):
@@ -119,7 +122,13 @@ class WishlistViewSet(GenericViewSet):
 
     @extend_schema(
         parameters=[
-            OpenApiParameter(name="ordering", description="정렬 (기본: -created_at)", required=False, type=str, enum=["created_at", "-created_at", "price", "-price", "name"]),
+            OpenApiParameter(
+                name="ordering",
+                description="정렬 (기본: -created_at)",
+                required=False,
+                type=str,
+                enum=["created_at", "-created_at", "price", "-price", "name"],
+            ),
             OpenApiParameter(name="is_available", description="구매 가능 상품만 (true/false)", required=False, type=str),
             OpenApiParameter(name="on_sale", description="세일 중인 상품만 (true/false)", required=False, type=str),
         ],

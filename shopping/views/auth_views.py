@@ -93,10 +93,7 @@ class TokenRefreshResponseSerializer(drf_serializers.Serializer):
 class TokenRefreshRequestSerializer(drf_serializers.Serializer):
     """토큰 갱신 요청 스키마 (선택적)"""
 
-    refresh = drf_serializers.CharField(
-        required=False,
-        help_text="Refresh Token (Cookie에서 자동으로 읽어오므로 선택사항)"
-    )
+    refresh = drf_serializers.CharField(required=False, help_text="Refresh Token (Cookie에서 자동으로 읽어오므로 선택사항)")
 
 
 # 토큰 확인 응답용 Serializer

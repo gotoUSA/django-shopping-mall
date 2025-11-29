@@ -81,7 +81,11 @@ class ReturnErrorResponseSerializer(drf_serializers.Serializer):
         tags=["Returns"],
     ),
     destroy=extend_schema(
-        responses={200: ReturnMessageResponseSerializer, 400: ReturnErrorResponseSerializer, 403: ReturnErrorResponseSerializer},
+        responses={
+            200: ReturnMessageResponseSerializer,
+            400: ReturnErrorResponseSerializer,
+            403: ReturnErrorResponseSerializer,
+        },
         summary="교환/환불 신청 취소",
         description="신청(requested) 상태의 교환/환불을 취소합니다.",
         tags=["Returns"],
@@ -286,7 +290,11 @@ class ReturnViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         request=ReturnCompleteSerializer,
-        responses={200: ReturnActionResponseSerializer, 400: ReturnErrorResponseSerializer, 403: ReturnErrorResponseSerializer},
+        responses={
+            200: ReturnActionResponseSerializer,
+            400: ReturnErrorResponseSerializer,
+            403: ReturnErrorResponseSerializer,
+        },
         summary="교환/환불 완료 처리",
         description="판매자가 교환/환불을 완료 처리합니다. 환불은 자동 환불 처리되고, 교환은 교환 상품 송장번호를 입력합니다.",
         tags=["교환/환불"],

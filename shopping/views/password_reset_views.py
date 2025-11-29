@@ -22,19 +22,23 @@ User = get_user_model()
 
 # ===== Swagger 문서화용 응답 Serializers =====
 
+
 class PasswordResetMessageResponseSerializer(drf_serializers.Serializer):
     """비밀번호 재설정 성공 응답"""
+
     message = drf_serializers.CharField()
 
 
 class PasswordResetConfirmResponseSerializer(drf_serializers.Serializer):
     """비밀번호 재설정 확인 성공 응답"""
+
     message = drf_serializers.CharField()
     username = drf_serializers.CharField(help_text="로그인 시 사용할 사용자명")
 
 
 class PasswordResetErrorResponseSerializer(drf_serializers.Serializer):
     """비밀번호 재설정 에러 응답"""
+
     email = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
     token = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
     new_password = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)

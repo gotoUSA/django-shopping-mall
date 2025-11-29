@@ -1,3 +1,9 @@
+"""알림 ViewSet
+
+HTTP 요청/응답 처리를 담당합니다.
+비즈니스 로직은 NotificationService에 위임합니다.
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -14,6 +20,7 @@ from ..serializers.notification_serializers import (
     NotificationMarkReadSerializer,
     NotificationSerializer,
 )
+from ..services.notification_service import NotificationService, NotificationServiceError
 
 
 # ===== Swagger 문서화용 응답 Serializers =====
@@ -40,6 +47,12 @@ class ClearResponseSerializer(drf_serializers.Serializer):
     count = drf_serializers.IntegerField()
 
 
+class ErrorResponseSerializer(drf_serializers.Serializer):
+    """에러 응답"""
+
+    error = drf_serializers.CharField()
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="내 알림 목록을 조회한다.",
@@ -56,14 +69,25 @@ class ClearResponseSerializer(drf_serializers.Serializer):
     ),
 )
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
-    """알림 ViewSet"""
+    """
+    알림 ViewSet
+
+    엔드포인트:
+    - GET    /api/notifications/           - 알림 목록 조회
+    - GET    /api/notifications/{id}/      - 알림 상세 조회 (자동 읽음 처리)
+    - GET    /api/notifications/unread/    - 읽지 않은 알림 조회
+    - POST   /api/notifications/mark_read/ - 알림 읽음 처리
+    - DELETE /api/notifications/clear/     - 읽은 알림 전체 삭제
+
+    권한: 인증 필요 (본인 알림만 관리 가능)
+    """
 
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self) -> Any:
         """현재 사용자의 알림만 조회"""
-        return Notification.objects.filter(user=self.request.user)
+        return NotificationService.get_queryset(self.request.user)
 
     def get_serializer_class(self) -> type[NotificationListSerializer] | type[NotificationSerializer]:
         """
@@ -72,9 +96,13 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         - list, unread: 경량 ListSerializer (message 제외)
         - retrieve: 전체 정보 포함 Serializer
         """
-        if self.action in ["list", "unread"]:
-            return NotificationListSerializer
-        return NotificationSerializer
+        serializer_map = {
+            "list": NotificationListSerializer,
+            "unread": NotificationListSerializer,
+        }
+        return serializer_map.get(self.action, NotificationSerializer)
+
+    # ===== 알림 상세 조회 =====
 
     def retrieve(self, request: Request, pk: int | None = None) -> Response:
         """
@@ -82,14 +110,19 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
 
         조회 시 자동으로 읽음 처리됩니다.
         """
-        notification = self.get_object()
+        try:
+            notification = NotificationService.get_by_id(request.user, int(pk))
 
-        # 읽지 않은 알림이면 읽음 처리
-        if not notification.is_read:
-            notification.mark_as_read()
+            # 읽지 않은 알림이면 읽음 처리
+            NotificationService.mark_single_as_read(notification)
 
-        serializer = self.get_serializer(notification)
-        return Response(serializer.data)
+            serializer = self.get_serializer(notification)
+            return Response(serializer.data)
+
+        except NotificationServiceError as e:
+            return self._handle_service_error(e)
+
+    # ===== 읽지 않은 알림 조회 =====
 
     @extend_schema(
         responses={200: UnreadNotificationResponseSerializer},
@@ -101,18 +134,24 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     )
     @action(detail=False, methods=["get"])
     def unread(self, request: Request) -> Response:
-        unread_notifications = self.get_queryset().filter(is_read=False)
-        count = unread_notifications.count()
+        """읽지 않은 알림 조회"""
+        result = NotificationService.get_unread(request.user)
 
-        # 최근 5개만 미리보기
-        recent = unread_notifications[:5]
-        serializer = self.get_serializer(recent, many=True)
+        serializer = NotificationListSerializer(result.notifications, many=True)
 
-        return Response({"count": count, "notifications": serializer.data})
+        return Response({
+            "count": result.count,
+            "notifications": serializer.data,
+        })
+
+    # ===== 알림 읽음 처리 =====
 
     @extend_schema(
         request=NotificationMarkReadSerializer,
-        responses={200: MarkReadResponseSerializer},
+        responses={
+            200: MarkReadResponseSerializer,
+            400: ErrorResponseSerializer,
+        },
         summary="알림을 읽음 처리한다.",
         description="""처리 내용:
 - 지정된 알림들을 읽음 처리한다.
@@ -121,22 +160,35 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     )
     @action(detail=False, methods=["post"])
     def mark_read(self, request: Request) -> Response:
-        serializer = NotificationMarkReadSerializer(data=request.data, context={"request": request})
+        """알림 읽음 처리"""
+        serializer = NotificationMarkReadSerializer(
+            data=request.data,
+            context={"request": request},
+        )
 
-        if serializer.is_valid():
-            count = serializer.mark_as_read()
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-            if count == 0:
-                message = "읽지 않은 알림이 없습니다."
-            else:
-                message = f"{count}개의 알림을 읽음 처리했습니다."
+        # Serializer에서 notification_ids 추출
+        notification_ids = serializer.validated_data.get("notification_ids", [])
 
-            return Response({"message": message, "count": count})
+        # 빈 배열이면 전체 읽음 처리
+        result = NotificationService.mark_as_read(
+            user=request.user,
+            notification_ids=notification_ids if notification_ids else None,
+        )
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            "message": result.message,
+            "count": result.count,
+        })
+
+    # ===== 읽은 알림 삭제 =====
 
     @extend_schema(
-        responses={200: ClearResponseSerializer},
+        responses={
+            200: ClearResponseSerializer,
+        },
         summary="읽은 알림을 전체 삭제한다.",
         description="""처리 내용:
 - 읽음 처리된 알림을 전체 삭제한다.""",
@@ -144,8 +196,26 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     )
     @action(detail=False, methods=["delete"])
     def clear(self, request: Request) -> Response:
-        read_notifications = self.get_queryset().filter(is_read=True)
-        count = read_notifications.count()
-        read_notifications.delete()
+        """읽은 알림 전체 삭제"""
+        result = NotificationService.clear_read(user=request.user)
 
-        return Response({"message": f"{count}개의 알림을 삭제했습니다.", "count": count})
+        return Response({
+            "message": result.message,
+            "count": result.count,
+        })
+
+    # ===== Private Helper Methods =====
+
+    def _handle_service_error(self, error: NotificationServiceError) -> Response:
+        """서비스 에러를 HTTP 응답으로 변환"""
+        status_map = {
+            "NOTIFICATION_NOT_FOUND": status.HTTP_404_NOT_FOUND,
+        }
+
+        http_status = status_map.get(error.code, status.HTTP_400_BAD_REQUEST)
+
+        response_data = {"error": error.message}
+        if error.details:
+            response_data.update(error.details)
+
+        return Response(response_data, status=http_status)

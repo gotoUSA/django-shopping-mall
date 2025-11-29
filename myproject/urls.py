@@ -32,8 +32,6 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # shopping 앱 URLs 포함
     path("api/", include("shopping.urls")),
-    # 웹페이지
-    path("shopping/", include("shopping.urls")),
     # DRF 인증 URLs (로그인/로그아웃 페이지)
     path("api-auth/", include("rest_framework.urls")),
     # OpenAPI Schema

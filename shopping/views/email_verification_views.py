@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from django.utils import timezone
 
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from rest_framework import serializers as drf_serializers
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -20,12 +22,54 @@ from shopping.tasks.email_tasks import send_verification_email_task
 from shopping.throttles import EmailVerificationRateThrottle, EmailVerificationResendRateThrottle
 
 
+# ===== Swagger 문서화용 응답 Serializers =====
+
+
+class EmailVerificationMessageResponseSerializer(drf_serializers.Serializer):
+    """이메일 인증 성공 응답"""
+
+    message = drf_serializers.CharField()
+
+
+class EmailVerificationErrorResponseSerializer(drf_serializers.Serializer):
+    """이메일 인증 에러 응답"""
+
+    error = drf_serializers.CharField(required=False)
+    code = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
+    token = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
+
+
+class EmailVerificationStatusResponseSerializer(drf_serializers.Serializer):
+    """이메일 인증 상태 응답"""
+
+    is_verified = drf_serializers.BooleanField()
+    email = drf_serializers.EmailField()
+    pending_verification = drf_serializers.BooleanField(required=False)
+    token_expired = drf_serializers.BooleanField(required=False)
+    can_resend = drf_serializers.BooleanField(required=False)
+
+
 class SendVerificationEmailView(APIView):
     """이메일 인증 발송 API (비동기 처리)"""
 
     permission_classes = [IsAuthenticated]
     throttle_classes = [EmailVerificationRateThrottle]
 
+    @extend_schema(
+        request=None,
+        responses={
+            200: EmailVerificationMessageResponseSerializer,
+            400: EmailVerificationErrorResponseSerializer,
+            429: EmailVerificationErrorResponseSerializer,
+        },
+        summary="인증 이메일을 발송한다.",
+        description="""처리 내용:
+- 기존 미사용 토큰을 무효화한다.
+- 새 인증 토큰을 생성한다.
+- 비동기(Celery)로 이메일을 발송한다.
+- 이미 인증된 사용자는 발송 불가한다.""",
+        tags=["Auth"],
+    )
     def post(self, request: Request) -> Response:
         serializer = SendVerificationEmailSerializer(data=request.data, context={"request": request})
 
@@ -61,6 +105,27 @@ class VerifyEmailView(APIView):
 
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="token",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="UUID 형식의 인증 토큰 (이메일 링크에 포함)",
+                required=True,
+            ),
+        ],
+        responses={
+            200: EmailVerificationMessageResponseSerializer,
+            400: EmailVerificationErrorResponseSerializer,
+        },
+        summary="UUID 토큰으로 이메일을 인증한다.",
+        description="""처리 내용:
+- 토큰의 유효성을 검증한다.
+- 사용자의 이메일 인증 상태를 완료로 변경한다.
+- 토큰을 사용 완료 상태로 변경한다.""",
+        tags=["Auth"],
+    )
     def get(self, request: Request) -> Response:
         """UUID 토큰으로 인증 (GET 요청)"""
         token = request.GET.get("token")
@@ -83,6 +148,20 @@ class VerifyEmailView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        request=VerifyEmailByCodeSerializer,
+        responses={
+            200: EmailVerificationMessageResponseSerializer,
+            400: EmailVerificationErrorResponseSerializer,
+            401: EmailVerificationErrorResponseSerializer,
+        },
+        summary="6자리 코드로 이메일을 인증한다.",
+        description="""처리 내용:
+- 인증 코드의 유효성을 검증한다.
+- 사용자의 이메일 인증 상태를 완료로 변경한다.
+- 코드는 대소문자 구분 없이 처리한다.""",
+        tags=["Auth"],
+    )
     def post(self, request: Request) -> Response:
         """6자리 코드로 인증 (POST 요청)"""
         if not request.user.is_authenticated:
@@ -117,6 +196,21 @@ class ResendVerificationEmailView(APIView):
     permission_classes = [IsAuthenticated]
     throttle_classes = [EmailVerificationResendRateThrottle]
 
+    @extend_schema(
+        request=None,
+        responses={
+            200: EmailVerificationMessageResponseSerializer,
+            400: EmailVerificationErrorResponseSerializer,
+            429: EmailVerificationErrorResponseSerializer,
+        },
+        summary="인증 이메일을 재발송한다.",
+        description="""처리 내용:
+- 기존 미사용 토큰을 무효화한다.
+- 새 인증 토큰을 생성한다.
+- 비동기(Celery)로 이메일을 재발송한다.
+- 1분 내 재발송 불가한다.""",
+        tags=["Auth"],
+    )
     def post(self, request: Request) -> Response:
         serializer = ResendVerificationEmailSerializer(data=request.data, context={"request": request})
 
@@ -148,6 +242,14 @@ class ResendVerificationEmailView(APIView):
         )
 
 
+@extend_schema(
+    responses={200: EmailVerificationStatusResponseSerializer},
+    summary="이메일 인증 상태를 확인한다.",
+    description="""처리 내용:
+- 현재 사용자의 이메일 인증 상태를 반환한다.
+- 미인증 시 토큰 만료 여부와 재발송 가능 여부를 포함한다.""",
+    tags=["Auth"],
+)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def check_verification_status(request: Request) -> Response:

@@ -305,7 +305,8 @@ def authenticated_client(api_client, user):
         reverse("auth-login"),
         {"username": "testuser", "password": "testpass123"},
     )
-    token = response.json()["access"]
+    # 새 API 응답 구조: {"token": {"access": "..."}}
+    token = response.json()["token"]["access"]
     api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
     return api_client
 
@@ -321,7 +322,8 @@ def seller_authenticated_client(api_client, seller_user):
         reverse("auth-login"),
         {"username": "seller", "password": "sellerpass123"},
     )
-    token = response.json()["access"]
+    # 새 API 응답 구조: {"token": {"access": "..."}}
+    token = response.json()["token"]["access"]
     api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
     return api_client
 
@@ -332,12 +334,29 @@ def get_tokens(api_client, user):
     JWT 토큰 발급 헬퍼
 
     access, refresh 토큰을 dict로 반환
+
+    Note:
+        새 API에서는 refresh token이 HTTP Only Cookie로 전달되므로,
+        테스트에서는 Cookie에서 가져옵니다.
+        Cookie가 없는 경우 로그인 API에서 정상적으로 발급되지 않은 것입니다.
     """
     response = api_client.post(
         reverse("auth-login"),
         {"username": "testuser", "password": "testpass123"},
     )
-    return response.json()
+
+    # Access token은 response body에서 가져옴
+    access_token = response.json()["token"]["access"]
+
+    # Refresh token은 Cookie에서 가져옴
+    refresh_cookie = response.cookies.get("refresh_token")
+    if refresh_cookie:
+        refresh_token = refresh_cookie.value
+    else:
+        # Cookie가 없으면 에러 - 로그인 API가 Cookie를 설정하지 않음
+        raise ValueError("로그인 응답에 refresh_token Cookie가 없습니다. auth_views.py를 확인하세요.")
+
+    return {"access": access_token, "refresh": refresh_token}
 
 
 # ==========================================

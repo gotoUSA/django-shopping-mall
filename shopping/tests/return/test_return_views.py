@@ -27,7 +27,8 @@ from shopping.tests.factories import (
 def get_results(response_data):
     """
     페이지네이션 응답에서 results 추출 헬퍼
-    
+
+
     DRF PageNumberPagination 응답: {"count": N, "results": [...]}
     페이지네이션 없는 응답: [...]
     """
@@ -56,11 +57,12 @@ class TestReturnViewAuthentication:
 
     def test_create_unauthenticated_returns_401_or_403(self, api_client):
         """미인증 사용자 신청 생성 시 인증 에러"""
-        # Arrange
-        url = reverse("return-create", kwargs={"order_id": 1})
+        # Arrange - return-list를 사용하고 order_id를 body에 포함
+        url = reverse("return-list")
 
         # Act
-        response = api_client.post(url, {})
+        response = api_client.post(url, {"order_id": 1})
+
 
         # Assert
         assert response.status_code in [
@@ -280,8 +282,10 @@ class TestReturnViewIntegration:
 
         # Act & Assert - 1. 신청
         api_client.force_authenticate(user=buyer)
-        create_url = reverse("return-create", kwargs={"order_id": order.id})
+        create_url = reverse("return-list")  # return-create -> return-list
         create_data = {
+            "order_id": order.id,  # body에 order_id 추가
+
             "type": "refund",
             "reason": "change_of_mind",
             "reason_detail": "단순 변심",
@@ -337,8 +341,10 @@ class TestReturnViewIntegration:
 
         # Act & Assert - 1. 신청
         api_client.force_authenticate(user=buyer)
-        create_url = reverse("return-create", kwargs={"order_id": order.id})
+        create_url = reverse("return-list")  # return-create -> return-list
         create_data = {
+            "order_id": order.id,  # body에 order_id 추가
+
             "type": "exchange",
             "reason": "size_issue",
             "reason_detail": "사이즈가 맞지 않음",

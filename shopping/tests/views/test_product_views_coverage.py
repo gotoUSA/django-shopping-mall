@@ -262,7 +262,8 @@ class TestProductReviewValidation:
 
         # Act
         response = api_client.post(
-            reverse("product-add-review", kwargs={"pk": product.id}),
+            reverse("product-reviews", kwargs={"pk": product.id}),  # product-add-review -> product-reviews
+
             invalid_data,
             format="json",
         )
@@ -281,7 +282,8 @@ class TestProductReviewValidation:
 
         # Act
         response = api_client.post(
-            reverse("product-add-review", kwargs={"pk": product.id}),
+            reverse("product-reviews", kwargs={"pk": product.id}),  # product-add-review -> product-reviews
+
             invalid_data,
             format="json",
         )

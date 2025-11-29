@@ -9,6 +9,7 @@ from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 
 # social login
 from dj_rest_auth.registration.views import SocialLoginView
+from drf_spectacular.utils import extend_schema
 from rest_framework.routers import DefaultRouter
 
 # notification
@@ -21,7 +22,6 @@ from shopping.views.auth_views import (
     LogoutView,
     RegisterView,
     check_token,
-    email_verification_request,
 )
 from shopping.views.cart_views import CartItemViewSet, CartViewSet
 
@@ -77,6 +77,11 @@ from shopping.views.user_views import (
 
 
 # 소셜 로그인 뷰 정의
+@extend_schema(
+    summary="구글 소셜 로그인",
+    description="구글 OAuth2를 통한 소셜 로그인",
+    tags=["Social Auth"],
+)
 class GoogleLogin(SocialLoginView):
     """구글 소셜 로그인"""
 
@@ -85,6 +90,11 @@ class GoogleLogin(SocialLoginView):
     callback_url = settings.SOCIAL_LOGIN_REDIRECT_URI
 
 
+@extend_schema(
+    summary="카카오 소셜 로그인",
+    description="카카오 OAuth2를 통한 소셜 로그인",
+    tags=["Social Auth"],
+)
 class KakaoLogin(SocialLoginView):
     """카카오 소셜 로그인"""
 
@@ -93,6 +103,11 @@ class KakaoLogin(SocialLoginView):
     callback_url = settings.SOCIAL_LOGIN_REDIRECT_URI
 
 
+@extend_schema(
+    summary="네이버 소셜 로그인",
+    description="네이버 OAuth2를 통한 소셜 로그인",
+    tags=["Social Auth"],
+)
 class NaverLogin(SocialLoginView):
     """네이버 소셜 로그인"""
 
@@ -108,6 +123,7 @@ router = DefaultRouter()
 router.register(r"products", ProductViewSet, basename="product")
 router.register(r"categories", CategoryViewSet, basename="category")
 router.register(r"orders", OrderViewSet, basename="order")
+router.register(r"cart-items", CartItemViewSet, basename="cart-items")
 
 # 알림 라우터
 router.register(r"notifications", NotificationViewSet, basename="notification")
@@ -123,10 +139,6 @@ router.register(r"returns", ReturnViewSet, basename="return")
 products_router = routers.NestedSimpleRouter(router, r"products", lookup="product")
 products_router.register(r"questions", ProductQuestionViewSet, basename="product-question")
 
-
-# Cart 관련 ViewSet 등록
-# CartViewSet은 특별한 actions만 있으므로 수동 등록
-router.register(r"cart-items", CartItemViewSet, basename="cart-item")
 
 # URL 패턴 정의
 urlpatterns = [
@@ -185,7 +197,6 @@ urlpatterns = [
         check_verification_status,
         name="email-verification-status",
     ),
-    path("auth/email/verify/", email_verification_request, name="email-verify"),
     # Cart 관련 커스텀 URLs (CartViewSet의 actions)
     path("cart/", CartViewSet.as_view({"get": "retrieve"}), name="cart-detail"),
     path("cart/summary/", CartViewSet.as_view({"get": "summary"}), name="cart-summary"),
@@ -281,49 +292,11 @@ urlpatterns = [
     path("auth/social/google/", GoogleLogin.as_view(), name="google-login"),
     path("auth/social/kakao/", KakaoLogin.as_view(), name="kakao-login"),
     path("auth/social/naver/", NaverLogin.as_view(), name="naver-login"),
-    # dj-rest-auth 기본 엔드포인트 (소셜 계정 관리)
-    path("auth/social/", include("dj_rest_auth.registration.urls")),
     # 소셜 로그인 테스트 페이지
     path(
         "social/test/",
         TemplateView.as_view(template_name="social_test.html"),
         name="social-test-page",
-    ),
-    # 교환/환불 관련 URLs
-    path(
-        "orders/<int:order_id>/returns/",
-        ReturnViewSet.as_view({"post": "create"}),
-        name="return-create",
-    ),
-    path(
-        "returns/",
-        ReturnViewSet.as_view({"get": "list"}),
-        name="return-list",
-    ),
-    path(
-        "returns/<int:pk>/",
-        ReturnViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}),
-        name="return-detail",
-    ),
-    path(
-        "returns/<int:pk>/approve/",
-        ReturnViewSet.as_view({"post": "approve"}),
-        name="return-approve",
-    ),
-    path(
-        "returns/<int:pk>/reject/",
-        ReturnViewSet.as_view({"post": "reject"}),
-        name="return-reject",
-    ),
-    path(
-        "returns/<int:pk>/confirm-receive/",
-        ReturnViewSet.as_view({"post": "confirm_receive"}),
-        name="return-confirm-receive",
-    ),
-    path(
-        "returns/<int:pk>/complete/",
-        ReturnViewSet.as_view({"post": "complete"}),
-        name="return-complete",
     ),
 ]
 
@@ -370,7 +343,7 @@ urlpatterns = [
 - PATCH  /api/products/{id}/         - 상품 부분 수정
 - DELETE /api/products/{id}/         - 상품 삭제
 - GET    /api/products/{id}/reviews/ - 상품 리뷰 목록
-- POST   /api/products/{id}/add_review/ - 리뷰 작성
+- POST   /api/products/{id}/reviews/ - 리뷰 작성
 - GET    /api/products/popular/      - 인기 상품
 - GET    /api/products/best_rating/  - 평점 높은 상품
 - GET    /api/products/low_stock/    - 재고 부족 상품
@@ -391,12 +364,6 @@ urlpatterns = [
 - POST   /api/cart/clear/            - 장바구니 비우기
 - POST   /api/cart/bulk_add/         - 여러 상품 한번에 추가
 - GET    /api/cart/check_stock/      - 재고 확인
-
-장바구니 아이템(CartItem) RESTful:
-- GET    /api/cart-items/            - 아이템 목록
-- POST   /api/cart-items/            - 아이템 추가
-- PUT    /api/cart-items/{id}/       - 아이템 수정
-- DELETE /api/cart-items/{id}/       - 아이템 삭제
 
 검색 및 필터링 예시:
 - /api/products/?search=노트북

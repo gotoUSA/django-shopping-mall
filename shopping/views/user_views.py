@@ -5,7 +5,8 @@ import logging
 from django.db import transaction
 from django.utils import timezone
 
-from rest_framework import generics, status
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import generics, serializers as drf_serializers, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -18,6 +19,67 @@ from shopping.serializers.user_serializers import PasswordChangeSerializer, User
 logger = logging.getLogger(__name__)
 
 
+# ===== Swagger 문서화용 응답 Serializers =====
+
+
+class ProfileUpdateResponseSerializer(drf_serializers.Serializer):
+    """프로필 수정 응답"""
+
+    user = UserSerializer()
+    message = drf_serializers.CharField()
+
+
+class MessageResponseSerializer(drf_serializers.Serializer):
+    """일반 메시지 응답"""
+
+    message = drf_serializers.CharField()
+
+
+class ErrorResponseSerializer(drf_serializers.Serializer):
+    """에러 응답"""
+
+    error = drf_serializers.CharField()
+
+
+class WithdrawRequestSerializer(drf_serializers.Serializer):
+    """회원 탈퇴 요청"""
+
+    password = drf_serializers.CharField(help_text="현재 비밀번호")
+
+
+@extend_schema_view(
+    get=extend_schema(
+        responses={200: UserSerializer},
+        summary="내 프로필 정보를 조회한다.",
+        description="""처리 내용:
+- 현재 로그인한 사용자의 프로필 정보를 반환한다.""",
+        tags=["Users"],
+    ),
+    put=extend_schema(
+        request=UserSerializer,
+        responses={
+            200: ProfileUpdateResponseSerializer,
+            400: ErrorResponseSerializer,
+        },
+        summary="프로필 정보를 전체 수정한다.",
+        description="""처리 내용:
+- 현재 로그인한 사용자의 프로필 정보를 전체 수정한다.
+- 모든 필드를 포함하여 요청해야 한다.""",
+        tags=["Users"],
+    ),
+    patch=extend_schema(
+        request=UserSerializer,
+        responses={
+            200: ProfileUpdateResponseSerializer,
+            400: ErrorResponseSerializer,
+        },
+        summary="프로필 정보를 부분 수정한다.",
+        description="""처리 내용:
+- 현재 로그인한 사용자의 프로필 정보를 부분 수정한다.
+- 변경할 필드만 포함하여 요청한다.""",
+        tags=["Users"],
+    ),
+)
 class ProfileView(generics.RetrieveUpdateAPIView):
     """
     사용자 프로필 API (Generic View 사용)
@@ -32,25 +94,31 @@ class ProfileView(generics.RetrieveUpdateAPIView):
         """현재 로그인한 사용자 반환"""
         return self.request.user
 
+    def retrieve(self, request: Request, *args, **kwargs) -> Response:
+        """GET 요청 처리 - 프로필 조회"""
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
     def update(self, request: Request, *args, **kwargs) -> Response:
         """PUT 요청 처리 - 전체 수정"""
-        partial = kwargs.pop('partial', False)
+        partial = kwargs.pop("partial", False)
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
-        return Response({
-            "user": serializer.data,
-            "message": "프로필이 수정되었습니다."
-        }, status=status.HTTP_200_OK)
+        return Response({"user": serializer.data, "message": "프로필이 수정되었습니다."}, status=status.HTTP_200_OK)
 
     def partial_update(self, request: Request, *args, **kwargs) -> Response:
         """PATCH 요청 처리 - 부분 수정"""
-        kwargs['partial'] = True
+        kwargs["partial"] = True
         return self.update(request, *args, **kwargs)
 
 
+@extend_schema(
+    tags=["Users"],
+)
 class PasswordChangeView(APIView):
     """
     비밀번호 변경 API
@@ -59,6 +127,17 @@ class PasswordChangeView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        request=PasswordChangeSerializer,
+        responses={
+            200: MessageResponseSerializer,
+            400: ErrorResponseSerializer,
+        },
+        summary="비밀번호를 변경한다.",
+        description="""처리 내용:
+- 현재 비밀번호를 확인한다.
+- 새 비밀번호로 변경한다.""",
+    )
     def post(self, request: Request) -> Response:
         serializer = PasswordChangeSerializer(data=request.data, context={"request": request})
 
@@ -70,7 +149,20 @@ class PasswordChangeView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
+@extend_schema(
+    request=WithdrawRequestSerializer,
+    responses={
+        200: MessageResponseSerializer,
+        400: ErrorResponseSerializer,
+        500: ErrorResponseSerializer,
+    },
+    summary="회원 탈퇴를 처리한다.",
+    description="""처리 내용:
+- 비밀번호를 확인한다.
+- 사용자 상태를 탈퇴 상태로 변경한다.
+- 모든 JWT 토큰을 무효화한다.""",
+    tags=["Users"],
+)
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def withdraw(request: Request) -> Response:
@@ -133,4 +225,3 @@ def withdraw(request: Request) -> Response:
             {"error": "탈퇴 처리 중 오류가 발생했습니다. 고객센터에 문의해주세요."},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
-

@@ -33,7 +33,9 @@ def login_and_get_token(username, password=TestConstants.DEFAULT_PASSWORD):
     if response.status_code != status.HTTP_200_OK:
         return None, None, f"Login failed: {response.status_code}"
 
-    token = response.json().get("access")
+    # 토큰 추출 (다양한 응답 구조 지원)
+    data = response.json()
+    token = data.get("access") or data.get("token", {}).get("access")
     return client, token, None
 
 
@@ -94,6 +96,7 @@ class TestOrderConcurrencyHappyPath:
                 username=f"user{i}",
                 email=f"user{i}@test.com",
                 phone_number=f"010-0000-000{i}",
+                is_email_verified=True,
             )
             users.append(u)
 
@@ -167,6 +170,7 @@ class TestOrderConcurrencyHappyPath:
                 email=f"pointuser{i}@test.com",
                 phone_number=f"010-1111-000{i}",
                 points=5000,
+                is_email_verified=True,
             )
             users.append(u)
 
@@ -246,6 +250,7 @@ class TestOrderConcurrencyBoundary:
                 username=f"boundary_user{i}",
                 email=f"boundary{i}@test.com",
                 phone_number=f"010-2222-000{i}",
+                is_email_verified=True,
             )
             users.append(u)
 
@@ -312,6 +317,7 @@ class TestOrderConcurrencyBoundary:
                 email=f"boundaryfail{i}@test.com",
                 phone_number=f"010-3333-000{i}",
                 points=5000,
+                is_email_verified=True,
             )
             users.append(u)
 
@@ -387,6 +393,7 @@ class TestOrderConcurrencyBoundary:
                 email=f"pointbound{i}@test.com",
                 phone_number=f"010-4444-000{i}",
                 points=1000,
+                is_email_verified=True,
             )
             users.append(u)
 
@@ -467,6 +474,7 @@ class TestOrderConcurrencyException:
                 username=f"insuf_stock{i}",
                 email=f"insufstock{i}@test.com",
                 phone_number=f"010-5555-000{i}",
+                is_email_verified=True,
             )
             users.append(u)
 
@@ -540,6 +548,7 @@ class TestOrderConcurrencyException:
                 email=f"insufpoint{i}@test.com",
                 phone_number=f"010-6666-000{i}",
                 points=500,  # 부족한 포인트
+                is_email_verified=True,
             )
             users.append(u)
 
@@ -596,13 +605,19 @@ class TestOrderConcurrencyException:
         assert success_count == 0, f"포인트 부족으로 모두 실패해야 함. 성공: {success_count}"
         assert failed_count == 3, f"3명 모두 실패해야 함. 실패: {failed_count}"
 
-    def test_concurrent_order_cancel(self, user, product, shipping_data):
+    def test_concurrent_order_cancel(self, product, shipping_data):
         """동일 주문을 여러 번 동시 취소 시도"""
-        # Arrange - 먼저 주문 생성
+        # Arrange - 사용자 생성 및 주문 생성
+        user = UserFactory(
+            username="cancel_test_user",
+            email="cancel_test@test.com",
+            phone_number="010-7000-0001",
+            is_email_verified=True,
+        )
         cart = Cart.get_or_create_active_cart(user)[0]
         CartItem.objects.create(cart=cart, product=product, quantity=1)
 
-        client, token, error = login_and_get_token(user.username, "testpass123")
+        client, token, error = login_and_get_token(user.username)
 
         if error:
             pytest.skip(f"로그인 실패: {error}")
@@ -663,16 +678,22 @@ class TestOrderConcurrencyException:
         assert success_count == 1, f"1번만 취소 성공해야 함. 성공: {success_count}"
         assert failed_count == 4, f"4번은 이미 취소되어 실패해야 함. 실패: {failed_count}"
 
-    def test_concurrent_cart_to_order_multiple_times(self, user, product, shipping_data):
+    def test_concurrent_cart_to_order_multiple_times(self, product, shipping_data):
         """동일 장바구니로 여러 번 동시 주문 시도"""
         # Arrange
         product.stock = 50
         product.save()
 
+        user = UserFactory(
+            username="cart_multi_order_user",
+            email="cart_multi@test.com",
+            phone_number="010-7000-0002",
+            is_email_verified=True,
+        )
         cart = Cart.get_or_create_active_cart(user)[0]
         CartItem.objects.create(cart=cart, product=product, quantity=1)
 
-        client, token, error = login_and_get_token(user.username, "testpass123")
+        client, token, error = login_and_get_token(user.username)
 
         if error:
             pytest.skip(f"로그인 실패: {error}")
@@ -717,17 +738,23 @@ class TestOrderConcurrencyException:
 
         assert success_count >= 1, f"최소 1개는 성공해야 함. 성공: {success_count}"
 
-    def test_concurrent_same_user_multiple_orders(self, user, product, shipping_data):
+    def test_concurrent_same_user_multiple_orders(self, product, shipping_data):
         """동일 사용자가 여러 주문 동시 생성"""
         # Arrange
         product.stock = 100
         product.save()
 
+        user = UserFactory(
+            username="same_user_multi_order",
+            email="same_user_multi@test.com",
+            phone_number="010-7000-0003",
+            is_email_verified=True,
+        )
         # 장바구니에 상품 추가
         cart = Cart.get_or_create_active_cart(user)[0]
         CartItem.objects.create(cart=cart, product=product, quantity=1)
 
-        client, token, error = login_and_get_token(user.username, "testpass123")
+        client, token, error = login_and_get_token(user.username)
 
         if error:
             pytest.skip(f"로그인 실패: {error}")
@@ -843,6 +870,7 @@ class TestOrderConcurrencyAdvanced:
                 username=f"sfu_user{i}",
                 email=f"sfu{i}@test.com",
                 phone_number=f"010-7777-000{i}",
+                is_email_verified=True,
             )
             users.append(u)
 
@@ -912,6 +940,7 @@ class TestOrderConcurrencyAdvanced:
                 username=f"mass_user{i}",
                 email=f"mass{i}@test.com",
                 phone_number=f"010-8888-{i:04d}",
+                is_email_verified=True,
             )
             users.append(u)
 
@@ -982,6 +1011,7 @@ class TestOrderConcurrencyAdvanced:
                 email=f"race{i}@test.com",
                 phone_number=f"010-9999-000{i}",
                 points=5000,
+                is_email_verified=True,
             )
             users.append(u)
 
@@ -1085,6 +1115,7 @@ class TestOrderConcurrencyScaleValidation:
                 username=f"scale_user_{user_count}_{i}",
                 email=f"scale{user_count}_{i}@test.com",
                 phone_number=f"010-9000-{i:04d}",
+                is_email_verified=True,
             )
             users.append(user)
 

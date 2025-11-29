@@ -257,7 +257,8 @@ class TestCartItemViewSetAnonymous:
         client = APIClient()
 
         # Act
-        response = client.get(reverse("cart-item-list"))
+        response = client.get(reverse("cart-items"))  # cart-item-list -> cart-items
+
 
         # Assert
         assert response.status_code == status.HTTP_200_OK
@@ -270,7 +271,8 @@ class TestCartItemViewSetAnonymous:
         client.get(reverse("cart-detail"))  # 세션만 생성, Cart는 다른 세션
 
         # Act
-        response = client.get(reverse("cart-item-list"))
+        response = client.get(reverse("cart-items"))  # cart-item-list -> cart-items
+
 
         # Assert
         assert response.status_code == status.HTTP_200_OK
@@ -284,7 +286,8 @@ class TestCartItemViewSetAnonymous:
 
         # Act
         response = client.post(
-            reverse("cart-item-list"),
+            reverse("cart-add-item"),  # cart-item-list -> cart-add-item
+
             {"product_id": product.id, "quantity": 1},
             format="json",
         )
@@ -302,7 +305,8 @@ class TestCartItemViewSetAnonymous:
 
         # Act
         response = client.post(
-            reverse("cart-item-list"),
+            reverse("cart-add-item"),  # cart-item-list -> cart-add-item
+
             {"quantity": 1},  # product_id 누락
             format="json",
         )

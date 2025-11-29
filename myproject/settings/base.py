@@ -180,6 +180,27 @@ SPECTACULAR_SETTINGS = {
         "displayOperationId": True,
     },
     "SERVE_INCLUDE_SCHEMA": False,
+    # 태그 이름 정리 (소문자 → 대문자, 한글 통일)
+    "TAGS": [
+        {"name": "Auth", "description": "인증 관련 API (회원가입, 로그인, 토큰)"},
+        {"name": "Social Auth", "description": "소셜 로그인 API"},
+        {"name": "Users", "description": "사용자 관리 API"},
+        {"name": "Products", "description": "상품 관련 API"},
+        {"name": "Categories", "description": "카테고리 API"},
+        {"name": "Orders", "description": "주문 관련 API"},
+        {"name": "Cart", "description": "장바구니 API"},
+        {"name": "Wishlist", "description": "찜하기 API"},
+        {"name": "Payments", "description": "결제 관련 API"},
+        {"name": "Points", "description": "포인트 API"},
+        {"name": "Returns", "description": "교환/환불 API"},
+        {"name": "Notifications", "description": "알림 API"},
+        {"name": "Product Q&A", "description": "상품 문의 API"},
+        {"name": "Webhooks", "description": "웹훅 API"},
+    ],
+    # 태그 변환 함수
+    "PREPROCESSING_HOOKS": ["shopping.utils.spectacular_hooks.preprocess_exclude_endpoints"],
+    "POSTPROCESSING_HOOKS": ["shopping.utils.spectacular_hooks.postprocess_tags"],
+
 }
 
 

@@ -7,7 +7,8 @@ from django.db import transaction
 from django.db.models import F
 from django.shortcuts import get_object_or_404, redirect, render
 
-from rest_framework import permissions, status
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from rest_framework import permissions, serializers as drf_serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -28,45 +29,111 @@ from ..throttles import PaymentCancelRateThrottle, PaymentConfirmRateThrottle, P
 from ..utils.toss_payment import TossPaymentClient, TossPaymentError, get_error_message
 from .mixins import EmailVerificationRequiredMixin
 
-# 로거 설정
 logger = logging.getLogger(__name__)
+
+
+# ===== Swagger 문서화용 응답 Serializers =====
+
+
+class PaymentRequestResponseSerializer(drf_serializers.Serializer):
+    """결제 요청 성공 응답"""
+
+    payment_id = drf_serializers.IntegerField(help_text="생성된 결제 ID")
+    order_id = drf_serializers.IntegerField(help_text="주문 ID")
+    order_name = drf_serializers.CharField(help_text="주문명 (예: 노트북 외 2건)")
+    customer_name = drf_serializers.CharField(help_text="구매자 이름")
+    customer_email = drf_serializers.EmailField(help_text="구매자 이메일")
+    amount = drf_serializers.IntegerField(help_text="결제 금액")
+    client_key = drf_serializers.CharField(help_text="토스페이먼츠 클라이언트 키")
+    success_url = drf_serializers.CharField(help_text="결제 성공 시 리다이렉트 URL")
+    fail_url = drf_serializers.CharField(help_text="결제 실패 시 리다이렉트 URL")
+
+
+class PaymentConfirmResponseSerializer(drf_serializers.Serializer):
+    """결제 승인 성공 응답"""
+
+    status = drf_serializers.CharField(help_text="처리 상태 (processing)")
+    payment_id = drf_serializers.IntegerField(help_text="결제 ID")
+    task_id = drf_serializers.CharField(help_text="비동기 작업 ID")
+    message = drf_serializers.CharField()
+    status_url = drf_serializers.CharField(help_text="결제 상태 확인 URL")
+
+
+class PaymentCancelResponseSerializer(drf_serializers.Serializer):
+    """결제 취소 성공 응답"""
+
+    message = drf_serializers.CharField()
+    payment = PaymentSerializer()
+    refund_amount = drf_serializers.IntegerField(help_text="환불 금액")
+    refunded_points = drf_serializers.IntegerField(help_text="환불된 포인트")
+    deducted_points = drf_serializers.IntegerField(help_text="차감된 포인트")
+
+
+class PaymentStatusResponseSerializer(drf_serializers.Serializer):
+    """결제 상태 응답"""
+
+    payment_id = drf_serializers.IntegerField()
+    status = drf_serializers.CharField(help_text="결제 상태 (ready, done, canceled, aborted)")
+    is_paid = drf_serializers.BooleanField()
+    order_status = drf_serializers.CharField(allow_null=True)
+    order_id = drf_serializers.IntegerField(allow_null=True)
+
+
+class PaymentFailResponseSerializer(drf_serializers.Serializer):
+    """결제 실패 처리 응답"""
+
+    message = drf_serializers.CharField()
+    payment_id = drf_serializers.IntegerField()
+    order_id = drf_serializers.IntegerField()
+    order_number = drf_serializers.CharField()
+    status = drf_serializers.CharField()
+    fail_code = drf_serializers.CharField()
+    fail_message = drf_serializers.CharField()
+
+
+class PaymentErrorResponseSerializer(drf_serializers.Serializer):
+    """결제 에러 응답"""
+
+    error = drf_serializers.CharField()
+    message = drf_serializers.CharField(required=False)
+
+
+class PaymentListResponseSerializer(drf_serializers.Serializer):
+    """결제 목록 응답"""
+
+    count = drf_serializers.IntegerField()
+    page = drf_serializers.IntegerField()
+    page_size = drf_serializers.IntegerField()
+    results = PaymentSerializer(many=True)
 
 
 class PaymentRequestView(EmailVerificationRequiredMixin, APIView):
     """
-    결제 요청 뷰
+    결제 요청 API
 
     프론트엔드에서 토스페이먼츠 결제창을 열기 전에 호출합니다.
     결제에 필요한 정보를 반환합니다.
-
-    POST /api/payments/request/
     """
 
     permission_classes = [permissions.IsAuthenticated]
     throttle_classes = [PaymentRequestRateThrottle]
 
+    @extend_schema(
+        request=PaymentRequestSerializer,
+        responses={
+            201: PaymentRequestResponseSerializer,
+            400: PaymentErrorResponseSerializer,
+            403: PaymentErrorResponseSerializer,
+        },
+        summary="결제에 필요한 정보를 생성한다.",
+        description="""처리 내용:
+- 결제 정보를 생성하고 반환한다.
+- 토스페이먼츠 결제창을 열기 위한 정보를 제공한다.
+- 이메일 인증된 사용자만 요청 가능하다.""",
+        tags=["Payments"],
+    )
     def post(self, request):
-        """
-        결제 요청 생성
-
-        요청 본문:
-        {
-            "order_id": 1
-        }
-
-        응답:
-        {
-            "payment_id": 1,
-            "order_id": "20250111000001",
-            "order_name": "노트북 외 2건",
-            "customer_name": "홍길동",
-            "customer_email": "user@example.com",
-            "amount": 1500000,
-            "client_key": "test_ck_...",  // 토스 클라이언트 키
-            "success_url": "http://localhost:8000/api/payments/success",
-            "fail_url": "http://localhost:8000/api/payments/fail"
-        }
-        """
+        """결제 요청 생성"""
         # 이메일 인증 체크
         verification_error = self.check_email_verification(request, "결제를")
         if verification_error:
@@ -118,38 +185,31 @@ class PaymentRequestView(EmailVerificationRequiredMixin, APIView):
 
 class PaymentConfirmView(EmailVerificationRequiredMixin, APIView):
     """
-    결제 승인 뷰
+    결제 승인 API
 
     사용자가 토스페이먼츠 결제창에서 결제를 완료하면
     프론트엔드에서 이 API를 호출하여 결제를 승인합니다.
-
-    POST /api/payments/confirm/
     """
 
     permission_classes = [permissions.IsAuthenticated]
     throttle_classes = [PaymentConfirmRateThrottle]
 
+    @extend_schema(
+        request=PaymentConfirmSerializer,
+        responses={
+            202: PaymentConfirmResponseSerializer,
+            400: PaymentErrorResponseSerializer,
+            403: PaymentErrorResponseSerializer,
+        },
+        summary="결제를 최종 승인한다.",
+        description="""처리 내용:
+- 토스페이먼츠 결제 승인 API를 호출한다.
+- 비동기로 처리되며 202 Accepted를 반환한다.
+- status_url을 통해 결제 상태를 폴링한다.""",
+        tags=["Payments"],
+    )
     def post(self, request):
-        """
-        결제 승인 처리 (비동기 처리)
-
-        요청 본문:
-        {
-            "order_id": "20250111000001",
-            "payment_key": "test_payment_key_...",
-            "amount": 1500000
-        }
-
-        응답:
-        HTTP 202 Accepted
-        {
-            "status": "processing",
-            "payment_id": 1,
-            "task_id": "abc-123-...",
-            "message": "결제 처리 중입니다. 잠시만 기다려주세요.",
-            "status_url": "/api/payments/1/status/"
-        }
-        """
+        """결제 승인 처리 (비동기)"""
         # 이메일 인증 체크 (보안)
         verification_error = self.check_email_verification(request, "결제를")
         if verification_error:
@@ -238,27 +298,30 @@ class PaymentConfirmView(EmailVerificationRequiredMixin, APIView):
 
 class PaymentCancelView(APIView):
     """
-    결제 취소 뷰
+    결제 취소 API
 
     완료된 결제를 취소합니다. (전체 취소만 지원)
-
-    POST /api/payments/cancel/
     """
 
     permission_classes = [permissions.IsAuthenticated]
     throttle_classes = [PaymentCancelRateThrottle]
 
+    @extend_schema(
+        request=PaymentCancelSerializer,
+        responses={
+            200: PaymentCancelResponseSerializer,
+            400: PaymentErrorResponseSerializer,
+            404: PaymentErrorResponseSerializer,
+        },
+        summary="결제를 취소한다.",
+        description="""처리 내용:
+- 토스페이먼츠 결제 취소 API를 호출한다.
+- 사용한 포인트를 환불한다.
+- 적립된 포인트를 차감한다.""",
+        tags=["Payments"],
+    )
     def post(self, request):
-        """
-        결제 취소 처리
-
-        요청 본문:
-        {
-            "payment_id": 1,
-            "cancel_reason": "고객 변심"
-        }
-        """
-        # 입력 검증만 수행 (비즈니스 로직 검증은 서비스에서)
+        """결제 취소 처리"""
         serializer = PaymentCancelSerializer(data=request.data)
 
         if not serializer.is_valid():
@@ -311,29 +374,28 @@ class PaymentCancelView(APIView):
 
 class PaymentStatusView(APIView):
     """
-    결제 처리 상태 확인 API
+    결제 상태 확인 API
 
-    비동기 결제 처리 시 프론트엔드가 이 API를 polling하여
-    결제 처리 완료 여부를 확인할 수 있습니다.
-
-    GET /api/payments/{payment_id}/status/
+    비동기 결제 처리 시 프론트엔드가 폴링하여
+    결제 처리 완료 여부를 확인합니다.
     """
 
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        responses={
+            200: PaymentStatusResponseSerializer,
+            404: PaymentErrorResponseSerializer,
+        },
+        summary="결제 처리 상태를 조회한다.",
+        description="""처리 내용:
+- 결제 처리 상태를 반환한다.
+- is_paid가 true면 결제 완료 상태이다.
+- 결제 승인 후 폴링 시 사용한다.""",
+        tags=["Payments"],
+    )
     def get(self, request, payment_id):
-        """
-        결제 상태 조회
-
-        응답:
-        {
-            "payment_id": 1,
-            "status": "done",
-            "is_paid": true,
-            "order_status": "paid",
-            "order_id": 123
-        }
-        """
+        """결제 상태 조회"""
         try:
             payment = Payment.objects.select_related("order").get(id=payment_id, order__user=request.user)
 
@@ -348,37 +410,35 @@ class PaymentStatusView(APIView):
             )
 
         except Payment.DoesNotExist:
-            return Response(
-                {"error": "결제 정보를 찾을 수 없습니다."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            return Response({"error": "결제 정보를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
 
 
 class PaymentFailView(APIView):
     """
-    결제 실패 처리 뷰
+    결제 실패 처리 API
 
     토스페이먼츠 결제창에서 실패/취소 시 호출됩니다.
     Payment 상태를 aborted로 변경하고 실패 로그를 기록합니다.
-
-    POST /api/payments/fail/
-
-    보안: 사용자 인증 필수 - 본인의 결제만 실패 처리 가능
     """
 
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        request=PaymentFailSerializer,
+        responses={
+            200: PaymentFailResponseSerializer,
+            400: PaymentErrorResponseSerializer,
+            404: PaymentErrorResponseSerializer,
+        },
+        summary="결제 실패를 처리한다.",
+        description="""처리 내용:
+- Payment 상태를 'aborted'로 변경한다.
+- 실패 로그를 기록한다.
+- 결제창에서 실패/취소 시 호출한다.""",
+        tags=["Payments"],
+    )
     def post(self, request):
-        """
-        결제 실패 처리
-
-        요청 본문:
-        {
-            "code": "USER_CANCEL",
-            "message": "사용자가 결제를 취소했습니다",
-            "order_id": "20250115000001"
-        }
-        """
+        """결제 실패 처리"""
         serializer = PaymentFailSerializer(data=request.data, context={"request": request})
 
         if not serializer.is_valid():
@@ -445,23 +505,30 @@ class PaymentFailView(APIView):
 
 class PaymentDetailView(APIView):
     """
-    결제 상세 조회 뷰
+    결제 상세 조회 API
 
-    GET /api/payments/{payment_id}/
+    단일 결제 정보를 조회합니다.
     """
 
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        responses={
+            200: PaymentSerializer,
+            404: PaymentErrorResponseSerializer,
+        },
+        summary="결제 상세 정보를 조회한다.",
+        description="""처리 내용:
+- 결제 상세 정보를 반환한다.
+- 본인의 결제만 조회 가능하다.""",
+        tags=["Payments"],
+    )
     def get(self, request, payment_id):
         """결제 정보 조회"""
         try:
-            # N+1 방지: order와 함께 조회
             payment = Payment.objects.select_related("order").get(id=payment_id, order__user=request.user)
         except Payment.DoesNotExist:
-            return Response(
-                {"error": "결제 정보를 찾을 수 없습니다."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            return Response({"error": "결제 정보를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = PaymentSerializer(payment)
         return Response(serializer.data)
@@ -469,22 +536,32 @@ class PaymentDetailView(APIView):
 
 class PaymentListView(APIView):
     """
-    결제 목록 조회 뷰
+    결제 목록 조회 API
 
-    GET /api/payments/
+    내 결제 목록을 조회합니다.
     """
 
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name="page", type=int, description="페이지 번호 (기본: 1)"),
+            OpenApiParameter(name="page_size", type=int, description="페이지 크기 (기본: 10, 최대: 100)"),
+            OpenApiParameter(name="status", type=str, description="결제 상태 필터 (ready, done, canceled, aborted)"),
+        ],
+        responses={
+            200: PaymentListResponseSerializer,
+            400: PaymentErrorResponseSerializer,
+        },
+        summary="결제 목록을 조회한다.",
+        description="""처리 내용:
+- 내 결제 목록을 페이지네이션하여 반환한다.
+- 상태별 필터링을 적용한다.
+- 최신순으로 정렬한다.""",
+        tags=["Payments"],
+    )
     def get(self, request):
-        """
-        내 결제 목록 조회
-
-        Query Parameters:
-        - page: 페이지 번호 (기본값: 1)
-        - page_size: 페이지 크기 (기본값: 10, 최대: 100)
-        - status: 결제 상태 필터링 (ready, done, canceled, aborted 등)
-        """
+        """내 결제 목록 조회"""
         payments = Payment.objects.filter(order__user=request.user).select_related("order").order_by("-created_at")
 
         # 상태별 필터링

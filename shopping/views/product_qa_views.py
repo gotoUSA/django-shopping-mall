@@ -5,7 +5,8 @@ from typing import Any
 from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 
-from rest_framework import permissions, status, viewsets
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import permissions, serializers as drf_serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
@@ -26,6 +27,21 @@ from ..serializers.product_qa_serializers import (
 )
 
 
+# ===== Swagger 문서화용 응답 Serializers =====
+
+
+class QAErrorResponseSerializer(drf_serializers.Serializer):
+    """문의 에러 응답"""
+
+    error = drf_serializers.CharField()
+
+
+class QAMessageResponseSerializer(drf_serializers.Serializer):
+    """문의 메시지 응답"""
+
+    message = drf_serializers.CharField()
+
+
 class ProductQuestionPagination(PageNumberPagination):
     """상품 문의 페이지네이션"""
 
@@ -34,12 +50,69 @@ class ProductQuestionPagination(PageNumberPagination):
     max_page_size = 100
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="상품 문의 목록을 조회한다.",
+        description="""
+처리 내용:
+- 상품 ID로 해당 상품의 문의 목록을 조회한다.
+- 비밀글은 작성자, 판매자, 관리자만 조회할 수 있다.
+- 페이지네이션이 적용되어 결과를 반환한다.
+        """,
+        tags=["Product Q&A"],
+    ),
+    retrieve=extend_schema(
+        summary="문의 상세 정보를 조회한다.",
+        description="""
+처리 내용:
+- 문의 ID로 상세 정보와 답변을 조회한다.
+- 비밀글은 작성자, 판매자, 관리자만 조회할 수 있다.
+        """,
+        tags=["Product Q&A"],
+    ),
+    create=extend_schema(
+        summary="상품 문의를 작성한다.",
+        description="""
+처리 내용:
+- 인증된 사용자만 문의를 작성할 수 있다.
+- 상품 ID와 문의 내용을 저장한다.
+- 비밀글 여부를 설정할 수 있다.
+        """,
+        tags=["Product Q&A"],
+    ),
+    update=extend_schema(
+        summary="문의를 수정한다.",
+        description="""
+처리 내용:
+- 작성자만 문의를 수정할 수 있다.
+- 답변이 달린 문의는 수정할 수 없다.
+- 제목, 내용, 비밀글 여부를 수정한다.
+        """,
+        tags=["Product Q&A"],
+    ),
+    partial_update=extend_schema(
+        summary="문의를 부분 수정한다.",
+        description="""
+처리 내용:
+- 작성자만 문의를 부분 수정할 수 있다.
+- 답변이 달린 문의는 수정할 수 없다.
+- 요청된 필드만 수정한다.
+        """,
+        tags=["Product Q&A"],
+    ),
+    destroy=extend_schema(
+        summary="문의를 삭제한다.",
+        description="""
+처리 내용:
+- 작성자 또는 관리자만 삭제할 수 있다.
+- 답변이 달린 문의는 삭제할 수 없다.
+- 삭제된 문의는 복구할 수 없다.
+        """,
+        tags=["Product Q&A"],
+    ),
+)
 class ProductQuestionViewSet(viewsets.ModelViewSet):
-    """
-    상품 문의 ViewSet
-
-    상품 문의 CRUD 및 답변 관리 기능을 제공합니다.
-    """
+    """상품 문의 ViewSet"""
 
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     pagination_class = ProductQuestionPagination
@@ -58,12 +131,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         queryset = (
             ProductQuestion.objects.filter(product_id=product_id)
             .select_related("user", "product", "product__seller")
-            .prefetch_related(
-                Prefetch(
-                    "answer",
-                    queryset=ProductAnswer.objects.select_related("seller")
-                )
-            )
+            .prefetch_related(Prefetch("answer", queryset=ProductAnswer.objects.select_related("seller")))
             .order_by("-created_at")
         )
 
@@ -151,17 +219,23 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
 
         return super().destroy(request, *args, **kwargs)
 
+    @extend_schema(
+        request=ProductAnswerCreateSerializer,
+        responses={
+            201: ProductAnswerSerializer,
+            400: QAErrorResponseSerializer,
+        },
+        summary="문의에 답변을 작성한다.",
+        description="""
+처리 내용:
+- 판매자만 본인 상품의 문의에 답변할 수 있다.
+- 이미 답변이 있는 문의에는 답변할 수 없다.
+- 답변 작성 후 문의의 답변 완료 상태가 변경된다.
+        """,
+        tags=["Product Q&A"],
+    )
     @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
     def answer(self, request: Request, pk: int | None = None, product_pk: int | None = None) -> Response:
-        """
-        답변 작성
-        POST /api/products/{product_id}/questions/{id}/answer/
-
-        요청 본문:
-        {
-            "content": "내일 출발 예정입니다!"
-        }
-        """
         question = self.get_object()
 
         # 해당 상품의 판매자인지 확인
@@ -185,17 +259,24 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
             return Response(answer_serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        request=ProductAnswerUpdateSerializer,
+        responses={
+            200: ProductAnswerSerializer,
+            400: QAErrorResponseSerializer,
+            404: QAErrorResponseSerializer,
+        },
+        summary="답변을 수정한다.",
+        description="""
+처리 내용:
+- 판매자 또는 관리자만 답변을 수정할 수 있다.
+- 답변이 없는 경우 404 에러를 반환한다.
+- 답변 내용을 부분 수정한다.
+        """,
+        tags=["Product Q&A"],
+    )
     @action(detail=True, methods=["patch"], permission_classes=[permissions.IsAuthenticated])
     def update_answer(self, request: Request, pk: int | None = None, product_pk: int | None = None) -> Response:
-        """
-        답변 수정
-        PATCH /api/products/{product_id}/questions/{id}/update_answer/
-
-        요청 본문:
-        {
-            "content": "수정된 답변 내용"
-        }
-        """
         question = self.get_object()
 
         # 답변 존재 확인
@@ -216,16 +297,26 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        responses={
+            204: QAMessageResponseSerializer,
+            404: QAErrorResponseSerializer,
+        },
+        summary="답변을 삭제한다.",
+        description="""
+처리 내용:
+- 판매자 또는 관리자만 답변을 삭제할 수 있다.
+- 답변이 없는 경우 404 에러를 반환한다.
+- 삭제 후 문의의 답변 완료 상태가 해제된다.
+        """,
+        tags=["Product Q&A"],
+    )
     @action(
         detail=True,
         methods=["delete"],
         permission_classes=[permissions.IsAuthenticated],
     )
     def delete_answer(self, request: Request, pk: int | None = None, product_pk: int | None = None) -> Response:
-        """
-        답변 삭제
-        DELETE /api/products/{product_id}/questions/{id}/delete_answer/
-        """
         question = self.get_object()
 
         # 답변 존재 확인
@@ -248,14 +339,29 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
         return Response({"message": "답변이 삭제되었습니다."}, status=status.HTTP_204_NO_CONTENT)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="내가 작성한 문의 목록을 조회한다.",
+        description="""
+처리 내용:
+- 현재 로그인한 사용자가 작성한 문의 목록을 조회한다.
+- 최신순으로 정렬되어 반환된다.
+- 페이지네이션이 적용된다.
+        """,
+        tags=["Product Q&A"],
+    ),
+    retrieve=extend_schema(
+        summary="내 문의 상세 정보를 조회한다.",
+        description="""
+처리 내용:
+- 내가 작성한 문의의 상세 정보를 조회한다.
+- 문의 내용과 답변 정보를 함께 반환한다.
+        """,
+        tags=["Product Q&A"],
+    ),
+)
 class MyQuestionViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    내가 작성한 문의 ViewSet
-
-    엔드포인트:
-    - GET /api/my/questions/     - 내가 작성한 문의 목록
-    - GET /api/my/questions/{id}/ - 문의 상세
-    """
+    """내가 작성한 문의 ViewSet"""
 
     serializer_class = ProductQuestionDetailSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -266,11 +372,6 @@ class MyQuestionViewSet(viewsets.ReadOnlyModelViewSet):
         return (
             ProductQuestion.objects.filter(user=self.request.user)
             .select_related("product", "product__seller", "user")
-            .prefetch_related(
-                Prefetch(
-                    "answer",
-                    queryset=ProductAnswer.objects.select_related("seller")
-                )
-            )
+            .prefetch_related(Prefetch("answer", queryset=ProductAnswer.objects.select_related("seller")))
             .order_by("-created_at")
         )

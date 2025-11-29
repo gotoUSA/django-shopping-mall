@@ -84,7 +84,7 @@ class WishlistTestCase(TestCase):
     def _login(self):
         """로그인 헬퍼 메서드"""
         response = self.client.post(reverse("auth-login"), {"username": "testuser", "password": "testpass123"})
-        token = response.json()["access"]
+        token = response.json()["token"]["access"]
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
         return token
 
@@ -438,7 +438,7 @@ class WishlistTestCase(TestCase):
         # 두 번째 사용자로 로그인
         self.client.credentials()  # 인증 초기화
         response = self.client.post(reverse("auth-login"), {"username": "otheruser", "password": "otherpass123"})
-        token = response.json()["access"]
+        token = response.json()["token"]["access"]
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
         # 다른 사용자의 찜 목록 조회 (비어있어야 함)

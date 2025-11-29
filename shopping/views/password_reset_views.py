@@ -3,6 +3,8 @@ from __future__ import annotations
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
+from drf_spectacular.utils import extend_schema
+from rest_framework import serializers as drf_serializers
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -18,6 +20,32 @@ from shopping.throttles import PasswordResetRateThrottle
 User = get_user_model()
 
 
+# ===== Swagger 문서화용 응답 Serializers =====
+
+
+class PasswordResetMessageResponseSerializer(drf_serializers.Serializer):
+    """비밀번호 재설정 성공 응답"""
+
+    message = drf_serializers.CharField()
+
+
+class PasswordResetConfirmResponseSerializer(drf_serializers.Serializer):
+    """비밀번호 재설정 확인 성공 응답"""
+
+    message = drf_serializers.CharField()
+    username = drf_serializers.CharField(help_text="로그인 시 사용할 사용자명")
+
+
+class PasswordResetErrorResponseSerializer(drf_serializers.Serializer):
+    """비밀번호 재설정 에러 응답"""
+
+    email = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
+    token = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
+    new_password = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
+    new_password2 = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
+    non_field_errors = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
+
+
 class PasswordResetRequestView(APIView):
     """
     비밀번호 재설정 요청 (이메일 발송)
@@ -30,6 +58,21 @@ class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [PasswordResetRateThrottle]
 
+    @extend_schema(
+        request=PasswordResetRequestSerializer,
+        responses={
+            200: PasswordResetMessageResponseSerializer,
+            400: PasswordResetErrorResponseSerializer,
+            429: PasswordResetErrorResponseSerializer,
+        },
+        summary="비밀번호 재설정 이메일을 발송한다.",
+        description="""처리 내용:
+- 이메일 주소를 검증한다.
+- 비밀번호 재설정 토큰을 생성한다.
+- 재설정 링크가 포함된 이메일을 발송한다.
+- 보안상 계정 존재 여부를 노출하지 않는다.""",
+        tags=["Auth"],
+    )
     def post(self, request: Request) -> Response:
         """
         비밀번호 재설정 이메일 발송
@@ -119,6 +162,20 @@ class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [PasswordResetRateThrottle]  # 토큰 brute force 방지
 
+    @extend_schema(
+        request=PasswordResetConfirmSerializer,
+        responses={
+            200: PasswordResetConfirmResponseSerializer,
+            400: PasswordResetErrorResponseSerializer,
+            429: PasswordResetErrorResponseSerializer,
+        },
+        summary="새 비밀번호를 설정한다.",
+        description="""처리 내용:
+- 이메일과 토큰을 검증한다.
+- 새 비밀번호를 설정한다.
+- 사용된 토큰을 무효화한다.""",
+        tags=["Auth"],
+    )
     def post(self, request: Request) -> Response:
         """
         토큰을 사용하여 새 비밀번호 설정

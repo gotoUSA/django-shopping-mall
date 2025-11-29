@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 
-from rest_framework import permissions, status
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from rest_framework import permissions, serializers as drf_serializers, status
+
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -22,17 +24,147 @@ from ..services.point_service import PointService
 logger = logging.getLogger(__name__)
 
 
-class MyPointView(APIView):
-    """
-    내 포인트 정보 조회
+# ===== Swagger 문서화용 응답 Serializers =====
 
-    GET /api/points/my/
-    """
+
+class MyPointResponseSerializer(drf_serializers.Serializer):
+    """내 포인트 정보 응답"""
+
+    point_info = UserPointSerializer()
+    recent_histories = PointHistorySerializer(many=True)
+
+
+class PointHistorySummarySerializer(drf_serializers.Serializer):
+    """포인트 이력 요약"""
+
+    current_points = drf_serializers.IntegerField()
+    total_earned = drf_serializers.IntegerField()
+    total_used = drf_serializers.IntegerField()
+
+
+class PointHistoryListResponseSerializer(drf_serializers.Serializer):
+    """포인트 이력 목록 응답"""
+
+    count = drf_serializers.IntegerField()
+    page = drf_serializers.IntegerField()
+    page_size = drf_serializers.IntegerField()
+    summary = PointHistorySummarySerializer()
+    results = PointHistorySerializer(many=True)
+
+
+class PointCheckResponseSerializer(drf_serializers.Serializer):
+    """포인트 사용 가능 여부 응답"""
+
+    available_points = drf_serializers.IntegerField()
+    can_use = drf_serializers.BooleanField()
+    max_usable = drf_serializers.IntegerField()
+    message = drf_serializers.CharField()
+
+
+class MonthlyExpiringSummarySerializer(drf_serializers.Serializer):
+    """월별 만료 예정 요약"""
+
+    month = drf_serializers.CharField()
+    points = drf_serializers.IntegerField()
+    count = drf_serializers.IntegerField()
+
+
+class ExpiringPointsResponseSerializer(drf_serializers.Serializer):
+    """만료 예정 포인트 응답"""
+
+    total_expiring = drf_serializers.IntegerField()
+    days = drf_serializers.IntegerField()
+    monthly_summary = MonthlyExpiringSummarySerializer(many=True)
+    histories = PointHistorySerializer(many=True)
+
+
+class PointStatisticsThisMonthSerializer(drf_serializers.Serializer):
+    """이번 달 포인트 통계"""
+
+    earned = drf_serializers.IntegerField()
+    used = drf_serializers.IntegerField()
+
+
+class PointStatisticsAllTimeSerializer(drf_serializers.Serializer):
+    """전체 포인트 통계"""
+
+    total_earned = drf_serializers.IntegerField()
+    total_used = drf_serializers.IntegerField()
+
+
+class PointStatisticsResponseSerializer(drf_serializers.Serializer):
+    """포인트 통계 응답"""
+
+    current_points = drf_serializers.IntegerField()
+    this_month = PointStatisticsThisMonthSerializer()
+    all_time = PointStatisticsAllTimeSerializer()
+    by_type = drf_serializers.DictField()
+
+
+class PointUseDetailSerializer(drf_serializers.Serializer):
+    """포인트 사용 상세"""
+
+    history_id = drf_serializers.IntegerField()
+    amount = drf_serializers.IntegerField()
+    expires_at = drf_serializers.DateTimeField()
+
+
+class PointUseDataSerializer(drf_serializers.Serializer):
+    """포인트 사용 결과 데이터"""
+
+    used_amount = drf_serializers.IntegerField()
+    remaining_points = drf_serializers.IntegerField()
+    used_details = PointUseDetailSerializer(many=True)
+
+
+class PointUseSuccessResponseSerializer(drf_serializers.Serializer):
+    """포인트 사용 성공 응답"""
+
+    success = drf_serializers.BooleanField()
+    message = drf_serializers.CharField()
+    data = PointUseDataSerializer()
+
+
+class PointErrorResponseSerializer(drf_serializers.Serializer):
+    """포인트 에러 응답"""
+
+    success = drf_serializers.BooleanField(default=False)
+    error_code = drf_serializers.CharField()
+    message = drf_serializers.CharField()
+    errors = drf_serializers.DictField(required=False)
+
+
+class PointCancelDataSerializer(drf_serializers.Serializer):
+    """포인트 취소 결과 데이터"""
+
+    processed_amount = drf_serializers.IntegerField()
+    remaining_points = drf_serializers.IntegerField()
+    type = drf_serializers.CharField()
+    order_id = drf_serializers.IntegerField()
+
+
+class PointCancelSuccessResponseSerializer(drf_serializers.Serializer):
+    """포인트 취소 성공 응답"""
+
+    success = drf_serializers.BooleanField()
+    message = drf_serializers.CharField()
+    data = PointCancelDataSerializer()
+
+
+@extend_schema(tags=["Points"])
+class MyPointView(APIView):
+    """내 포인트 정보 조회 API"""
 
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        responses={200: MyPointResponseSerializer},
+        summary="내 포인트 현황을 조회한다.",
+        description="""처리 내용:
+- 현재 포인트 정보를 반환한다.
+- 최근 포인트 이력 5건을 포함한다.""",
+    )
     def get(self, request: Request) -> Response:
-        """내 포인트 현황 조회"""
         user = request.user
         serializer = UserPointSerializer(user)
 
@@ -43,17 +175,31 @@ class MyPointView(APIView):
         return Response({"point_info": serializer.data, "recent_histories": recent_serializer.data})
 
 
+@extend_schema(tags=["Points"])
 class PointHistoryListView(APIView):
-    """
-    포인트 이력 목록 조회
-
-    GET /api/points/history/
-    """
+    """포인트 이력 목록 조회"""
 
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name="type", description="포인트 유형 필터 (earn, use, expire 등)", required=False, type=str),
+            OpenApiParameter(name="start_date", description="시작일 (YYYY-MM-DD)", required=False, type=str),
+            OpenApiParameter(name="end_date", description="종료일 (YYYY-MM-DD)", required=False, type=str),
+            OpenApiParameter(name="page", description="페이지 번호", required=False, type=int),
+            OpenApiParameter(name="page_size", description="페이지 크기", required=False, type=int),
+        ],
+        responses={
+            200: PointHistoryListResponseSerializer,
+            400: PointErrorResponseSerializer,
+        },
+        summary="포인트 이력 목록을 조회한다.",
+        description="""처리 내용:
+- 필터링된 포인트 이력을 페이지네이션하여 반환한다.
+- 유형, 기간 필터를 적용한다.
+- 요약 정보를 함께 반환한다.""",
+    )
     def get(self, request: Request) -> Response:
-        """포인트 이력 목록 조회"""
         user = request.user
 
         # Request에서 필터 조건 추출 (날짜 검증 포함)
@@ -86,33 +232,24 @@ class PointHistoryListView(APIView):
         )
 
 
+@extend_schema(tags=["Points"])
 class PointCheckView(APIView):
-    """
-    포인트 사용 가능 여부 확인
-
-    POST /api/points/check
-    """
+    """포인트 사용 가능 여부 확인"""
 
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        request=PointCheckSerializer,
+        responses={
+            200: PointCheckResponseSerializer,
+            400: PointErrorResponseSerializer,
+        },
+        summary="포인트 사용 가능 여부를 확인한다.",
+        description="""처리 내용:
+- 주문 금액에 따른 포인트 사용 가능 여부를 확인한다.
+- 보유 포인트와 최대 사용 가능 포인트를 반환한다.""",
+    )
     def post(self, request: Request) -> Response:
-        """
-        포인트 사용 가능 여부 확인
-
-        요청:
-        {
-            "order_amount": 10000,
-            "use_points": 500
-        }
-
-        응답:
-        {
-            "available_points": 1500,
-            "can_use": true,
-            "max_usable": 1500,
-            "message": "500포인트 사용 가능합니다."
-        }
-        """
         serializer = PointCheckSerializer(data=request.data, context={"request": request})
 
         if serializer.is_valid():
@@ -121,17 +258,24 @@ class PointCheckView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(tags=["Points"])
 class ExpiringPointsView(APIView):
-    """
-    만료 예정 포인트 조회
-
-    GET /api/points/expiring/
-    """
+    """만료 예정 포인트 조회"""
 
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name="days", description="조회 기간 (기본: 30일)", required=False, type=int),
+        ],
+        responses={200: ExpiringPointsResponseSerializer},
+        summary="만료 예정 포인트를 조회한다.",
+        description="""처리 내용:
+- 지정된 기간 내 만료 예정인 포인트를 조회한다.
+- 월별 만료 예정 요약을 반환한다.
+- 만료 예정 포인트 이력을 포함한다.""",
+    )
     def get(self, request: Request) -> Response:
-        """만료 예정 포인트 조회"""
         user = request.user
         days = int(request.GET.get("days", 30))  # 기본 30일
 
@@ -152,14 +296,18 @@ class ExpiringPointsView(APIView):
         )
 
 
+@extend_schema(
+    responses={200: PointStatisticsResponseSerializer},
+    summary="포인트 통계 정보를 조회한다.",
+    description="""처리 내용:
+- 포인트 종합 통계를 반환한다.
+- 현재 포인트, 이번 달/전체 적립/사용 통계를 포함한다.
+- 유형별 통계를 포함한다.""",
+    tags=["Points"],
+)
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
 def point_statistics(request: Request) -> Response:
-    """
-    포인트 통계 정보
-
-    GET /api/points/statistics/
-    """
     user = request.user
 
     # Service 레이어에서 종합 통계 조회
@@ -175,50 +323,26 @@ def point_statistics(request: Request) -> Response:
     )
 
 
+@extend_schema(tags=["Points"])
 class PointUseView(APIView):
-    """
-    포인트 사용 API
-
-    POST /api/points/use/
-
-    FIFO 방식으로 만료 임박 포인트부터 차감합니다.
-    최소 100포인트 이상 사용 가능합니다.
-    """
+    """포인트 사용 API"""
 
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        request=PointUseSerializer,
+        responses={
+            200: PointUseSuccessResponseSerializer,
+            400: PointErrorResponseSerializer,
+        },
+        summary="포인트를 사용한다.",
+        description="""처리 내용:
+- FIFO 방식으로 만료 임박 포인트부터 차감한다.
+- 최소 100포인트 이상 사용 가능하다.
+- 사용 내역을 기록한다.""",
+    )
     def post(self, request: Request) -> Response:
-        """
-        포인트 사용
 
-        요청:
-        {
-            "amount": 1000,
-            "order_id": 123,       // 선택
-            "description": "주문 결제"  // 선택
-        }
-
-        성공 응답 (200):
-        {
-            "success": true,
-            "message": "1,000 포인트를 사용했습니다.",
-            "data": {
-                "used_amount": 1000,
-                "remaining_points": 4000,
-                "used_details": [
-                    {"history_id": 1, "amount": 700, "expires_at": "..."},
-                    {"history_id": 2, "amount": 300, "expires_at": "..."}
-                ]
-            }
-        }
-
-        실패 응답 (400):
-        {
-            "success": false,
-            "error_code": "INSUFFICIENT_POINTS",
-            "message": "포인트가 부족합니다."
-        }
-        """
         serializer = PointUseSerializer(data=request.data, context={"request": request})
 
         if not serializer.is_valid():
@@ -320,43 +444,26 @@ class PointUseView(APIView):
         return "POINT_USE_FAILED"
 
 
+@extend_schema(tags=["Points"])
 class PointCancelView(APIView):
-    """
-    취소/환불 포인트 처리 API
-
-    POST /api/points/cancel/
-
-    주문 취소 시 포인트 처리:
-    - cancel_deduct: 주문으로 적립받은 포인트 회수
-    - cancel_refund: 주문에 사용한 포인트 환불
-    """
+    """취소/환불 포인트 처리 API"""
 
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        request=PointCancelSerializer,
+        responses={
+            200: PointCancelSuccessResponseSerializer,
+            400: PointErrorResponseSerializer,
+        },
+        summary="취소/환불 포인트를 처리한다.",
+        description="""처리 내용:
+- 주문 취소 시 포인트를 처리한다.
+- cancel_deduct: 주문으로 적립받은 포인트를 회수한다.
+- cancel_refund: 주문에 사용한 포인트를 환불한다.""",
+    )
     def post(self, request: Request) -> Response:
-        """
-        취소/환불 포인트 처리
 
-        요청:
-        {
-            "amount": 500,
-            "order_id": 123,
-            "type": "cancel_deduct",  // 또는 "cancel_refund"
-            "description": "주문 취소로 인한 포인트 회수"  // 선택
-        }
-
-        성공 응답 (200):
-        {
-            "success": true,
-            "message": "500 포인트가 회수되었습니다.",
-            "data": {
-                "processed_amount": 500,
-                "remaining_points": 4500,
-                "type": "cancel_deduct",
-                "order_id": 123
-            }
-        }
-        """
         serializer = PointCancelSerializer(data=request.data, context={"request": request})
 
         if not serializer.is_valid():

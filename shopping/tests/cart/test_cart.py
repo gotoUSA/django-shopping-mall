@@ -615,7 +615,8 @@ class TestCartItemViewSet:
         cart = CartFactory(user=user)
         CartItemFactory(cart=cart, product=product)
         CartItemFactory(cart=cart, product=product2)
-        list_url = reverse("cart-item-list")
+        list_url = reverse("cart-items")  # cart-item-list -> cart-items
+
 
         # Act
         response = authenticated_client.get(list_url)
@@ -627,7 +628,8 @@ class TestCartItemViewSet:
     def test_create_cart_item(self, authenticated_client, product):
         """아이템 생성"""
         # Arrange
-        create_url = reverse("cart-item-list")
+        create_url = reverse("cart-add-item")  # cart-item-list -> cart-add-item
+
         create_data = {"product_id": product.id, "quantity": 2}
 
         # Act
@@ -635,7 +637,8 @@ class TestCartItemViewSet:
 
         # Assert
         assert response.status_code == status.HTTP_201_CREATED
-        assert response.json()["quantity"] == 2
+        assert response.json()["item"]["quantity"] == 2  # 응답 구조에 맞게 수정
+
 
     def test_update_cart_item(self, authenticated_client, user, product):
         """아이템 수정 (PATCH 사용)"""
@@ -682,7 +685,8 @@ class TestCartConcurrency:
             reverse("auth-login"),
             {"username": user.username, "password": "testpass123"},
         )
-        token = response.json()["access"]
+        token = response.json()["token"]["access"]
+
 
         success_count = 0
         thread_count = 5
@@ -724,7 +728,8 @@ class TestCartConcurrency:
             reverse("auth-login"),
             {"username": user.username, "password": "testpass123"},
         )
-        token = response.json()["access"]
+        token = response.json()["token"]["access"]
+
 
         quantities = [3, 7, 2, 8, 4]
         results = []

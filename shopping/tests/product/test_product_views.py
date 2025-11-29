@@ -248,6 +248,7 @@ class TestProductReview:
         review_data = {"rating": 5, "comment": "훌륭한 상품입니다!"}
         url = reverse("product-reviews", kwargs={"pk": product.id})
 
+
         # Act
         response = api_client.post(url, review_data, format="json")
 
@@ -266,6 +267,7 @@ class TestProductReview:
         review_data = {"rating": 3, "comment": "두 번째 리뷰"}
         url = reverse("product-reviews", kwargs={"pk": product.id})
 
+
         # Act
         response = api_client.post(url, review_data, format="json")
 
@@ -279,6 +281,7 @@ class TestProductReview:
         product = ProductFactory()
         review_data = {"rating": 5, "comment": "좋아요"}
         url = reverse("product-reviews", kwargs={"pk": product.id})
+
 
         # Act
         response = api_client.post(url, review_data, format="json")

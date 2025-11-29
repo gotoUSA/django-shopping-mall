@@ -28,6 +28,7 @@ def get_results(response_data):
     """
     페이지네이션 응답에서 results 추출 헬퍼
 
+
     DRF PageNumberPagination 응답: {"count": N, "results": [...]}
     페이지네이션 없는 응답: [...]
     """
@@ -61,6 +62,7 @@ class TestReturnViewAuthentication:
 
         # Act
         response = api_client.post(url, {"order_id": 1})
+
 
         # Assert
         assert response.status_code in [
@@ -283,6 +285,7 @@ class TestReturnViewIntegration:
         create_url = reverse("return-list")
         create_data = {
             "order_id": order.id,
+
             "type": "refund",
             "reason": "change_of_mind",
             "reason_detail": "단순 변심",
@@ -341,6 +344,7 @@ class TestReturnViewIntegration:
         create_url = reverse("return-list")
         create_data = {
             "order_id": order.id,
+
             "type": "exchange",
             "reason": "size_issue",
             "reason_detail": "사이즈가 맞지 않음",

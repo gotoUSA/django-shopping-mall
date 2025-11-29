@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import permissions, serializers as drf_serializers, status, viewsets
 from rest_framework.decorators import action
@@ -22,6 +23,7 @@ from rest_framework.response import Response
 from rest_framework.serializers import BaseSerializer
 
 from shopping.models.cart import Cart, CartItem
+
 from shopping.serializers import (
     CartClearSerializer,
     CartItemCreateSerializer,
@@ -62,6 +64,7 @@ class CartErrorResponseSerializer(drf_serializers.Serializer):
     error = drf_serializers.CharField(required=False)
     message = drf_serializers.CharField(required=False)
     code = drf_serializers.CharField(required=False)
+
     product_id = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
     quantity = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
 
@@ -159,6 +162,7 @@ class CartViewSet(viewsets.GenericViewSet):
     def retrieve(self, request: Request) -> Response:
         """장바구니 전체 정보 조회"""
         cart = self._get_cart()
+
         serializer = self.get_serializer(cart)
         return Response(serializer.data)
 
@@ -174,6 +178,7 @@ class CartViewSet(viewsets.GenericViewSet):
     def summary(self, request: Request) -> Response:
         """장바구니 요약 정보 조회"""
         cart = self._get_cart()
+
         serializer = self.get_serializer(cart)
         return Response(serializer.data)
 
@@ -206,6 +211,7 @@ class CartViewSet(viewsets.GenericViewSet):
         product_id = serializer.validated_data["product_id"]
         quantity = serializer.validated_data.get("quantity", 1)
 
+
         try:
             cart_item = CartService.add_item(
                 cart=cart,
@@ -225,6 +231,7 @@ class CartViewSet(viewsets.GenericViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+
     @extend_schema(
         responses={200: CartItemSerializer(many=True)},
         summary="장바구니 아이템 목록을 조회한다.",
@@ -237,6 +244,7 @@ class CartViewSet(viewsets.GenericViewSet):
     def items(self, request: Request) -> Response:
         """장바구니 아이템 목록 조회"""
         cart = self._get_cart()
+
         items = cart.items.select_related("product").order_by("-added_at")
         serializer = CartItemSerializer(items, many=True)
         return Response(serializer.data)
@@ -266,6 +274,7 @@ class CartViewSet(viewsets.GenericViewSet):
 
         quantity = serializer.validated_data.get("quantity")
 
+
         try:
             cart_item = CartService.update_item_quantity(
                 cart=cart,
@@ -279,6 +288,7 @@ class CartViewSet(viewsets.GenericViewSet):
                     {"message": "장바구니에서 삭제되었습니다."},
                     status=status.HTTP_204_NO_CONTENT,
                 )
+
 
             return Response(
                 {
@@ -351,6 +361,7 @@ class CartViewSet(viewsets.GenericViewSet):
                 status=status.HTTP_200_OK,
             )
         except CartServiceError as e:
+
             return Response(
                 {"error": e.message, "code": e.code},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -397,6 +408,7 @@ class CartViewSet(viewsets.GenericViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+
     @extend_schema(
         responses={
             200: CartStockCheckResponseSerializer,
@@ -414,6 +426,7 @@ class CartViewSet(viewsets.GenericViewSet):
         cart = self._get_cart()
 
         issues = CartService.check_stock(cart=cart)
+
 
         if issues:
             # StockIssue dataclass를 dict로 변환
@@ -450,6 +463,7 @@ class CartItemListResponseSerializer(drf_serializers.Serializer):
     """장바구니 아이템 목록 응답"""
 
     pass  # CartItemSerializer(many=True)와 동일
+
 
 
 class CartItemCreateResponseSerializer(drf_serializers.Serializer):
@@ -568,6 +582,7 @@ class CartItemViewSet(viewsets.GenericViewSet):
         )
         serializer.is_valid(raise_exception=True)
 
+
         product_id = serializer.validated_data["product_id"]
         quantity = serializer.validated_data.get("quantity", 1)
 
@@ -596,6 +611,7 @@ class CartItemViewSet(viewsets.GenericViewSet):
 
         quantity = serializer.validated_data.get("quantity", 1)
 
+
         try:
             cart_item = CartService.update_item_quantity(
                 cart=cart,
@@ -618,6 +634,7 @@ class CartItemViewSet(viewsets.GenericViewSet):
     def destroy(self, request: Request, pk: int | None = None) -> Response:
         """아이템 삭제"""
         cart = self._get_cart()
+
 
         try:
             CartService.remove_item(cart=cart, item_id=pk)

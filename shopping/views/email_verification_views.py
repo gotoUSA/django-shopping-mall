@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import serializers as drf_serializers, status
+
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
@@ -24,6 +25,33 @@ from ..services.email_verification_service import (
     EmailVerificationServiceError,
 )
 from ..throttles import EmailVerificationRateThrottle, EmailVerificationResendRateThrottle
+
+
+# ===== Swagger 문서화용 응답 Serializers =====
+
+
+class EmailVerificationMessageResponseSerializer(drf_serializers.Serializer):
+    """이메일 인증 성공 응답"""
+
+    message = drf_serializers.CharField()
+
+
+class EmailVerificationErrorResponseSerializer(drf_serializers.Serializer):
+    """이메일 인증 에러 응답"""
+
+    error = drf_serializers.CharField(required=False)
+    code = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
+    token = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
+
+
+class EmailVerificationStatusResponseSerializer(drf_serializers.Serializer):
+    """이메일 인증 상태 응답"""
+
+    is_verified = drf_serializers.BooleanField()
+    email = drf_serializers.EmailField()
+    pending_verification = drf_serializers.BooleanField(required=False)
+    token_expired = drf_serializers.BooleanField(required=False)
+    can_resend = drf_serializers.BooleanField(required=False)
 
 
 # ===== Swagger 문서화용 응답 Serializers =====

@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from drf_spectacular.utils import OpenApiParameter, extend_schema
+
 from rest_framework import permissions, serializers as drf_serializers, status
 from rest_framework.decorators import action
 from rest_framework.request import Request
@@ -108,6 +109,77 @@ class WishlistMoveToCartRequestSerializer(drf_serializers.Serializer):
     )
 
 
+# ===== Swagger 문서화용 응답 Serializers =====
+
+
+class WishlistListResponseSerializer(drf_serializers.Serializer):
+    """찜 목록 조회 응답"""
+
+    count = drf_serializers.IntegerField()
+    results = WishlistProductSerializer(many=True)
+
+
+class WishlistToggleResponseSerializer(drf_serializers.Serializer):
+    """찜하기 토글 응답"""
+
+    is_wished = drf_serializers.BooleanField()
+    message = drf_serializers.CharField()
+    wishlist_count = drf_serializers.IntegerField()
+
+
+class WishlistAddResponseSerializer(drf_serializers.Serializer):
+    """찜 추가 응답"""
+
+    message = drf_serializers.CharField()
+    is_wished = drf_serializers.BooleanField()
+    wishlist_count = drf_serializers.IntegerField(required=False)
+
+
+class WishlistMessageResponseSerializer(drf_serializers.Serializer):
+    """일반 메시지 응답"""
+
+    message = drf_serializers.CharField()
+
+
+class WishlistErrorResponseSerializer(drf_serializers.Serializer):
+    """에러 응답"""
+
+    error = drf_serializers.CharField()
+
+
+class WishlistBulkAddResponseSerializer(drf_serializers.Serializer):
+    """일괄 찜하기 응답"""
+
+    message = drf_serializers.CharField()
+    added_count = drf_serializers.IntegerField()
+    skipped_count = drf_serializers.IntegerField()
+    total_wishlist_count = drf_serializers.IntegerField()
+
+
+class WishlistCheckResponseSerializer(drf_serializers.Serializer):
+    """찜 상태 확인 응답"""
+
+    product_id = drf_serializers.IntegerField()
+    is_wished = drf_serializers.BooleanField()
+    wishlist_count = drf_serializers.IntegerField()
+
+
+class WishlistMoveToCartResponseSerializer(drf_serializers.Serializer):
+    """장바구니로 이동 응답"""
+
+    message = drf_serializers.CharField()
+    added_items = drf_serializers.ListField(child=drf_serializers.CharField())
+    already_in_cart = drf_serializers.ListField(child=drf_serializers.CharField())
+    out_of_stock = drf_serializers.ListField(child=drf_serializers.CharField())
+
+
+class WishlistMoveToCartRequestSerializer(drf_serializers.Serializer):
+    """장바구니로 이동 요청"""
+
+    product_ids = drf_serializers.ListField(child=drf_serializers.IntegerField(), help_text="이동할 상품 ID 목록")
+    remove_from_wishlist = drf_serializers.BooleanField(default=False, help_text="장바구니 추가 후 찜 목록에서 제거 여부")
+
+
 class WishlistViewSet(GenericViewSet):
     """
     찜하기(위시리스트) 관리 ViewSet
@@ -134,6 +206,7 @@ class WishlistViewSet(GenericViewSet):
 
     # ===== 찜 목록 조회 =====
 
+
     @extend_schema(
         parameters=[
             OpenApiParameter(
@@ -155,6 +228,7 @@ class WishlistViewSet(GenericViewSet):
                 required=False,
                 type=str,
             ),
+
         ],
         responses={200: WishlistListResponseSerializer},
         summary="찜 목록을 조회한다.",
@@ -172,6 +246,7 @@ class WishlistViewSet(GenericViewSet):
         # 서비스 호출
         queryset = WishlistService.get_list(request.user, filters)
 
+
         serializer = WishlistProductSerializer(queryset, many=True)
 
         return Response(
@@ -182,6 +257,7 @@ class WishlistViewSet(GenericViewSet):
         )
 
     # ===== 찜하기 토글 =====
+
 
     @extend_schema(
         request=WishlistToggleSerializer,
@@ -278,6 +354,7 @@ class WishlistViewSet(GenericViewSet):
                 required=True,
                 type=int,
             ),
+
         ],
         responses={
             204: WishlistMessageResponseSerializer,
@@ -315,6 +392,7 @@ class WishlistViewSet(GenericViewSet):
             return self._handle_service_error(e)
 
     # ===== 일괄 추가 =====
+
 
     @extend_schema(
         request=WishlistBulkAddSerializer,
@@ -365,6 +443,7 @@ class WishlistViewSet(GenericViewSet):
                 required=True,
                 type=str,
             ),
+
         ],
         responses={
             204: WishlistMessageResponseSerializer,
@@ -408,6 +487,7 @@ class WishlistViewSet(GenericViewSet):
                 required=True,
                 type=int,
             ),
+
         ],
         responses={
             200: WishlistCheckResponseSerializer,
@@ -473,6 +553,7 @@ class WishlistViewSet(GenericViewSet):
 
     # ===== 장바구니로 이동 =====
 
+
     @extend_schema(
         request=WishlistMoveToCartRequestSerializer,
         responses={
@@ -491,6 +572,7 @@ class WishlistViewSet(GenericViewSet):
     def move_to_cart(self, request: Request) -> Response:
         """찜 목록에서 장바구니로 이동"""
         product_ids = request.data.get("product_ids", [])
+
         remove_from_wishlist = request.data.get("remove_from_wishlist", False)
 
         # Boolean으로 명시적 변환

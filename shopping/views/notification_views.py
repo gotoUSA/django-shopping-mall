@@ -53,6 +53,7 @@ class ErrorResponseSerializer(drf_serializers.Serializer):
     error = drf_serializers.CharField()
 
 
+
 @extend_schema_view(
     list=extend_schema(
         summary="내 알림 목록을 조회한다.",
@@ -81,6 +82,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
 
     권한: 인증 필요 (본인 알림만 관리 가능)
     """
+
 
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -124,6 +126,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
 
     # ===== 읽지 않은 알림 조회 =====
 
+
     @extend_schema(
         responses={200: UnreadNotificationResponseSerializer},
         summary="읽지 않은 알림을 조회한다.",
@@ -146,6 +149,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
             }
         )
 
+
     # ===== 알림 읽음 처리 =====
 
     @extend_schema(
@@ -154,6 +158,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
             200: MarkReadResponseSerializer,
             400: ErrorResponseSerializer,
         },
+
         summary="알림을 읽음 처리한다.",
         description="""처리 내용:
 - 지정된 알림들을 읽음 처리한다.
@@ -174,6 +179,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         # Serializer에서 notification_ids 추출
         notification_ids = serializer.validated_data.get("notification_ids", [])
 
+
         # 빈 배열이면 전체 읽음 처리
         result = NotificationService.mark_as_read(
             user=request.user,
@@ -193,6 +199,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         responses={
             200: ClearResponseSerializer,
         },
+
         summary="읽은 알림을 전체 삭제한다.",
         description="""처리 내용:
 - 읽음 처리된 알림을 전체 삭제한다.""",
@@ -217,6 +224,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         status_map = {
             "NOTIFICATION_NOT_FOUND": status.HTTP_404_NOT_FOUND,
         }
+
 
         http_status = status_map.get(error.code, status.HTTP_400_BAD_REQUEST)
 

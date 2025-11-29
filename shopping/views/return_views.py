@@ -56,28 +56,47 @@ class ReturnErrorResponseSerializer(drf_serializers.Serializer):
 @extend_schema_view(
     list=extend_schema(
         responses={200: ReturnListSerializer(many=True)},
-        summary="내 교환/환불 목록 조회",
-        description="로그인한 사용자의 교환/환불 목록을 조회합니다. 판매자는 본인 상품에 대한 교환/환불 목록을 조회합니다.",
+        summary="내 교환/환불 목록을 조회한다.",
+        description="""
+처리 내용:
+- 로그인한 사용자의 교환/환불 목록을 조회한다.
+- 판매자는 본인 상품에 대한 교환/환불 목록을 조회한다.
+- 상태(status) 및 유형(type)으로 필터링할 수 있다.
+        """,
         tags=["Returns"],
     ),
     retrieve=extend_schema(
         responses={200: ReturnDetailSerializer, 404: ReturnErrorResponseSerializer},
-        summary="교환/환불 상세 조회",
-        description="특정 교환/환불의 상세 정보를 조회합니다.",
+        summary="교환/환불 상세 정보를 조회한다.",
+        description="""
+처리 내용:
+- 특정 교환/환불의 상세 정보를 조회한다.
+- 관련 주문 및 상품 정보를 함께 반환한다.
+        """,
         tags=["Returns"],
     ),
     create=extend_schema(
         request=ReturnCreateSerializer,
         responses={201: ReturnCreateResponseSerializer, 400: ReturnErrorResponseSerializer},
-        summary="교환/환불 신청",
-        description="주문 상품에 대해 교환 또는 환불을 신청합니다.",
+        summary="교환/환불을 신청한다.",
+        description="""
+처리 내용:
+- 주문 상품에 대해 교환 또는 환불을 신청한다.
+- 신청 사유와 반품 상품 정보를 입력한다.
+- 신청 상태로 생성되며 판매자 승인을 대기한다.
+        """,
         tags=["Returns"],
     ),
     partial_update=extend_schema(
         request=ReturnUpdateSerializer,
         responses={200: ReturnDetailSerializer, 400: ReturnErrorResponseSerializer},
-        summary="교환/환불 정보 수정",
-        description="교환/환불 정보(송장번호 등)를 수정합니다.",
+        summary="교환/환불 정보를 수정한다.",
+        description="""
+처리 내용:
+- 교환/환불 정보(송장번호 등)를 수정한다.
+- 신청자만 수정할 수 있다.
+- 요청된 필드만 부분 수정된다.
+        """,
         tags=["Returns"],
     ),
     destroy=extend_schema(
@@ -86,8 +105,13 @@ class ReturnErrorResponseSerializer(drf_serializers.Serializer):
             400: ReturnErrorResponseSerializer,
             403: ReturnErrorResponseSerializer,
         },
-        summary="교환/환불 신청 취소",
-        description="신청(requested) 상태의 교환/환불을 취소합니다.",
+        summary="교환/환불 신청을 취소한다.",
+        description="""
+처리 내용:
+- 신청(requested) 상태의 교환/환불만 취소할 수 있다.
+- 신청자만 취소할 수 있다.
+- 취소된 교환/환불은 복구할 수 없다.
+        """,
         tags=["Returns"],
     ),
 )
@@ -218,9 +242,14 @@ class ReturnViewSet(viewsets.ModelViewSet):
     @extend_schema(
         request=ReturnApproveSerializer,
         responses={200: ReturnActionResponseSerializer, 403: ReturnErrorResponseSerializer},
-        summary="교환/환불 승인",
-        description="판매자가 교환/환불 요청을 승인합니다.",
-        tags=["Returns / Refunds"],
+        summary="교환/환불 요청을 승인한다.",
+        description="""
+처리 내용:
+- 판매자만 교환/환불 요청을 승인할 수 있다.
+- 승인 후 반품 안내 메시지가 발송된다.
+- 상태가 승인(approved)으로 변경된다.
+        """,
+        tags=["Returns"],
     )
     @action(detail=True, methods=["post"], url_path="approve")
     def approve(self, request: Request, pk: int | None = None) -> Response:
@@ -243,9 +272,14 @@ class ReturnViewSet(viewsets.ModelViewSet):
     @extend_schema(
         request=ReturnRejectSerializer,
         responses={200: ReturnActionResponseSerializer, 403: ReturnErrorResponseSerializer},
-        summary="교환/환불 거부",
-        description="판매자가 교환/환불 요청을 거부합니다. 거부 사유를 함께 입력합니다.",
-        tags=["Returns / Refunds"],
+        summary="교환/환불 요청을 거부한다.",
+        description="""
+처리 내용:
+- 판매자만 교환/환불 요청을 거부할 수 있다.
+- 거부 사유를 함께 입력해야 한다.
+- 상태가 거부(rejected)로 변경된다.
+        """,
+        tags=["Returns"],
     )
     @action(detail=True, methods=["post"], url_path="reject")
     def reject(self, request: Request, pk: int | None = None) -> Response:
@@ -268,9 +302,14 @@ class ReturnViewSet(viewsets.ModelViewSet):
     @extend_schema(
         request=ReturnConfirmReceiveSerializer,
         responses={200: ReturnActionResponseSerializer, 403: ReturnErrorResponseSerializer},
-        summary="반품 도착 확인",
-        description="판매자가 반품 상품의 도착을 확인합니다.",
-        tags=["Returns / Refunds"],
+        summary="반품 도착을 확인한다.",
+        description="""
+처리 내용:
+- 판매자가 반품 상품의 도착을 확인한다.
+- 상태가 도착완료(received)로 변경된다.
+- 도착 확인 후 환불/교환 완료 처리가 가능해진다.
+        """,
+        tags=["Returns"],
     )
     @action(detail=True, methods=["post"], url_path="confirm-receive")
     def confirm_receive(self, request: Request, pk: int | None = None) -> Response:
@@ -297,9 +336,14 @@ class ReturnViewSet(viewsets.ModelViewSet):
             400: ReturnErrorResponseSerializer,
             403: ReturnErrorResponseSerializer,
         },
-        summary="교환/환불 완료 처리",
-        description="판매자가 교환/환불을 완료 처리합니다. 환불은 자동 환불 처리되고, 교환은 교환 상품 송장번호를 입력합니다.",
-        tags=["Returns / Refunds"],
+        summary="교환/환불을 완료 처리한다.",
+        description="""
+처리 내용:
+- 판매자가 교환/환불을 완료 처리한다.
+- 환불의 경우 자동 환불 처리된다.
+- 교환의 경우 교환 상품 송장번호를 입력한다.
+        """,
+        tags=["Returns"],
     )
     @action(detail=True, methods=["post"], url_path="complete")
     def complete(self, request: Request, pk: int | None = None) -> Response:

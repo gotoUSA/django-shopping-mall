@@ -62,15 +62,12 @@ class SendVerificationEmailView(APIView):
             400: EmailVerificationErrorResponseSerializer,
             429: EmailVerificationErrorResponseSerializer,
         },
-        summary="이메일 인증 발송",
-        description="""
-인증 이메일을 발송합니다.
-
-**제한사항:**
-- 이미 인증된 사용자는 발송 불가
-- 1분 내 재발송 불가
-- 이메일은 비동기(Celery)로 발송됩니다.
-        """,
+        summary="인증 이메일을 발송한다.",
+        description="""처리 내용:
+- 기존 미사용 토큰을 무효화한다.
+- 새 인증 토큰을 생성한다.
+- 비동기(Celery)로 이메일을 발송한다.
+- 이미 인증된 사용자는 발송 불가한다.""",
         tags=["Auth"],
     )
     def post(self, request: Request) -> Response:
@@ -122,14 +119,11 @@ class VerifyEmailView(APIView):
             200: EmailVerificationMessageResponseSerializer,
             400: EmailVerificationErrorResponseSerializer,
         },
-        summary="이메일 인증 (토큰)",
-        description="""
-이메일에 포함된 UUID 토큰으로 인증합니다.
-
-**사용 방법:**
-- 이메일의 인증 링크를 클릭하면 자동으로 호출됩니다.
-- `?token=UUID값` 형식으로 요청합니다.
-        """,
+        summary="UUID 토큰으로 이메일을 인증한다.",
+        description="""처리 내용:
+- 토큰의 유효성을 검증한다.
+- 사용자의 이메일 인증 상태를 완료로 변경한다.
+- 토큰을 사용 완료 상태로 변경한다.""",
         tags=["Auth"],
     )
     def get(self, request: Request) -> Response:
@@ -161,22 +155,11 @@ class VerifyEmailView(APIView):
             400: EmailVerificationErrorResponseSerializer,
             401: EmailVerificationErrorResponseSerializer,
         },
-        summary="이메일 인증 (코드)",
-        description="""
-6자리 인증 코드로 이메일을 인증합니다.
-
-**요청 본문:**
-```json
-{
-    "code": "ABC123"
-}
-```
-
-**주의사항:**
-- 로그인이 필요합니다 (JWT 토큰 필요)
-- 코드는 대소문자 구분 없음 (자동으로 대문자 변환)
-- 코드 만료 시간: 24시간
-        """,
+        summary="6자리 코드로 이메일을 인증한다.",
+        description="""처리 내용:
+- 인증 코드의 유효성을 검증한다.
+- 사용자의 이메일 인증 상태를 완료로 변경한다.
+- 코드는 대소문자 구분 없이 처리한다.""",
         tags=["Auth"],
     )
     def post(self, request: Request) -> Response:
@@ -220,15 +203,12 @@ class ResendVerificationEmailView(APIView):
             400: EmailVerificationErrorResponseSerializer,
             429: EmailVerificationErrorResponseSerializer,
         },
-        summary="이메일 인증 재발송",
-        description="""
-인증 이메일을 재발송합니다.
-
-**제한사항:**
-- 이미 인증된 사용자는 재발송 불가
-- 1분 내 재발송 불가
-- 이전 토큰은 자동 무효화됩니다.
-        """,
+        summary="인증 이메일을 재발송한다.",
+        description="""처리 내용:
+- 기존 미사용 토큰을 무효화한다.
+- 새 인증 토큰을 생성한다.
+- 비동기(Celery)로 이메일을 재발송한다.
+- 1분 내 재발송 불가한다.""",
         tags=["Auth"],
     )
     def post(self, request: Request) -> Response:
@@ -264,17 +244,10 @@ class ResendVerificationEmailView(APIView):
 
 @extend_schema(
     responses={200: EmailVerificationStatusResponseSerializer},
-    summary="이메일 인증 상태 확인",
-    description="""
-현재 사용자의 이메일 인증 상태를 확인합니다.
-
-**응답 필드:**
-- `is_verified`: 인증 완료 여부
-- `email`: 사용자 이메일
-- `pending_verification`: 인증 대기 중 여부 (미인증 시만)
-- `token_expired`: 토큰 만료 여부 (미인증 시만)
-- `can_resend`: 재발송 가능 여부 (미인증 시만)
-    """,
+    summary="이메일 인증 상태를 확인한다.",
+    description="""처리 내용:
+- 현재 사용자의 이메일 인증 상태를 반환한다.
+- 미인증 시 토큰 만료 여부와 재발송 가능 여부를 포함한다.""",
     tags=["Auth"],
 )
 @api_view(["GET"])

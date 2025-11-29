@@ -84,49 +84,47 @@ class ProductPagination(PageNumberPagination):
                 name="ordering", description="정렬 (price, -price, created_at, -created_at)", required=False, type=str
             ),
         ],
-        summary="상품 목록 조회",
-        description="""
-상품 목록을 조회합니다.
-
-**필터링:**
-- search: 검색어 (상품명, 설명, 카테고리명)
-- category: 카테고리 ID (하위 카테고리 포함)
-- min_price/max_price: 가격 범위
-- in_stock: 재고 여부
-- seller: 판매자 ID
-        """,
+        summary="상품 목록을 조회한다.",
+        description="""처리 내용:
+- 활성화된 상품 목록을 페이지네이션하여 반환한다.
+- 검색어, 카테고리, 가격 범위 등 필터링을 적용한다.
+- 정렬 조건에 따라 결과를 정렬한다.""",
         tags=["Products"],
     ),
     retrieve=extend_schema(
-        summary="상품 상세 조회",
-        description="상품의 상세 정보를 조회합니다.",
+        summary="상품 상세 정보를 조회한다.",
+        description="""처리 내용:
+- 상품의 상세 정보를 반환한다.
+- 판매자, 카테고리, 이미지, 리뷰 정보를 포함한다.""",
         tags=["Products"],
     ),
     create=extend_schema(
-        summary="상품 등록",
-        description="""
-새 상품을 등록합니다.
-
-**권한:** 인증 필요
-**자동 처리:**
-- seller: 현재 로그인한 사용자로 설정
-- slug: 상품명으로 자동 생성
-        """,
+        summary="새 상품을 등록한다.",
+        description="""처리 내용:
+- 상품 정보를 검증하고 등록한다.
+- 판매자는 현재 로그인한 사용자로 자동 설정한다.
+- slug는 상품명으로 자동 생성한다.""",
         tags=["Products"],
     ),
     update=extend_schema(
-        summary="상품 전체 수정",
-        description="상품 정보를 전체 수정합니다. 판매자만 가능합니다.",
+        summary="상품 정보를 전체 수정한다.",
+        description="""처리 내용:
+- 상품 정보를 전체 수정한다.
+- 본인 상품만 수정 가능하다.""",
         tags=["Products"],
     ),
     partial_update=extend_schema(
-        summary="상품 부분 수정",
-        description="상품 정보를 부분 수정합니다. 판매자만 가능합니다.",
+        summary="상품 정보를 부분 수정한다.",
+        description="""처리 내용:
+- 상품 정보를 부분 수정한다.
+- 본인 상품만 수정 가능하다.""",
         tags=["Products"],
     ),
     destroy=extend_schema(
-        summary="상품 삭제",
-        description="상품을 삭제합니다. 판매자만 가능합니다.",
+        summary="상품을 삭제한다.",
+        description="""처리 내용:
+- 상품을 삭제한다.
+- 본인 상품만 삭제 가능하다.""",
         tags=["Products"],
     ),
 )
@@ -317,16 +315,11 @@ class ProductViewSet(viewsets.ModelViewSet):
             ),
         ],
         responses={200: ProductReviewSerializer(many=True)},
-        summary="상품 리뷰 목록 조회",
-        description="""
-상품의 리뷰 목록을 조회합니다.
-
-**정렬 옵션:**
-- created_at: 등록일 오래된순
-- -created_at: 등록일 최신순 (기본)
-- rating: 평점 낮은순
-- -rating: 평점 높은순
-        """,
+        summary="상품 리뷰 목록을 조회한다.",
+        description="""처리 내용:
+- 해당 상품의 리뷰 목록을 반환한다.
+- 정렬 조건에 따라 결과를 정렬한다.
+- 페이지네이션을 적용한다.""",
         tags=["Products"],
     )
     @action(detail=True, methods=["get"])
@@ -354,17 +347,22 @@ class ProductViewSet(viewsets.ModelViewSet):
             201: ReviewAddResponseSerializer,
             400: ProductErrorResponseSerializer,
         },
-        summary="상품 리뷰 작성",
-        description="""
-상품에 리뷰를 작성합니다.
-
-**권한:** 인증 필요
-**제약:** 상품당 1개 리뷰만 작성 가능
-        """,
+        summary="상품 리뷰를 작성한다.",
+        description="""처리 내용:
+- 상품에 리뷰를 작성한다.
+- 상품당 1개 리뷰만 작성 가능하다.
+- 인증된 사용자만 작성 가능하다.""",
         tags=["Products"],
     )
-    @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
-    def add_review(self, request: Request, pk: int | None = None) -> Response:
+    @reviews.mapping.post
+    def create_review(self, request: Request, pk: int | None = None) -> Response:
+        # 인증 확인
+        if not request.user.is_authenticated:
+            return Response(
+                {"error": "로그인이 필요합니다."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
         product = self.get_object()
 
         # 이미 리뷰를 작성했는지 확인
@@ -384,13 +382,10 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         responses={200: ProductListSerializer(many=True)},
-        summary="인기 상품 목록",
-        description="""
-인기 상품 목록을 조회합니다.
-
-**정렬:** 리뷰 많은 순
-**개수:** 최대 12개
-        """,
+        summary="인기 상품 목록을 조회한다.",
+        description="""처리 내용:
+- 리뷰 개수 기준 인기 상품 목록을 반환한다.
+- 최대 12개 상품을 반환한다.""",
         tags=["Products"],
     )
     @action(detail=False, methods=["get"])
@@ -407,14 +402,11 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         responses={200: ProductListSerializer(many=True)},
-        summary="평점 높은 상품 목록",
-        description="""
-평점이 높은 상품 목록을 조회합니다.
-
-**조건:** 리뷰 3개 이상인 상품만
-**정렬:** 평균 평점 높은 순
-**개수:** 최대 12개
-        """,
+        summary="평점 높은 상품 목록을 조회한다.",
+        description="""처리 내용:
+- 평균 평점 기준 상품 목록을 반환한다.
+- 리뷰 3개 이상인 상품만 포함한다.
+- 최대 12개 상품을 반환한다.""",
         tags=["Products"],
     )
     @action(detail=False, methods=["get"])
@@ -435,14 +427,11 @@ class ProductViewSet(viewsets.ModelViewSet):
             401: ProductErrorResponseSerializer,
             403: ProductErrorResponseSerializer,
         },
-        summary="재고 부족 상품 목록 (판매자 전용)",
-        description="""
-재고가 부족한 상품 목록을 조회합니다.
-
-**조건:** 재고 10개 이하
-**정렬:** 재고 적은 순
-**권한:** 판매자만 (본인 상품만 조회)
-        """,
+        summary="재고 부족 상품 목록을 조회한다.",
+        description="""처리 내용:
+- 재고 10개 이하 상품 목록을 반환한다.
+- 판매자 본인 상품만 조회 가능하다.
+- 재고 적은 순으로 정렬한다.""",
         tags=["Products"],
     )
     @action(detail=False, methods=["get"])
@@ -467,13 +456,17 @@ class ProductViewSet(viewsets.ModelViewSet):
 
 @extend_schema_view(
     list=extend_schema(
-        summary="카테고리 목록 조회",
-        description="활성화된 카테고리 목록을 조회합니다.",
+        summary="카테고리 목록을 조회한다.",
+        description="""처리 내용:
+- 활성화된 카테고리 목록을 반환한다.
+- 각 카테고리의 상품 개수를 포함한다.""",
         tags=["Categories"],
     ),
     retrieve=extend_schema(
-        summary="카테고리 상세 조회",
-        description="카테고리의 상세 정보를 조회합니다.",
+        summary="카테고리 상세 정보를 조회한다.",
+        description="""처리 내용:
+- 카테고리의 상세 정보를 반환한다.
+- 부모 카테고리 정보를 포함한다.""",
         tags=["Categories"],
     ),
 )
@@ -510,15 +503,11 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 
     @extend_schema(
         responses={200: CategoryTreeItemSerializer(many=True)},
-        summary="카테고리 계층 구조 조회",
-        description="""
-카테고리를 계층 구조로 조회합니다.
-
-**성능 최적화:**
-- Redis 캐싱 (1시간 TTL)
-- 신호 기반 캐시 무효화
-- MPTT의 cache_tree_children 활용
-        """,
+        summary="카테고리 계층 구조를 조회한다.",
+        description="""처리 내용:
+- 카테고리를 계층 구조(Tree)로 반환한다.
+- Redis 캐싱을 적용하여 성능을 최적화한다.
+- 각 카테고리의 상품 개수를 포함한다.""",
         tags=["Categories"],
     )
     @action(detail=False, methods=["get"])
@@ -565,15 +554,11 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 
     @extend_schema(
         responses={200: ProductListSerializer(many=True)},
-        summary="카테고리별 상품 목록",
-        description="""
-해당 카테고리의 상품 목록을 조회합니다.
-
-**특징:**
-- 하위 카테고리 상품 포함 (MPTT 활용)
-- 페이지네이션 적용
-- 활성 상품만 표시
-        """,
+        summary="카테고리별 상품 목록을 조회한다.",
+        description="""처리 내용:
+- 해당 카테고리의 상품 목록을 반환한다.
+- 하위 카테고리 상품도 포함한다.
+- 페이지네이션을 적용한다.""",
         tags=["Categories"],
     )
     @action(detail=True, methods=["get"])

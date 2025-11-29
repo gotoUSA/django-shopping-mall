@@ -42,17 +42,16 @@ class ClearResponseSerializer(drf_serializers.Serializer):
 
 @extend_schema_view(
     list=extend_schema(
-        summary="내 알림 목록 조회",
-        description="현재 사용자의 알림 목록을 조회합니다.",
+        summary="내 알림 목록을 조회한다.",
+        description="""처리 내용:
+- 현재 사용자의 알림 목록을 반환한다.""",
         tags=["Notifications"],
     ),
     retrieve=extend_schema(
-        summary="알림 상세 조회",
-        description="""
-알림의 상세 정보를 조회합니다.
-
-**자동 처리:** 조회 시 자동으로 읽음 처리됩니다.
-        """,
+        summary="알림 상세 정보를 조회한다.",
+        description="""처리 내용:
+- 알림의 상세 정보를 반환한다.
+- 조회 시 자동으로 읽음 처리한다.""",
         tags=["Notifications"],
     ),
 )
@@ -94,12 +93,10 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
 
     @extend_schema(
         responses={200: UnreadNotificationResponseSerializer},
-        summary="읽지 않은 알림 조회",
-        description="""
-읽지 않은 알림 개수와 최근 5개를 조회합니다.
-
-**활용:** 프론트엔드에서 🔔 아이콘에 빨간 점 표시
-        """,
+        summary="읽지 않은 알림을 조회한다.",
+        description="""처리 내용:
+- 읽지 않은 알림 개수와 최근 5개를 반환한다.
+- 프론트엔드 알림 아이콘 표시에 활용한다.""",
         tags=["Notifications"],
     )
     @action(detail=False, methods=["get"])
@@ -116,13 +113,10 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     @extend_schema(
         request=NotificationMarkReadSerializer,
         responses={200: MarkReadResponseSerializer},
-        summary="알림 읽음 처리",
-        description="""
-알림을 읽음 처리합니다.
-
-**요청 본문:**
-- notification_ids: 알림 ID 배열 (빈 배열이면 전체 읽음)
-        """,
+        summary="알림을 읽음 처리한다.",
+        description="""처리 내용:
+- 지정된 알림들을 읽음 처리한다.
+- notification_ids가 빈 배열이면 전체 읽음 처리한다.""",
         tags=["Notifications"],
     )
     @action(detail=False, methods=["post"])
@@ -143,8 +137,9 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
 
     @extend_schema(
         responses={200: ClearResponseSerializer},
-        summary="읽은 알림 전체 삭제",
-        description="읽음 처리된 알림을 전체 삭제합니다.",
+        summary="읽은 알림을 전체 삭제한다.",
+        description="""처리 내용:
+- 읽음 처리된 알림을 전체 삭제한다.""",
         tags=["Notifications"],
     )
     @action(detail=False, methods=["delete"])

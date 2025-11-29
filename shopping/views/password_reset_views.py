@@ -65,22 +65,12 @@ class PasswordResetRequestView(APIView):
             400: PasswordResetErrorResponseSerializer,
             429: PasswordResetErrorResponseSerializer,
         },
-        summary="비밀번호 재설정 요청",
-        description="""
-비밀번호 재설정 이메일을 발송합니다.
-
-**요청 본문:**
-```json
-{
-    "email": "user@example.com"
-}
-```
-
-**보안 특징:**
-- 존재하지 않는 이메일이어도 같은 메시지를 반환합니다. (계정 존재 여부 노출 방지)
-- 이전 미사용 토큰은 자동으로 무효화됩니다.
-- 토큰은 24시간 동안 유효합니다.
-        """,
+        summary="비밀번호 재설정 이메일을 발송한다.",
+        description="""처리 내용:
+- 이메일 주소를 검증한다.
+- 비밀번호 재설정 토큰을 생성한다.
+- 재설정 링크가 포함된 이메일을 발송한다.
+- 보안상 계정 존재 여부를 노출하지 않는다.""",
         tags=["Auth"],
     )
     def post(self, request: Request) -> Response:
@@ -179,29 +169,11 @@ class PasswordResetConfirmView(APIView):
             400: PasswordResetErrorResponseSerializer,
             429: PasswordResetErrorResponseSerializer,
         },
-        summary="비밀번호 재설정 확인",
-        description="""
-토큰을 사용하여 새 비밀번호를 설정합니다.
-
-**요청 본문:**
-```json
-{
-    "email": "user@example.com",
-    "token": "uuid-token-here",
-    "new_password": "newpass123!",
-    "new_password2": "newpass123!"
-}
-```
-
-**비밀번호 규칙:**
-- 최소 8자 이상
-- 영문, 숫자, 특수문자 조합 권장
-- 이전 비밀번호와 동일 불가
-
-**보안 특징:**
-- 이메일과 토큰을 함께 검증합니다.
-- 토큰은 해시로 저장되어 DB 유출 시에도 안전합니다.
-        """,
+        summary="새 비밀번호를 설정한다.",
+        description="""처리 내용:
+- 이메일과 토큰을 검증한다.
+- 새 비밀번호를 설정한다.
+- 사용된 토큰을 무효화한다.""",
         tags=["Auth"],
     )
     def post(self, request: Request) -> Response:

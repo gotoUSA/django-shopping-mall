@@ -139,10 +139,6 @@ products_router = routers.NestedSimpleRouter(router, r"products", lookup="produc
 products_router.register(r"questions", ProductQuestionViewSet, basename="product-question")
 
 
-# Cart 관련 ViewSet 등록
-# CartViewSet은 특별한 actions만 있으므로 수동 등록
-router.register(r"cart-items", CartItemViewSet, basename="cart-item")
-
 # URL 패턴 정의
 urlpatterns = [
     # 웹페이지 URL
@@ -346,7 +342,7 @@ urlpatterns = [
 - PATCH  /api/products/{id}/         - 상품 부분 수정
 - DELETE /api/products/{id}/         - 상품 삭제
 - GET    /api/products/{id}/reviews/ - 상품 리뷰 목록
-- POST   /api/products/{id}/add_review/ - 리뷰 작성
+- POST   /api/products/{id}/reviews/ - 리뷰 작성
 - GET    /api/products/popular/      - 인기 상품
 - GET    /api/products/best_rating/  - 평점 높은 상품
 - GET    /api/products/low_stock/    - 재고 부족 상품
@@ -367,12 +363,6 @@ urlpatterns = [
 - POST   /api/cart/clear/            - 장바구니 비우기
 - POST   /api/cart/bulk_add/         - 여러 상품 한번에 추가
 - GET    /api/cart/check_stock/      - 재고 확인
-
-장바구니 아이템(CartItem) RESTful:
-- GET    /api/cart-items/            - 아이템 목록
-- POST   /api/cart-items/            - 아이템 추가
-- PUT    /api/cart-items/{id}/       - 아이템 수정
-- DELETE /api/cart-items/{id}/       - 아이템 삭제
 
 검색 및 필터링 예시:
 - /api/products/?search=노트북

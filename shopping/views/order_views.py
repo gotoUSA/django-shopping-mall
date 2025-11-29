@@ -63,40 +63,39 @@ class OrderPagination(PageNumberPagination):
 
 @extend_schema_view(
     list=extend_schema(
-        summary="주문 목록 조회",
-        description="""
-내 주문 목록을 조회합니다.
-
-**필터링:**
-- `status`: 주문 상태 필터 (pending, paid, shipped, delivered, canceled)
-
-**정렬:**
-- `ordering`: created_at, -created_at (기본: 최신순)
-
-**페이지네이션:**
-- `page`: 페이지 번호
-- `page_size`: 페이지당 항목 수 (기본: 10, 최대: 100)
-        """,
+        summary="주문 목록을 조회한다.",
+        description="""처리 내용:
+- 내 주문 목록을 페이지네이션하여 반환한다.
+- 상태별 필터링을 적용한다.
+- 최신순으로 정렬한다.""",
         tags=["Orders"],
     ),
     retrieve=extend_schema(
-        summary="주문 상세 조회",
-        description="주문 상세 정보를 조회합니다. 본인 주문 또는 관리자만 조회 가능합니다.",
+        summary="주문 상세 정보를 조회한다.",
+        description="""처리 내용:
+- 주문 상세 정보를 반환한다.
+- 본인 주문 또는 관리자만 조회 가능하다.""",
         tags=["Orders"],
     ),
     update=extend_schema(
-        summary="주문 전체 수정",
-        description="주문 정보를 전체 수정합니다. 관리자만 사용 가능합니다.",
+        summary="주문 정보를 전체 수정한다.",
+        description="""처리 내용:
+- 주문 정보를 전체 수정한다.
+- 관리자만 사용 가능하다.""",
         tags=["Orders"],
     ),
     partial_update=extend_schema(
-        summary="주문 부분 수정",
-        description="주문 정보를 부분 수정합니다. 관리자만 사용 가능합니다.",
+        summary="주문 정보를 부분 수정한다.",
+        description="""처리 내용:
+- 주문 정보를 부분 수정한다.
+- 관리자만 사용 가능하다.""",
         tags=["Orders"],
     ),
     destroy=extend_schema(
-        summary="주문 삭제",
-        description="주문을 삭제합니다. 관리자만 사용 가능합니다.",
+        summary="주문을 삭제한다.",
+        description="""처리 내용:
+- 주문을 삭제한다.
+- 관리자만 사용 가능하다.""",
         tags=["Orders"],
     ),
 )
@@ -170,29 +169,11 @@ class OrderViewSet(viewsets.ModelViewSet):
             400: OrderErrorResponseSerializer,
             403: OrderErrorResponseSerializer,
         },
-        summary="주문 생성",
-        description="""
-새 주문을 생성합니다.
-
-**필수 조건:**
-- 이메일 인증이 완료된 사용자만 주문 가능
-
-**요청 본문:**
-```json
-{
-    "items": [
-        {"product_id": 1, "quantity": 2},
-        {"product_id": 3, "quantity": 1}
-    ],
-    "shipping_address": "서울시 강남구...",
-    "use_points": 1000
-}
-```
-
-**비동기 처리:**
-- 주문은 비동기로 처리되며, 202 Accepted 응답을 반환합니다.
-- `status_url`을 통해 주문 상태를 확인할 수 있습니다.
-        """,
+        summary="새 주문을 생성한다.",
+        description="""처리 내용:
+- 주문 정보를 검증하고 생성한다.
+- 이메일 인증이 완료된 사용자만 주문 가능하다.
+- 비동기로 처리되며 202 Accepted를 반환한다.""",
         tags=["Orders"],
     )
     def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
@@ -253,19 +234,11 @@ class OrderViewSet(viewsets.ModelViewSet):
             200: OrderCancelResponseSerializer,
             400: OrderErrorResponseSerializer,
         },
-        summary="주문 취소",
-        description="""
-주문을 취소합니다.
-
-**취소 가능 조건:**
-- 배송 전 상태의 주문만 취소 가능
-- 본인 주문만 취소 가능
-
-**처리 내용:**
-- 주문 상태를 'canceled'로 변경
-- 사용한 포인트 환불
-- 재고 복구
-        """,
+        summary="주문을 취소한다.",
+        description="""처리 내용:
+- 배송 전 상태의 주문을 취소한다.
+- 사용한 포인트를 환불한다.
+- 재고를 복구한다.""",
         tags=["Orders"],
     )
     @action(detail=True, methods=["post"])

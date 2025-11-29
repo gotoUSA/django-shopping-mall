@@ -125,22 +125,11 @@ class PaymentRequestView(EmailVerificationRequiredMixin, APIView):
             400: PaymentErrorResponseSerializer,
             403: PaymentErrorResponseSerializer,
         },
-        summary="결제 요청",
-        description="""
-결제에 필요한 정보를 생성하고 반환합니다.
-
-**요청 본문:**
-```json
-{
-    "order_id": 1
-}
-```
-
-**응답 사용법:**
-- `client_key`: 토스페이먼츠 SDK 초기화에 사용
-- `success_url`, `fail_url`: 결제 완료/실패 시 리다이렉트 URL
-- `amount`: 결제 금액
-        """,
+        summary="결제에 필요한 정보를 생성한다.",
+        description="""처리 내용:
+- 결제 정보를 생성하고 반환한다.
+- 토스페이먼츠 결제창을 열기 위한 정보를 제공한다.
+- 이메일 인증된 사용자만 요청 가능하다.""",
         tags=["Payments"],
     )
     def post(self, request):
@@ -212,23 +201,11 @@ class PaymentConfirmView(EmailVerificationRequiredMixin, APIView):
             400: PaymentErrorResponseSerializer,
             403: PaymentErrorResponseSerializer,
         },
-        summary="결제 승인",
-        description="""
-토스페이먼츠 결제창에서 결제 완료 후 호출하여 결제를 최종 승인합니다.
-
-**요청 본문:**
-```json
-{
-    "order_id": 1,
-    "payment_key": "토스에서_받은_payment_key",
-    "amount": 150000
-}
-```
-
-**비동기 처리:**
-- 결제 승인은 비동기로 처리됩니다 (202 Accepted)
-- `status_url`을 통해 결제 상태를 폴링할 수 있습니다
-        """,
+        summary="결제를 최종 승인한다.",
+        description="""처리 내용:
+- 토스페이먼츠 결제 승인 API를 호출한다.
+- 비동기로 처리되며 202 Accepted를 반환한다.
+- status_url을 통해 결제 상태를 폴링한다.""",
         tags=["Payments"],
     )
     def post(self, request):
@@ -336,23 +313,11 @@ class PaymentCancelView(APIView):
             400: PaymentErrorResponseSerializer,
             404: PaymentErrorResponseSerializer,
         },
-        summary="결제 취소",
-        description="""
-완료된 결제를 취소합니다.
-
-**요청 본문:**
-```json
-{
-    "payment_id": 1,
-    "cancel_reason": "고객 변심"
-}
-```
-
-**취소 처리 내용:**
-- 토스페이먼츠 결제 취소 API 호출
-- 사용한 포인트 환불
-- 적립된 포인트 차감
-        """,
+        summary="결제를 취소한다.",
+        description="""처리 내용:
+- 토스페이먼츠 결제 취소 API를 호출한다.
+- 사용한 포인트를 환불한다.
+- 적립된 포인트를 차감한다.""",
         tags=["Payments"],
     )
     def post(self, request):
@@ -422,14 +387,11 @@ class PaymentStatusView(APIView):
             200: PaymentStatusResponseSerializer,
             404: PaymentErrorResponseSerializer,
         },
-        summary="결제 상태 조회",
-        description="""
-결제 처리 상태를 조회합니다.
-
-**사용 방법:**
-- 결제 승인 후 `status_url`로 폴링하여 결제 완료 여부 확인
-- `is_paid`가 true가 되면 결제 완료
-        """,
+        summary="결제 처리 상태를 조회한다.",
+        description="""처리 내용:
+- 결제 처리 상태를 반환한다.
+- is_paid가 true면 결제 완료 상태이다.
+- 결제 승인 후 폴링 시 사용한다.""",
         tags=["Payments"],
     )
     def get(self, request, payment_id):
@@ -468,23 +430,11 @@ class PaymentFailView(APIView):
             400: PaymentErrorResponseSerializer,
             404: PaymentErrorResponseSerializer,
         },
-        summary="결제 실패 처리",
-        description="""
-결제 실패/취소 시 호출하여 상태를 업데이트합니다.
-
-**요청 본문:**
-```json
-{
-    "code": "USER_CANCEL",
-    "message": "사용자가 결제를 취소했습니다",
-    "order_id": 1
-}
-```
-
-**처리 내용:**
-- Payment 상태를 'aborted'로 변경
-- 실패 로그 기록
-        """,
+        summary="결제 실패를 처리한다.",
+        description="""처리 내용:
+- Payment 상태를 'aborted'로 변경한다.
+- 실패 로그를 기록한다.
+- 결제창에서 실패/취소 시 호출한다.""",
         tags=["Payments"],
     )
     def post(self, request):
@@ -567,8 +517,10 @@ class PaymentDetailView(APIView):
             200: PaymentSerializer,
             404: PaymentErrorResponseSerializer,
         },
-        summary="결제 상세 조회",
-        description="결제 상세 정보를 조회합니다. 본인의 결제만 조회 가능합니다.",
+        summary="결제 상세 정보를 조회한다.",
+        description="""처리 내용:
+- 결제 상세 정보를 반환한다.
+- 본인의 결제만 조회 가능하다.""",
         tags=["Payments"],
     )
     def get(self, request, payment_id):
@@ -601,17 +553,11 @@ class PaymentListView(APIView):
             200: PaymentListResponseSerializer,
             400: PaymentErrorResponseSerializer,
         },
-        summary="결제 목록 조회",
-        description="""
-내 결제 목록을 조회합니다.
-
-**필터링:**
-- `status`: ready, done, canceled, aborted
-
-**페이지네이션:**
-- `page`: 페이지 번호
-- `page_size`: 페이지당 항목 수 (최대 100)
-        """,
+        summary="결제 목록을 조회한다.",
+        description="""처리 내용:
+- 내 결제 목록을 페이지네이션하여 반환한다.
+- 상태별 필터링을 적용한다.
+- 최신순으로 정렬한다.""",
         tags=["Payments"],
     )
     def get(self, request):

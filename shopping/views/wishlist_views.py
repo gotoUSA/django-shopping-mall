@@ -133,8 +133,10 @@ class WishlistViewSet(GenericViewSet):
             OpenApiParameter(name="on_sale", description="세일 중인 상품만 (true/false)", required=False, type=str),
         ],
         responses={200: WishlistListResponseSerializer},
-        summary="찜 목록 조회",
-        description="현재 사용자의 찜 목록을 조회합니다.",
+        summary="찜 목록을 조회한다.",
+        description="""처리 내용:
+- 현재 사용자의 찜 목록을 반환한다.
+- 정렬 및 필터링을 적용한다.""",
         tags=["Wishlist"],
     )
     @action(detail=False, methods=["get"])
@@ -169,8 +171,10 @@ class WishlistViewSet(GenericViewSet):
             200: WishlistToggleResponseSerializer,
             400: WishlistErrorResponseSerializer,
         },
-        summary="찜하기 토글",
-        description="찜하기를 토글합니다. 하트 버튼 구현에 최적화되어 있습니다.",
+        summary="찜하기를 토글한다.",
+        description="""처리 내용:
+- 찜하기를 토글한다 (추가/제거).
+- 하트 버튼 구현에 최적화되어 있다.""",
         tags=["Wishlist"],
     )
     @action(detail=False, methods=["post"])
@@ -213,8 +217,10 @@ class WishlistViewSet(GenericViewSet):
             201: WishlistAddResponseSerializer,
             400: WishlistErrorResponseSerializer,
         },
-        summary="찜 목록에 추가",
-        description="찜 목록에 상품을 추가합니다. 이미 찜한 상품이면 에러 없이 무시됩니다.",
+        summary="찜 목록에 상품을 추가한다.",
+        description="""처리 내용:
+- 찜 목록에 상품을 추가한다.
+- 이미 찜한 상품이면 에러 없이 무시한다.""",
         tags=["Wishlist"],
     )
     @action(detail=False, methods=["post"])
@@ -260,8 +266,9 @@ class WishlistViewSet(GenericViewSet):
             400: WishlistErrorResponseSerializer,
             404: WishlistMessageResponseSerializer,
         },
-        summary="찜 목록에서 제거",
-        description="찜 목록에서 상품을 제거합니다.",
+        summary="찜 목록에서 상품을 제거한다.",
+        description="""처리 내용:
+- 찜 목록에서 상품을 제거한다.""",
         tags=["Wishlist"],
     )
     @action(detail=False, methods=["delete"])
@@ -297,8 +304,10 @@ class WishlistViewSet(GenericViewSet):
             201: WishlistBulkAddResponseSerializer,
             400: WishlistErrorResponseSerializer,
         },
-        summary="여러 상품 일괄 찜하기",
-        description="여러 상품을 한 번에 찜 목록에 추가합니다. 중복은 자동 제외됩니다.",
+        summary="여러 상품을 일괄 찜한다.",
+        description="""처리 내용:
+- 여러 상품을 한 번에 찜 목록에 추가한다.
+- 중복된 상품은 자동 제외한다.""",
         tags=["Wishlist"],
     )
     @action(detail=False, methods=["post"])
@@ -351,8 +360,10 @@ class WishlistViewSet(GenericViewSet):
             204: WishlistMessageResponseSerializer,
             400: WishlistErrorResponseSerializer,
         },
-        summary="찜 목록 전체 삭제",
-        description="찜 목록을 전체 삭제합니다. 실수 방지를 위해 confirm=true 파라미터가 필수입니다.",
+        summary="찜 목록을 전체 삭제한다.",
+        description="""처리 내용:
+- 찜 목록을 전체 삭제한다.
+- 실수 방지를 위해 confirm=true 파라미터가 필수이다.""",
         tags=["Wishlist"],
     )
     @action(detail=False, methods=["delete"])
@@ -382,8 +393,10 @@ class WishlistViewSet(GenericViewSet):
             200: WishlistCheckResponseSerializer,
             400: WishlistErrorResponseSerializer,
         },
-        summary="찜 상태 확인",
-        description="특정 상품의 찜 상태를 확인합니다. 하트 버튼 초기 상태 표시에 사용합니다.",
+        summary="찜 상태를 확인한다.",
+        description="""처리 내용:
+- 특정 상품의 찜 상태를 확인한다.
+- 하트 버튼 초기 상태 표시에 사용한다.""",
         tags=["Wishlist"],
     )
     @action(detail=False, methods=["get"])
@@ -409,14 +422,11 @@ class WishlistViewSet(GenericViewSet):
 
     @extend_schema(
         responses={200: WishlistStatsSerializer},
-        summary="찜 목록 통계",
-        description="""찜 목록 통계를 조회합니다.
-
-**포함 정보:**
-- 전체/구매가능/품절 상품 수
-- 세일 중인 상품 수
-- 가격 합계 및 할인 금액
-        """,
+        summary="찜 목록 통계를 조회한다.",
+        description="""처리 내용:
+- 찜 목록 통계를 반환한다.
+- 전체/구매가능/품절 상품 수를 포함한다.
+- 가격 합계 및 할인 금액을 포함한다.""",
         tags=["Wishlist"],
     )
     @action(detail=False, methods=["get"])
@@ -469,14 +479,11 @@ class WishlistViewSet(GenericViewSet):
             400: WishlistErrorResponseSerializer,
             404: WishlistErrorResponseSerializer,
         },
-        summary="장바구니로 이동",
-        description="""찜 목록에서 장바구니로 상품을 이동합니다.
-
-**특징:**
-- 재고 자동 확인
-- 이미 장바구니에 있으면 건너뜀
-- remove_from_wishlist=true 시 찜 목록에서 제거
-        """,
+        summary="찜 목록에서 장바구니로 이동한다.",
+        description="""처리 내용:
+- 찜 목록에서 장바구니로 상품을 이동한다.
+- 재고를 자동 확인한다.
+- remove_from_wishlist=true 시 찜 목록에서 제거한다.""",
         tags=["Wishlist"],
     )
     @action(detail=False, methods=["post"])

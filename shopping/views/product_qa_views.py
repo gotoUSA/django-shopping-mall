@@ -52,57 +52,61 @@ class ProductQuestionPagination(PageNumberPagination):
 
 @extend_schema_view(
     list=extend_schema(
-        summary="상품 문의 목록 조회",
+        summary="상품 문의 목록을 조회한다.",
         description="""
-상품의 문의 목록을 조회합니다.
-
-**비밀글 필터링:**
-- 비밀글 아님: 모두 조회
-- 비밀글: 작성자, 판매자, 관리자만 조회
+처리 내용:
+- 상품 ID로 해당 상품의 문의 목록을 조회한다.
+- 비밀글은 작성자, 판매자, 관리자만 조회할 수 있다.
+- 페이지네이션이 적용되어 결과를 반환한다.
         """,
         tags=["Product Q&A"],
     ),
     retrieve=extend_schema(
-        summary="문의 상세 조회",
-        description="문의의 상세 정보와 답변을 조회합니다.",
+        summary="문의 상세 정보를 조회한다.",
+        description="""
+처리 내용:
+- 문의 ID로 상세 정보와 답변을 조회한다.
+- 비밀글은 작성자, 판매자, 관리자만 조회할 수 있다.
+        """,
         tags=["Product Q&A"],
     ),
     create=extend_schema(
-        summary="문의 작성",
+        summary="상품 문의를 작성한다.",
         description="""
-상품에 문의를 작성합니다.
-
-**권한:** 인증 필요
+처리 내용:
+- 인증된 사용자만 문의를 작성할 수 있다.
+- 상품 ID와 문의 내용을 저장한다.
+- 비밀글 여부를 설정할 수 있다.
         """,
         tags=["Product Q&A"],
     ),
     update=extend_schema(
-        summary="문의 수정",
+        summary="문의를 수정한다.",
         description="""
-문의를 수정합니다.
-
-**권한:** 작성자만
-**제약:** 답변이 달린 문의는 수정 불가
+처리 내용:
+- 작성자만 문의를 수정할 수 있다.
+- 답변이 달린 문의는 수정할 수 없다.
+- 제목, 내용, 비밀글 여부를 수정한다.
         """,
         tags=["Product Q&A"],
     ),
     partial_update=extend_schema(
-        summary="문의 부분 수정",
+        summary="문의를 부분 수정한다.",
         description="""
-문의를 부분 수정합니다.
-
-**권한:** 작성자만
-**제약:** 답변이 달린 문의는 수정 불가
+처리 내용:
+- 작성자만 문의를 부분 수정할 수 있다.
+- 답변이 달린 문의는 수정할 수 없다.
+- 요청된 필드만 수정한다.
         """,
         tags=["Product Q&A"],
     ),
     destroy=extend_schema(
-        summary="문의 삭제",
+        summary="문의를 삭제한다.",
         description="""
-문의를 삭제합니다.
-
-**권한:** 작성자 또는 관리자
-**제약:** 답변이 달린 문의는 삭제 불가
+처리 내용:
+- 작성자 또는 관리자만 삭제할 수 있다.
+- 답변이 달린 문의는 삭제할 수 없다.
+- 삭제된 문의는 복구할 수 없다.
         """,
         tags=["Product Q&A"],
     ),
@@ -221,12 +225,12 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
             201: ProductAnswerSerializer,
             400: QAErrorResponseSerializer,
         },
-        summary="답변 작성",
+        summary="문의에 답변을 작성한다.",
         description="""
-문의에 답변을 작성합니다.
-
-**권한:** 판매자만 (본인 상품의 문의에만)
-**제약:** 이미 답변이 있는 문의는 답변 불가
+처리 내용:
+- 판매자만 본인 상품의 문의에 답변할 수 있다.
+- 이미 답변이 있는 문의에는 답변할 수 없다.
+- 답변 작성 후 문의의 답변 완료 상태가 변경된다.
         """,
         tags=["Product Q&A"],
     )
@@ -262,11 +266,12 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
             400: QAErrorResponseSerializer,
             404: QAErrorResponseSerializer,
         },
-        summary="답변 수정",
+        summary="답변을 수정한다.",
         description="""
-답변을 수정합니다.
-
-**권한:** 판매자 또는 관리자
+처리 내용:
+- 판매자 또는 관리자만 답변을 수정할 수 있다.
+- 답변이 없는 경우 404 에러를 반환한다.
+- 답변 내용을 부분 수정한다.
         """,
         tags=["Product Q&A"],
     )
@@ -297,11 +302,12 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
             204: QAMessageResponseSerializer,
             404: QAErrorResponseSerializer,
         },
-        summary="답변 삭제",
+        summary="답변을 삭제한다.",
         description="""
-답변을 삭제합니다. 삭제 후 문의의 답변 완료 상태가 해제됩니다.
-
-**권한:** 판매자 또는 관리자
+처리 내용:
+- 판매자 또는 관리자만 답변을 삭제할 수 있다.
+- 답변이 없는 경우 404 에러를 반환한다.
+- 삭제 후 문의의 답변 완료 상태가 해제된다.
         """,
         tags=["Product Q&A"],
     )
@@ -335,13 +341,22 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
 
 @extend_schema_view(
     list=extend_schema(
-        summary="내가 작성한 문의 목록",
-        description="현재 사용자가 작성한 문의 목록을 조회합니다.",
+        summary="내가 작성한 문의 목록을 조회한다.",
+        description="""
+처리 내용:
+- 현재 로그인한 사용자가 작성한 문의 목록을 조회한다.
+- 최신순으로 정렬되어 반환된다.
+- 페이지네이션이 적용된다.
+        """,
         tags=["Product Q&A"],
     ),
     retrieve=extend_schema(
-        summary="내 문의 상세 조회",
-        description="내가 작성한 문의의 상세 정보를 조회합니다.",
+        summary="내 문의 상세 정보를 조회한다.",
+        description="""
+처리 내용:
+- 내가 작성한 문의의 상세 정보를 조회한다.
+- 문의 내용과 답변 정보를 함께 반환한다.
+        """,
         tags=["Product Q&A"],
     ),
 )

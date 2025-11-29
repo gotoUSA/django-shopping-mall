@@ -158,14 +158,10 @@ class MyPointView(APIView):
 
     @extend_schema(
         responses={200: MyPointResponseSerializer},
-        summary="내 포인트 현황 조회",
-        description="""
-현재 포인트 정보와 최근 포인트 이력 5건을 조회합니다.
-
-**응답 포함 정보:**
-- point_info: 현재 포인트 정보
-- recent_histories: 최근 포인트 이력 5건
-        """,
+        summary="내 포인트 현황을 조회한다.",
+        description="""처리 내용:
+- 현재 포인트 정보를 반환한다.
+- 최근 포인트 이력 5건을 포함한다.""",
     )
     def get(self, request: Request) -> Response:
         user = request.user
@@ -196,15 +192,11 @@ class PointHistoryListView(APIView):
             200: PointHistoryListResponseSerializer,
             400: PointErrorResponseSerializer,
         },
-        summary="포인트 이력 목록 조회",
-        description="""
-필터링 및 페이지네이션이 적용된 포인트 이력을 조회합니다.
-
-**필터 파라미터:**
-- type: 포인트 유형 (earn, use, expire 등)
-- start_date/end_date: 기간 필터
-- page/page_size: 페이지네이션
-        """,
+        summary="포인트 이력 목록을 조회한다.",
+        description="""처리 내용:
+- 필터링된 포인트 이력을 페이지네이션하여 반환한다.
+- 유형, 기간 필터를 적용한다.
+- 요약 정보를 함께 반환한다.""",
     )
     def get(self, request: Request) -> Response:
         user = request.user
@@ -251,15 +243,10 @@ class PointCheckView(APIView):
             200: PointCheckResponseSerializer,
             400: PointErrorResponseSerializer,
         },
-        summary="포인트 사용 가능 여부 확인",
-        description="""
-주문 금액에 따른 포인트 사용 가능 여부를 확인합니다.
-
-**응답 필드:**
-- available_points: 보유 포인트
-- can_use: 사용 가능 여부
-- max_usable: 최대 사용 가능 포인트
-        """,
+        summary="포인트 사용 가능 여부를 확인한다.",
+        description="""처리 내용:
+- 주문 금액에 따른 포인트 사용 가능 여부를 확인한다.
+- 보유 포인트와 최대 사용 가능 포인트를 반환한다.""",
     )
     def post(self, request: Request) -> Response:
         serializer = PointCheckSerializer(data=request.data, context={"request": request})
@@ -281,18 +268,11 @@ class ExpiringPointsView(APIView):
             OpenApiParameter(name="days", description="조회 기간 (기본: 30일)", required=False, type=int),
         ],
         responses={200: ExpiringPointsResponseSerializer},
-        summary="만료 예정 포인트 조회",
-        description="""
-지정된 기간 내 만료 예정인 포인트를 월별로 조회합니다.
-
-**파라미터:**
-- days: 조회 기간 (기본 30일)
-
-**응답 포함 정보:**
-- total_expiring: 전체 만료 예정 포인트
-- monthly_summary: 월별 만료 예정 요약
-- histories: 만료 예정 포인트 이력
-        """,
+        summary="만료 예정 포인트를 조회한다.",
+        description="""처리 내용:
+- 지정된 기간 내 만료 예정인 포인트를 조회한다.
+- 월별 만료 예정 요약을 반환한다.
+- 만료 예정 포인트 이력을 포함한다.""",
     )
     def get(self, request: Request) -> Response:
         user = request.user
@@ -317,16 +297,11 @@ class ExpiringPointsView(APIView):
 
 @extend_schema(
     responses={200: PointStatisticsResponseSerializer},
-    summary="포인트 통계 정보",
-    description="""
-포인트 종합 통계를 조회합니다.
-
-**응답 포함 정보:**
-- current_points: 현재 포인트
-- this_month: 이번 달 적립/사용 통계
-- all_time: 전체 적립/사용 통계
-- by_type: 유형별 통계
-    """,
+    summary="포인트 통계 정보를 조회한다.",
+    description="""처리 내용:
+- 포인트 종합 통계를 반환한다.
+- 현재 포인트, 이번 달/전체 적립/사용 통계를 포함한다.
+- 유형별 통계를 포함한다.""",
     tags=["Points"],
 )
 @api_view(["GET"])
@@ -359,19 +334,11 @@ class PointUseView(APIView):
             200: PointUseSuccessResponseSerializer,
             400: PointErrorResponseSerializer,
         },
-        summary="포인트 사용",
-        description="""
-포인트를 사용합니다.
-
-**특징:**
-- FIFO 방식으로 만료 임박 포인트부터 차감
-- 최소 100포인트 이상 사용 가능
-
-**요청 필드:**
-- amount: 사용할 포인트 (최소 100)
-- order_id: 주문 ID (선택)
-- description: 설명 (선택)
-        """,
+        summary="포인트를 사용한다.",
+        description="""처리 내용:
+- FIFO 방식으로 만료 임박 포인트부터 차감한다.
+- 최소 100포인트 이상 사용 가능하다.
+- 사용 내역을 기록한다.""",
     )
     def post(self, request: Request) -> Response:
         serializer = PointUseSerializer(data=request.data, context={"request": request})
@@ -487,14 +454,11 @@ class PointCancelView(APIView):
             200: PointCancelSuccessResponseSerializer,
             400: PointErrorResponseSerializer,
         },
-        summary="취소/환불 포인트 처리",
-        description="""
-주문 취소 시 포인트를 처리합니다.
-
-**타입:**
-- cancel_deduct: 주문으로 적립받은 포인트 회수
-- cancel_refund: 주문에 사용한 포인트 환불
-        """,
+        summary="취소/환불 포인트를 처리한다.",
+        description="""처리 내용:
+- 주문 취소 시 포인트를 처리한다.
+- cancel_deduct: 주문으로 적립받은 포인트를 회수한다.
+- cancel_refund: 주문에 사용한 포인트를 환불한다.""",
     )
     def post(self, request: Request) -> Response:
         serializer = PointCancelSerializer(data=request.data, context={"request": request})

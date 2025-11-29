@@ -5,7 +5,7 @@ import logging
 from django.db import transaction
 from django.utils import timezone
 
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import generics, serializers as drf_serializers, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -47,8 +47,38 @@ class WithdrawRequestSerializer(drf_serializers.Serializer):
     password = drf_serializers.CharField(help_text="현재 비밀번호")
 
 
-@extend_schema(
-    tags=["Users"],
+@extend_schema_view(
+    get=extend_schema(
+        responses={200: UserSerializer},
+        summary="내 프로필 정보를 조회한다.",
+        description="""처리 내용:
+- 현재 로그인한 사용자의 프로필 정보를 반환한다.""",
+        tags=["Users"],
+    ),
+    put=extend_schema(
+        request=UserSerializer,
+        responses={
+            200: ProfileUpdateResponseSerializer,
+            400: ErrorResponseSerializer,
+        },
+        summary="프로필 정보를 전체 수정한다.",
+        description="""처리 내용:
+- 현재 로그인한 사용자의 프로필 정보를 전체 수정한다.
+- 모든 필드를 포함하여 요청해야 한다.""",
+        tags=["Users"],
+    ),
+    patch=extend_schema(
+        request=UserSerializer,
+        responses={
+            200: ProfileUpdateResponseSerializer,
+            400: ErrorResponseSerializer,
+        },
+        summary="프로필 정보를 부분 수정한다.",
+        description="""처리 내용:
+- 현재 로그인한 사용자의 프로필 정보를 부분 수정한다.
+- 변경할 필드만 포함하여 요청한다.""",
+        tags=["Users"],
+    ),
 )
 class ProfileView(generics.RetrieveUpdateAPIView):
     """
@@ -64,26 +94,12 @@ class ProfileView(generics.RetrieveUpdateAPIView):
         """현재 로그인한 사용자 반환"""
         return self.request.user
 
-    @extend_schema(
-        responses={200: UserSerializer},
-        summary="내 프로필 조회",
-        description="현재 로그인한 사용자의 프로필 정보를 조회합니다.",
-    )
     def retrieve(self, request: Request, *args, **kwargs) -> Response:
         """GET 요청 처리 - 프로필 조회"""
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
-    @extend_schema(
-        request=UserSerializer,
-        responses={
-            200: ProfileUpdateResponseSerializer,
-            400: ErrorResponseSerializer,
-        },
-        summary="프로필 전체 수정",
-        description="현재 로그인한 사용자의 프로필 정보를 전체 수정합니다.",
-    )
     def update(self, request: Request, *args, **kwargs) -> Response:
         """PUT 요청 처리 - 전체 수정"""
         partial = kwargs.pop("partial", False)
@@ -94,15 +110,6 @@ class ProfileView(generics.RetrieveUpdateAPIView):
 
         return Response({"user": serializer.data, "message": "프로필이 수정되었습니다."}, status=status.HTTP_200_OK)
 
-    @extend_schema(
-        request=UserSerializer,
-        responses={
-            200: ProfileUpdateResponseSerializer,
-            400: ErrorResponseSerializer,
-        },
-        summary="프로필 부분 수정",
-        description="현재 로그인한 사용자의 프로필 정보를 부분 수정합니다.",
-    )
     def partial_update(self, request: Request, *args, **kwargs) -> Response:
         """PATCH 요청 처리 - 부분 수정"""
         kwargs["partial"] = True
@@ -126,8 +133,10 @@ class PasswordChangeView(APIView):
             200: MessageResponseSerializer,
             400: ErrorResponseSerializer,
         },
-        summary="비밀번호 변경",
-        description="현재 비밀번호를 확인 후 새 비밀번호로 변경합니다.",
+        summary="비밀번호를 변경한다.",
+        description="""처리 내용:
+- 현재 비밀번호를 확인한다.
+- 새 비밀번호로 변경한다.""",
     )
     def post(self, request: Request) -> Response:
         serializer = PasswordChangeSerializer(data=request.data, context={"request": request})
@@ -147,15 +156,11 @@ class PasswordChangeView(APIView):
         400: ErrorResponseSerializer,
         500: ErrorResponseSerializer,
     },
-    summary="회원 탈퇴",
-    description="""비밀번호 확인 후 회원 탈퇴를 처리합니다.
-
-**처리 내용:**
-- 비밀번호 확인
-- 사용자 상태 변경 (is_withdrawn, is_active)
-- 모든 JWT 토큰 무효화 (보안 강화)
-- 포인트 및 주문 내역은 보존
-    """,
+    summary="회원 탈퇴를 처리한다.",
+    description="""처리 내용:
+- 비밀번호를 확인한다.
+- 사용자 상태를 탈퇴 상태로 변경한다.
+- 모든 JWT 토큰을 무효화한다.""",
     tags=["Users"],
 )
 @api_view(["POST"])

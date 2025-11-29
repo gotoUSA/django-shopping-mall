@@ -119,8 +119,11 @@ class RegisterView(CreateAPIView):
     @extend_schema(
         request=RegisterSerializer,
         responses={201: RegisterResponseSerializer},
-        summary="회원가입",
-        description="새 사용자를 생성하고 JWT 토큰을 발급합니다.",
+        summary="새 사용자를 생성한다.",
+        description="""처리 내용:
+- 사용자 정보를 검증하고 계정을 생성한다.
+- JWT Access/Refresh 토큰을 발급한다.
+- 이메일 인증 코드를 발송한다.""",
         tags=["Auth"],
     )
     def post(self, request: Request, *args, **kwargs) -> Response:
@@ -211,17 +214,11 @@ class LoginView(APIView):
             200: LoginResponseSerializer,
             400: LoginErrorResponseSerializer,
         },
-        summary="로그인",
-        description="""
-사용자 인증 후 JWT 토큰을 발급합니다.
-
-**인증 방식:**
-- Access Token은 응답 body에 포함됩니다.
-- Refresh Token은 HTTP Only Cookie로 자동 설정됩니다.
-
-**비회원 장바구니:**
-- 로그인 전 비회원 장바구니가 있으면 회원 장바구니로 자동 병합됩니다.
-        """,
+        summary="사용자 인증 후 토큰을 발급한다.",
+        description="""처리 내용:
+- 사용자 인증 정보를 검증한다.
+- JWT Access/Refresh 토큰을 발급한다.
+- 비회원 장바구니가 있으면 회원 장바구니로 병합한다.""",
         tags=["Auth"],
     )
     def post(self, request: Request) -> Response:
@@ -320,18 +317,11 @@ class CustomTokenRefreshView(TokenRefreshView):
             400: LogoutErrorResponseSerializer,
             401: LogoutErrorResponseSerializer,
         },
-        summary="토큰 갱신",
-        description="""
-Refresh Token을 사용하여 새로운 Access Token을 발급합니다.
-
-**요청 방식:**
-- Cookie의 `refresh_token`에서 자동으로 읽어옵니다. (권장)
-- 또는 body에 `{"refresh": "토큰값"}` 형식으로 전달할 수 있습니다.
-
-**응답:**
-- 새로운 Access Token이 body에 반환됩니다.
-- 새로운 Refresh Token은 HTTP Only Cookie로 자동 갱신됩니다.
-        """,
+        summary="새로운 Access Token을 발급한다.",
+        description="""처리 내용:
+- Refresh Token을 검증한다.
+- 새로운 Access Token을 발급한다.
+- Refresh Token을 갱신하여 Cookie에 저장한다.""",
         tags=["Auth"],
     )
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
@@ -415,18 +405,10 @@ class LogoutView(APIView):
             200: LogoutResponseSerializer,
             400: LogoutErrorResponseSerializer,
         },
-        summary="로그아웃",
-        description="""
-로그아웃 처리를 수행합니다.
-
-**처리 내용:**
-- Refresh Token을 블랙리스트에 추가하여 무효화합니다.
-- HTTP Only Cookie에서 refresh_token을 삭제합니다.
-
-**요청:**
-- Request body가 필요 없습니다.
-- Cookie의 refresh_token이 자동으로 처리됩니다.
-        """,
+        summary="로그아웃을 처리한다.",
+        description="""처리 내용:
+- Refresh Token을 블랙리스트에 추가하여 무효화한다.
+- Cookie에서 refresh_token을 삭제한다.""",
         tags=["Auth"],
     )
     def post(self, request: Request) -> Response:
@@ -467,8 +449,10 @@ class LogoutView(APIView):
 
 @extend_schema(
     responses={200: CheckTokenResponseSerializer},
-    summary="토큰 유효성 확인",
-    description="현재 Access Token이 유효한지 확인합니다.",
+    summary="Access Token의 유효성을 확인한다.",
+    description="""처리 내용:
+- Access Token의 유효성을 검증한다.
+- 유효한 경우 사용자 정보를 반환한다.""",
     tags=["Auth"],
 )
 @api_view(["GET"])

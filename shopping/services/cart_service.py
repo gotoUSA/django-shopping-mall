@@ -22,10 +22,8 @@
 from __future__ import annotations
 
 import logging
-import time
 from dataclasses import dataclass
-from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from django.db import transaction
 from django.db.models import F, Prefetch
@@ -37,86 +35,16 @@ if TYPE_CHECKING:
 
 from ..models.cart import Cart, CartItem
 from ..models.product import Product
+from .base import ServiceError, log_service_call
 
 logger = logging.getLogger(__name__)
 
 
-# ===== 로깅 데코레이터 =====
-
-def log_service_call(func: Callable) -> Callable:
-    """
-    서비스 메서드 호출 로깅 데코레이터
-    
-    - 메서드 호출 시작/종료 로깅
-    - 실행 시간 측정
-    - 예외 발생 시 에러 로깅
-    """
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        func_name = func.__name__
-        start_time = time.perf_counter()
-        
-        # 인자 정보 추출 (민감 정보 제외)
-        log_kwargs = {k: v for k, v in kwargs.items() if k not in ('password', 'token')}
-        
-        logger.debug(
-            "[CartService.%s] 호출 시작 | args=%s, kwargs=%s",
-            func_name, args[1:3] if len(args) > 1 else (), log_kwargs
-        )
-        
-        try:
-            result = func(*args, **kwargs)
-            elapsed = (time.perf_counter() - start_time) * 1000  # ms
-            
-            logger.debug(
-                "[CartService.%s] 호출 완료 | elapsed=%.2fms",
-                func_name, elapsed
-            )
-            
-            # 느린 쿼리 경고 (100ms 이상)
-            if elapsed > 100:
-                logger.warning(
-                    "[CartService.%s] 느린 실행 감지 | elapsed=%.2fms",
-                    func_name, elapsed
-                )
-            
-            return result
-            
-        except CartServiceError as e:
-            elapsed = (time.perf_counter() - start_time) * 1000
-            logger.warning(
-                "[CartService.%s] 비즈니스 에러 | code=%s, message=%s, elapsed=%.2fms",
-                func_name, e.code, e.message, elapsed
-            )
-            raise
-            
-        except Exception as e:
-            elapsed = (time.perf_counter() - start_time) * 1000
-            logger.error(
-                "[CartService.%s] 예외 발생 | error=%s, elapsed=%.2fms",
-                func_name, str(e), elapsed,
-                exc_info=True  # 스택 트레이스 포함
-            )
-            raise
-    
-    return wrapper
-
-
-class CartServiceError(Exception):
-    """
-    장바구니 서비스 관련 에러
-
-    Attributes:
-        message: 에러 메시지
-        code: 에러 코드 (API 응답에 활용)
-        details: 추가 상세 정보
-    """
+class CartServiceError(ServiceError):
+    """장바구니 서비스 관련 에러"""
 
     def __init__(self, message: str, code: str = "CART_ERROR", details: dict | None = None):
-        self.message = message
-        self.code = code
-        self.details = details or {}
-        super().__init__(self.message)
+        super().__init__(message, code, details)
 
 
 # ===== Data Transfer Objects (DTO) =====
@@ -275,8 +203,7 @@ class CartService:
             existing_item.refresh_from_db()
             cart_item = existing_item
             logger.info(
-                "[Cart] 아이템 수량 증가 | cart_id=%d, product_id=%d, new_qty=%d",
-                cart.id, product_id, cart_item.quantity
+                "[Cart] 아이템 수량 증가 | cart_id=%d, product_id=%d, new_qty=%d", cart.id, product_id, cart_item.quantity
             )
         else:
             # 새 아이템 생성
@@ -285,10 +212,7 @@ class CartService:
                 product=product,
                 quantity=quantity,
             )
-            logger.info(
-                "[Cart] 아이템 추가 | cart_id=%d, product_id=%d, qty=%d",
-                cart.id, product_id, quantity
-            )
+            logger.info("[Cart] 아이템 추가 | cart_id=%d, product_id=%d, qty=%d", cart.id, product_id, quantity)
 
         return cart_item
 
@@ -339,10 +263,7 @@ class CartService:
         cart_item.quantity = quantity
         cart_item.save(update_fields=["quantity", "added_at"])
 
-        logger.info(
-            "[Cart] 수량 변경 | cart_id=%d, item_id=%d, new_qty=%d",
-            cart.id, item_id, quantity
-        )
+        logger.info("[Cart] 수량 변경 | cart_id=%d, item_id=%d, new_qty=%d", cart.id, item_id, quantity)
 
         return cart_item
 
@@ -374,10 +295,7 @@ class CartService:
         product_name = cart_item.product.name
         cart_item.delete()
 
-        logger.info(
-            "[Cart] 아이템 삭제 | cart_id=%d, item_id=%d, product=%s",
-            cart.id, item_id, product_name
-        )
+        logger.info("[Cart] 아이템 삭제 | cart_id=%d, item_id=%d, product=%s", cart.id, item_id, product_name)
 
         return product_name
 
@@ -440,15 +358,8 @@ class CartService:
             )
 
         # 1. 상품 ID 수집 및 일괄 조회 (N+1 방지)
-        product_ids = [
-            item.get("product_id")
-            for item in items_data
-            if item.get("product_id")
-        ]
-        products = {
-            p.id: p
-            for p in Product.objects.filter(id__in=product_ids, is_active=True)
-        }
+        product_ids = [item.get("product_id") for item in items_data if item.get("product_id")]
+        products = {p.id: p for p in Product.objects.filter(id__in=product_ids, is_active=True)}
 
         added_items: list[CartItem] = []
         errors: list[dict] = []
@@ -462,9 +373,7 @@ class CartService:
             quantity = item_data.get("quantity", 1)
 
             # 검증
-            error = CartService._validate_bulk_item(
-                idx, product_id, quantity, products
-            )
+            error = CartService._validate_bulk_item(idx, product_id, quantity, products)
             if error:
                 errors.append(error)
                 continue
@@ -473,11 +382,13 @@ class CartService:
 
             # 재고 검증
             if product.stock < quantity:
-                errors.append({
-                    "index": idx,
-                    "product_id": product_id,
-                    "errors": {"quantity": f"재고 부족. 현재 재고: {product.stock}개"},
-                })
+                errors.append(
+                    {
+                        "index": idx,
+                        "product_id": product_id,
+                        "errors": {"quantity": f"재고 부족. 현재 재고: {product.stock}개"},
+                    }
+                )
                 continue
 
             # 아이템 추가/업데이트
@@ -485,16 +396,15 @@ class CartService:
                 cart_item = CartService._add_or_update_item(cart, product_id, quantity)
                 added_items.append(cart_item)
             except Exception as e:
-                errors.append({
-                    "index": idx,
-                    "product_id": product_id,
-                    "errors": {"detail": str(e)},
-                })
+                errors.append(
+                    {
+                        "index": idx,
+                        "product_id": product_id,
+                        "errors": {"detail": str(e)},
+                    }
+                )
 
-        logger.info(
-            "[Cart] 일괄 추가 완료 | cart_id=%d, added=%d, errors=%d",
-            cart.id, len(added_items), len(errors)
-        )
+        logger.info("[Cart] 일괄 추가 완료 | cart_id=%d, added=%d, errors=%d", cart.id, len(added_items), len(errors))
 
         return BulkAddResult(
             added_items=added_items,
@@ -525,38 +435,41 @@ class CartService:
             product = item.product
 
             if not product.is_active:
-                issues.append(StockIssue(
-                    item_id=item.id,
-                    product_id=product.id,
-                    product_name=product.name,
-                    issue_type="inactive",
-                    requested=item.quantity,
-                    available=0,
-                ))
+                issues.append(
+                    StockIssue(
+                        item_id=item.id,
+                        product_id=product.id,
+                        product_name=product.name,
+                        issue_type="inactive",
+                        requested=item.quantity,
+                        available=0,
+                    )
+                )
             elif product.stock == 0:
-                issues.append(StockIssue(
-                    item_id=item.id,
-                    product_id=product.id,
-                    product_name=product.name,
-                    issue_type="out_of_stock",
-                    requested=item.quantity,
-                    available=0,
-                ))
+                issues.append(
+                    StockIssue(
+                        item_id=item.id,
+                        product_id=product.id,
+                        product_name=product.name,
+                        issue_type="out_of_stock",
+                        requested=item.quantity,
+                        available=0,
+                    )
+                )
             elif product.stock < item.quantity:
-                issues.append(StockIssue(
-                    item_id=item.id,
-                    product_id=product.id,
-                    product_name=product.name,
-                    issue_type="insufficient",
-                    requested=item.quantity,
-                    available=product.stock,
-                ))
+                issues.append(
+                    StockIssue(
+                        item_id=item.id,
+                        product_id=product.id,
+                        product_name=product.name,
+                        issue_type="insufficient",
+                        requested=item.quantity,
+                        available=product.stock,
+                    )
+                )
 
         if issues:
-            logger.warning(
-                "[Cart] 재고 문제 발견 | cart_id=%d, issues=%d",
-                cart.id, len(issues)
-            )
+            logger.warning("[Cart] 재고 문제 발견 | cart_id=%d, issues=%d", cart.id, len(issues))
 
         return issues
 
@@ -625,8 +538,7 @@ class CartService:
         anonymous_cart.save(update_fields=["is_active"])
 
         logger.info(
-            "[Cart] 장바구니 병합 완료 | user_id=%d, merged=%d, from_cart=%d",
-            user.id, merged_count, anonymous_cart.id
+            "[Cart] 장바구니 병합 완료 | user_id=%d, merged=%d, from_cart=%d", user.id, merged_count, anonymous_cart.id
         )
 
         return merged_count

@@ -43,7 +43,9 @@ def login_and_get_token(username, password="testpass123"):
     if response.status_code != status.HTTP_200_OK:
         return None, None, f"Login failed: {response.status_code}"
 
-    token = response.json().get("access")
+    # 토큰 추출 (다양한 응답 구조 지원)
+    data = response.json()
+    token = data.get("access") or data.get("token", {}).get("access")
     return client, token, None
 
 

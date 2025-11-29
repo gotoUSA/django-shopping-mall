@@ -60,7 +60,7 @@ class ReturnCreateSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         # context에서 order_id를 먼저 확인하고, 없으면 body에서 확인
         order_id = self.context.get("order_id") or attrs.get("order_id")
-        
+
         if not order_id:
             raise serializers.ValidationError("주문 ID가 필요합니다.")
 
@@ -140,26 +140,28 @@ class ReturnCreateSerializer(serializers.ModelSerializer):
             order_item_id = item_data.pop("order_item_id")
             order_item = OrderItem.objects.get(id=order_item_id)
 
-            return_items_list.append({
-                'order_item': order_item,
-                'quantity': item_data['quantity'],
-                'product_name': order_item.product_name,
-                'product_price': order_item.price,
-            })
+            return_items_list.append(
+                {
+                    "order_item": order_item,
+                    "quantity": item_data["quantity"],
+                    "product_name": order_item.product_name,
+                    "product_price": order_item.price,
+                }
+            )
 
         # ReturnService를 통해 생성
         with transaction.atomic():
             return_obj = ReturnService.create_return(
                 order=order,
                 user=request.user,
-                type=validated_data['type'],
-                reason=validated_data['reason'],
-                reason_detail=validated_data['reason_detail'],
+                type=validated_data["type"],
+                reason=validated_data["reason"],
+                reason_detail=validated_data["reason_detail"],
                 return_items_data=return_items_list,
-                refund_account_bank=validated_data.get('refund_account_bank', ''),
-                refund_account_number=validated_data.get('refund_account_number', ''),
-                refund_account_holder=validated_data.get('refund_account_holder', ''),
-                exchange_product=validated_data.get('exchange_product'),
+                refund_account_bank=validated_data.get("refund_account_bank", ""),
+                refund_account_number=validated_data.get("refund_account_number", ""),
+                refund_account_holder=validated_data.get("refund_account_holder", ""),
+                exchange_product=validated_data.get("exchange_product"),
             )
 
             # 판매자에게 알림 발송
@@ -356,7 +358,7 @@ class ReturnUpdateSerializer(serializers.ModelSerializer):
 
         # 성능 최적화: select_related로 N+1 쿼리 방지
         sellers = set()
-        for return_item in instance.return_items.select_related('order_item__product__seller').all():
+        for return_item in instance.return_items.select_related("order_item__product__seller").all():
             if return_item.order_item.product and return_item.order_item.product.seller:
                 sellers.add(return_item.order_item.product.seller)
 
@@ -398,11 +400,7 @@ class ReturnApproveSerializer(serializers.Serializer):
         return_obj = self.context.get("return_obj")
         admin_memo = self.validated_data.get("admin_memo", "")
 
-        return ReturnService.approve_return(
-            return_obj,
-            admin_user=None,  # 향후 request.user 전달 가능
-            admin_memo=admin_memo
-        )
+        return ReturnService.approve_return(return_obj, admin_user=None, admin_memo=admin_memo)  # 향후 request.user 전달 가능
 
 
 class ReturnRejectSerializer(serializers.Serializer):
@@ -491,5 +489,5 @@ class ReturnCompleteSerializer(serializers.Serializer):
             return ReturnService.complete_exchange(
                 return_obj,
                 exchange_tracking_number=exchange_tracking_number,
-                exchange_shipping_company=exchange_shipping_company
+                exchange_shipping_company=exchange_shipping_company,
             )

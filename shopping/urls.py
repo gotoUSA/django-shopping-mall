@@ -123,6 +123,7 @@ router = DefaultRouter()
 router.register(r"products", ProductViewSet, basename="product")
 router.register(r"categories", CategoryViewSet, basename="category")
 router.register(r"orders", OrderViewSet, basename="order")
+router.register(r"cart-items", CartItemViewSet, basename="cart-items")
 
 # 알림 라우터
 router.register(r"notifications", NotificationViewSet, basename="notification")

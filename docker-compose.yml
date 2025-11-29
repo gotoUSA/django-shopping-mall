@@ -29,7 +29,7 @@ services:
   # Django 웹 애플리케이션 (Gunicorn)
   web:
     build: .
-    command: gunicorn myproject.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120 --access-logfile - --error-logfile -
+    command: gunicorn myproject.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 4 --timeout 60 --worker-class gthread --access-logfile - --error-logfile -
     volumes:
       - .:/code
       - static_volume:/code/staticfiles
@@ -59,7 +59,7 @@ services:
   # Celery Worker (백그라운드 작업 처리)
   celery_worker:
     build: .
-    command: celery -A myproject worker -l info --concurrency=8 -Q celery,order_processing,points --prefetch-multiplier=1
+    command: celery -A myproject worker -l info --concurrency=8 -Q default,payment_critical,order_processing,external_api,points,notifications --prefetch-multiplier=1
     volumes:
       - .:/code
     env_file:

@@ -163,13 +163,15 @@ class PaymentService:
         Cart.objects.filter(user=user, is_active=True).update(is_active=False)
         logger.info(f"장바구니 비활성화 완료: user_id={user.id}")
 
-        # 6. 포인트 적립 (구매 금액의 1%)
+        # 6. 포인트 적립 (순수 상품 금액 기준, 배송비 제외)
         points_to_add = 0
         # 포인트로만 결제한 경우는 적립하지 않음
         if order.final_amount > 0:
             # 등급별 적립률 적용
             earn_rate = user.get_earn_rate()  # 1, 2, 3, 5 (%)
-            points_to_add = int(order.final_amount * Decimal(earn_rate) / Decimal("100"))
+            # total_amount는 이미 순수 상품 금액 (배송비 미포함)
+            product_amount = order.total_amount
+            points_to_add = int(product_amount * Decimal(earn_rate) / Decimal("100"))
 
             if points_to_add > 0:
                 logger.info(
@@ -188,6 +190,8 @@ class PaymentService:
                         "order_id": order.id,
                         "order_number": order.order_number,
                         "payment_amount": str(order.final_amount),
+                        "product_amount": str(product_amount),
+                        "shipping_fee": str(order.get_total_shipping_fee()),
                         "earn_rate": f"{earn_rate}%",
                         "membership_level": user.membership_level,
                     },

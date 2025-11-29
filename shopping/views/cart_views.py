@@ -364,14 +364,16 @@ class CartViewSet(viewsets.GenericViewSet):
 
                 # CartItem 생성/업데이트 (F() 사용하여 atomic update)
                 try:
-                    cart_item, created = cart.items.select_for_update().get_or_create(
-                        product_id=product_id, defaults={"quantity": quantity}
-                    )
+                    # select_for_update()와 get_or_create()를 분리하여 cart_id null 문제 방지
+                    cart_item = cart.items.filter(product_id=product_id).select_for_update().first()
 
-                    if not created:
+                    if cart_item:
                         # 이미 있으면 수량 증가
                         CartItem.objects.filter(pk=cart_item.pk).update(quantity=F("quantity") + quantity)
                         cart_item.refresh_from_db()
+                    else:
+                        # 새로 생성 - cart FK를 명시적으로 설정
+                        cart_item = CartItem.objects.create(cart=cart, product_id=product_id, quantity=quantity)
 
                     added_items.append(cart_item)
                 except Exception as e:

@@ -166,9 +166,13 @@ def handle_payment_done(event_data: dict[str, Any]) -> None:
     # 장바구니 비활성화
     Cart.objects.filter(user=order.user, is_active=True).update(is_active=False)
 
-    # 포인트 적립
-    if order.user:
-        points_to_add = int(payment.amount * Decimal(0.01))
+    # 포인트 적립 (confirm API에서 이미 적립된 경우 스킵)
+    if order.user and order.earned_points == 0:
+        # 등급별 적립률 적용 (confirm과 동일한 로직)
+        earn_rate = order.user.get_earn_rate()
+        product_amount = order.total_amount  # 순수 상품 금액 (배송비 미포함)
+        points_to_add = int(product_amount * Decimal(earn_rate) / Decimal("100"))
+
         if points_to_add > 0:
             PointService.add_points(
                 user=order.user,
@@ -176,7 +180,15 @@ def handle_payment_done(event_data: dict[str, Any]) -> None:
                 type="earn",
                 order=order,
                 description=f"주문 결제 완료 적립 ({order.order_number})",
+                metadata={
+                    "source": "webhook",
+                    "earn_rate": f"{earn_rate}%",
+                },
             )
+            # 주문에 적립 포인트 기록
+            order.earned_points = points_to_add
+            order.save(update_fields=["earned_points"])
+            logger.info(f"Webhook 포인트 적립: order={order_id}, points={points_to_add}")
 
     # 웹훅 로그
     PaymentLog.objects.create(
@@ -234,9 +246,9 @@ def handle_payment_canceled(event_data: dict[str, Any]) -> None:
                     sold_count=Greatest(F("sold_count") - order_item.quantity, 0),
                 )
 
-    # 포인트 회수 (상태 변경 전)
+    # 포인트 회수 (상태 변경 전) - 실제 적립된 포인트만 회수
     if order.user and order.status in ["paid", "preparing"]:
-        points_to_deduct = int(payment.amount * Decimal(0.01))
+        points_to_deduct = order.earned_points
         if points_to_deduct > 0:
             PointService.use_points(
                 user=order.user,

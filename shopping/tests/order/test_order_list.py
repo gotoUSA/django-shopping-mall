@@ -249,7 +249,13 @@ class TestOrderListBoundary:
         """최소 페이지 사이즈 (1)"""
         # Arrange
         for i in range(3):
-            order_factory(user, status="pending", total_amount=Decimal("10000"), shipping_name=f"주문자{i}", shipping_address_detail=f"{i}호")
+            order_factory(
+                user,
+                status="pending",
+                total_amount=Decimal("10000"),
+                shipping_name=f"주문자{i}",
+                shipping_address_detail=f"{i}호",
+            )
 
         url = reverse("order-list") + "?page_size=1"
 
@@ -265,7 +271,13 @@ class TestOrderListBoundary:
         """최대 페이지 사이즈 (100)"""
         # Arrange - 50개 주문 생성
         for i in range(50):
-            order_factory(user, status="pending", total_amount=Decimal("10000"), shipping_name=f"주문자{i}", shipping_address_detail=f"{i}호")
+            order_factory(
+                user,
+                status="pending",
+                total_amount=Decimal("10000"),
+                shipping_name=f"주문자{i}",
+                shipping_address_detail=f"{i}호",
+            )
 
         url = reverse("order-list") + "?page_size=100"
 
@@ -281,7 +293,13 @@ class TestOrderListBoundary:
         """마지막 페이지 조회"""
         # Arrange - 25개 주문 생성 (page_size=10이면 3페이지)
         for i in range(25):
-            order_factory(user, status="pending", total_amount=Decimal("10000"), shipping_name=f"주문자{i}", shipping_address_detail=f"{i}호")
+            order_factory(
+                user,
+                status="pending",
+                total_amount=Decimal("10000"),
+                shipping_name=f"주문자{i}",
+                shipping_address_detail=f"{i}호",
+            )
 
         url = reverse("order-list") + "?page=3"
 
@@ -299,7 +317,13 @@ class TestOrderListBoundary:
         """범위 초과 페이지 조회"""
         # Arrange - 5개 주문만 생성
         for i in range(5):
-            order_factory(user, status="pending", total_amount=Decimal("10000"), shipping_name=f"주문자{i}", shipping_address_detail=f"{i}호")
+            order_factory(
+                user,
+                status="pending",
+                total_amount=Decimal("10000"),
+                shipping_name=f"주문자{i}",
+                shipping_address_detail=f"{i}호",
+            )
 
         url = reverse("order-list") + "?page=999"
 
@@ -329,7 +353,13 @@ class TestOrderListBoundary:
         # Arrange - 100개 주문 생성
         orders = []
         for i in range(100):
-            order_obj = order_factory(user, status="pending", total_amount=Decimal("10000"), shipping_name=f"주문자{i}", shipping_address_detail=f"{i}호")
+            order_obj = order_factory(
+                user,
+                status="pending",
+                total_amount=Decimal("10000"),
+                shipping_name=f"주문자{i}",
+                shipping_address_detail=f"{i}호",
+            )
             OrderItem.objects.create(
                 order=order_obj,
                 product=product,
@@ -372,10 +402,24 @@ class TestOrderListException:
         user2 = other_user
 
         # user1의 주문
-        order_factory(user1, status="pending", total_amount=Decimal("10000"), shipping_name="사용자1", shipping_phone="010-1111-1111", shipping_address_detail="101호")
+        order_factory(
+            user1,
+            status="pending",
+            total_amount=Decimal("10000"),
+            shipping_name="사용자1",
+            shipping_phone="010-1111-1111",
+            shipping_address_detail="101호",
+        )
 
         # user2의 주문
-        order_factory(user2, status="pending", total_amount=Decimal("20000"), shipping_name="사용자2", shipping_phone="010-2222-2222", shipping_address_detail="202호")
+        order_factory(
+            user2,
+            status="pending",
+            total_amount=Decimal("20000"),
+            shipping_name="사용자2",
+            shipping_phone="010-2222-2222",
+            shipping_address_detail="202호",
+        )
 
         # user1으로 로그인
         client, _ = login_helper(user1)
@@ -393,10 +437,24 @@ class TestOrderListException:
         """관리자는 모든 주문 조회 가능"""
         # Arrange - 관리자와 일반 사용자 생성
         # 일반 사용자 주문
-        order_factory(user, status="pending", total_amount=Decimal("10000"), shipping_name="일반사용자", shipping_phone="010-1111-1111", shipping_address_detail="101호")
+        order_factory(
+            user,
+            status="pending",
+            total_amount=Decimal("10000"),
+            shipping_name="일반사용자",
+            shipping_phone="010-1111-1111",
+            shipping_address_detail="101호",
+        )
 
         # 관리자 주문
-        order_factory(admin_user, status="pending", total_amount=Decimal("20000"), shipping_name="관리자", shipping_phone="010-2222-2222", shipping_address_detail="202호")
+        order_factory(
+            admin_user,
+            status="pending",
+            total_amount=Decimal("20000"),
+            shipping_name="관리자",
+            shipping_phone="010-2222-2222",
+            shipping_address_detail="202호",
+        )
 
         # 관리자로 로그인
         client, _ = login_helper(admin_user)
@@ -469,3 +527,27 @@ class TestOrderListException:
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["count"] == 10
+
+    def test_list_without_pagination_returns_raw_list(self, authenticated_client, user, order_factory, mocker):
+        """페이지네이션 비활성화 시 raw 리스트 반환"""
+        # Arrange
+        order_factory(
+            user, status="pending", total_amount=Decimal("10000"), shipping_name="주문자1", shipping_address_detail="101호"
+        )
+        order_factory(
+            user, status="paid", total_amount=Decimal("20000"), shipping_name="주문자2", shipping_address_detail="102호"
+        )
+
+        from shopping.views.order_views import OrderViewSet
+
+        mocker.patch.object(OrderViewSet, "paginate_queryset", return_value=None)
+
+        url = reverse("order-list")
+
+        # Act
+        response = authenticated_client.get(url)
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        assert isinstance(response.data, list)
+        assert len(response.data) == 2

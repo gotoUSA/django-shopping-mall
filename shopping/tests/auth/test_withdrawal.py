@@ -103,7 +103,7 @@ class TestWithdrawalAuthentication:
         response = api_client.post(url, data, format="json")
 
         # Assert
-        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 @pytest.mark.django_db
@@ -172,7 +172,7 @@ class TestWithdrawalTokenInvalidation:
         response = api_client.get(profile_url)
 
         # Assert - 접근 실패해야 함 (is_active=False이므로)
-        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_all_tokens_invalidated(self, api_client, user):
         """모든 토큰 무효화 확인 (여러 세션)"""
@@ -193,7 +193,7 @@ class TestWithdrawalTokenInvalidation:
         response = api_client.get(profile_url)
 
         # Assert - 모든 토큰이 무효화되어야 함
-        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 @pytest.mark.django_db
@@ -207,6 +207,7 @@ class TestWithdrawalDataPreservation:
 
         # 인증 클라이언트 설정
         from rest_framework_simplejwt.tokens import RefreshToken
+
         refresh = RefreshToken.for_user(user_with_points)
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(refresh.access_token)}")
 

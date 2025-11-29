@@ -43,9 +43,7 @@ class TestWebhookCrossEventIdempotency:
 
     # 1단계: 정상 시퀀스 (Happy Path)
 
-    def test_done_after_canceled_ignored(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_done_after_canceled_ignored(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """CANCELED 후 DONE 이벤트는 무시 - 취소된 결제는 재승인 불가"""
         # Arrange - Factory로 완전 격리된 주문 생성
         unique_suffix = uuid.uuid4().hex[:8]
@@ -53,9 +51,7 @@ class TestWebhookCrossEventIdempotency:
 
         order = OrderFactory(user=self.user, status="pending", order_number=order_number)
         OrderItemFactory(order=order, product=self.product)
-        payment = PaymentFactory(
-            order=order, status="canceled", is_canceled=True, payment_key="canceled_key"
-        )
+        payment = PaymentFactory(order=order, status="canceled", is_canceled=True, payment_key="canceled_key")
 
         mock_verify_webhook()
         initial_stock = self.product.stock
@@ -92,9 +88,7 @@ class TestWebhookCrossEventIdempotency:
         self.user.refresh_from_db()
         assert self.user.points == initial_points
 
-    def test_canceled_after_failed_ignored(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_canceled_after_failed_ignored(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """FAILED 후 CANCELED 이벤트는 무시 - 실패한 결제는 취소 불필요"""
         # Arrange
         unique_suffix = uuid.uuid4().hex[:8]
@@ -133,9 +127,7 @@ class TestWebhookCrossEventIdempotency:
         self.product.refresh_from_db()
         assert self.product.stock == initial_stock
 
-    def test_failed_after_done_ignored(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_failed_after_done_ignored(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """DONE 후 FAILED 이벤트는 무시 - 이미 완료된 결제"""
         # Arrange
         unique_suffix = uuid.uuid4().hex[:8]
@@ -143,9 +135,7 @@ class TestWebhookCrossEventIdempotency:
 
         order = OrderFactory(user=self.user, status="paid", order_number=order_number)
         OrderItemFactory(order=order, product=self.product)
-        payment = PaymentFactory(
-            order=order, status="done", payment_key="done_key", approved_at=timezone.now()
-        )
+        payment = PaymentFactory(order=order, status="done", payment_key="done_key", approved_at=timezone.now())
 
         mock_verify_webhook()
 
@@ -173,9 +163,7 @@ class TestWebhookCrossEventIdempotency:
 
     # 2단계: 복잡한 시퀀스 (Boundary)
 
-    def test_done_canceled_done_sequence(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_done_canceled_done_sequence(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """DONE → CANCELED → DONE 시퀀스 - 마지막 DONE은 무시"""
         # Arrange
         unique_suffix = uuid.uuid4().hex[:8]
@@ -270,9 +258,7 @@ class TestWebhookRapidRequests:
 
     # 1단계: 정상 케이스 (Happy Path)
 
-    def test_triple_done_requests(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_triple_done_requests(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """같은 DONE 이벤트 3번 연속 - 한 번만 처리"""
         # Arrange
         unique_suffix = uuid.uuid4().hex[:8]
@@ -310,18 +296,16 @@ class TestWebhookRapidRequests:
         assert self.product.stock == initial_stock - 1
         assert self.product.sold_count == 1
 
-        # Assert - 포인트는 한 번만 적립
+        # Assert - 포인트는 한 번만 적립 (배송비 제외된 order.total_amount 기준)
         self.user.refresh_from_db()
-        expected_points = int(payment.amount * Decimal("0.01"))
+        expected_points = int(order.total_amount * Decimal("0.01"))
         assert self.user.points == initial_points + expected_points
 
         # Assert - 로그는 첫 처리만 (중복은 early return으로 로그 생성 안 됨)
         log_count = PaymentLog.objects.filter(payment=payment, log_type="webhook").count()
         assert log_count == 1
 
-    def test_rapid_canceled_requests(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_rapid_canceled_requests(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """CANCELED 이벤트 빠른 연속 - 재고 한 번만 복구"""
         # Arrange
         unique_suffix = uuid.uuid4().hex[:8]
@@ -329,19 +313,21 @@ class TestWebhookRapidRequests:
 
         order = OrderFactory(user=self.user, status="paid", order_number=order_number)
         OrderItemFactory(order=order, product=self.product)
-        payment = PaymentFactory(
-            order=order, status="done", payment_key="done_key", approved_at=timezone.now()
-        )
+        payment = PaymentFactory(order=order, status="done", payment_key="done_key", approved_at=timezone.now())
 
         # 재고 차감 시뮬레이션
         self.product.stock -= 1
         self.product.sold_count = 1
         self.product.save()
 
-        # 포인트 적립 시뮬레이션
-        earned_points = int(payment.amount * Decimal("0.01"))
+        # 포인트 적립 시뮬레이션 (배송비 제외된 order.total_amount 기준)
+        earned_points = int(order.total_amount * Decimal("0.01"))
         self.user.points += earned_points
         self.user.save()
+
+        # order.earned_points도 설정 (회수 시 이 값 사용)
+        order.earned_points = earned_points
+        order.save()
 
         mock_verify_webhook()
         stock_after_deduction = self.product.stock
@@ -379,9 +365,7 @@ class TestWebhookRapidRequests:
 
     # 2단계: 경계값 케이스 (Boundary)
 
-    def test_rapid_mixed_events(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_rapid_mixed_events(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """다른 이벤트 빠른 연속 - DONE, FAILED 교차"""
         # Arrange
         unique_suffix = uuid.uuid4().hex[:8]
@@ -452,9 +436,7 @@ class TestWebhookEventOrdering:
 
     # 1단계: 정상 케이스 (Happy Path)
 
-    def test_canceled_before_done(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_canceled_before_done(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """CANCELED가 DONE보다 먼저 도착 (역순) - DONE은 정상 처리"""
         # Arrange
         unique_suffix = uuid.uuid4().hex[:8]
@@ -506,9 +488,7 @@ class TestWebhookEventOrdering:
         self.product.refresh_from_db()
         assert self.product.stock == initial_stock
 
-    def test_failed_then_done(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_failed_then_done(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """FAILED 후 DONE 도착 - DONE은 무시"""
         # Arrange
         unique_suffix = uuid.uuid4().hex[:8]
@@ -561,9 +541,7 @@ class TestWebhookEventOrdering:
 
     # 2단계: 경계값 케이스 (Boundary)
 
-    def test_done_failed_canceled_mixed(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_done_failed_canceled_mixed(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """DONE → FAILED → CANCELED 뒤섞인 순서"""
         # Arrange
         unique_suffix = uuid.uuid4().hex[:8]
@@ -654,9 +632,7 @@ class TestWebhookDatabaseConsistency:
 
     # 1단계: 정상 케이스 (Happy Path)
 
-    def test_payment_key_uniqueness_preserved(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_payment_key_uniqueness_preserved(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """Payment key 고유성 유지 - 같은 key로 다른 주문 처리 시도"""
         # Arrange - 첫 번째 주문
         unique_suffix_1 = uuid.uuid4().hex[:8]
@@ -718,9 +694,7 @@ class TestWebhookDatabaseConsistency:
 
     # 2단계: 경계값 케이스 (Boundary)
 
-    def test_select_for_update_prevents_race_condition(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature
-    ):
+    def test_select_for_update_prevents_race_condition(self, mock_verify_webhook, webhook_data_builder, webhook_signature):
         """select_for_update가 동시 처리 시 락 동작 - 순차 처리 검증"""
         # Arrange
         unique_suffix = uuid.uuid4().hex[:8]
@@ -767,9 +741,7 @@ class TestWebhookDatabaseConsistency:
 
     # 3단계: 예외 케이스 (Exception)
 
-    def test_transaction_rollback_on_error(
-        self, mock_verify_webhook, webhook_data_builder, webhook_signature, mocker
-    ):
+    def test_transaction_rollback_on_error(self, mock_verify_webhook, webhook_data_builder, webhook_signature, mocker):
         """트랜잭션 롤백 - 처리 중 에러 발생 시 일관성 유지"""
         # Arrange
         unique_suffix = uuid.uuid4().hex[:8]

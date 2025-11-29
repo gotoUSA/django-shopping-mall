@@ -27,7 +27,6 @@ from drf_spectacular.views import (
 )
 
 
-
 urlpatterns = [
     # 관리자 페이지
     path("admin/", admin.site.urls),
@@ -37,10 +36,12 @@ urlpatterns = [
     path("shopping/", include("shopping.urls")),
     # DRF 인증 URLs (로그인/로그아웃 페이지)
     path("api-auth/", include("rest_framework.urls")),
-    # API Schema & Documentation URLs
+    # OpenAPI Schema
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("swagger/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
-    path("redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
+    # Swagger UI
+    path("api/docs/swagger/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    # ReDoc UI
+    path("api/docs/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
 ]
 
 # 개발 환경에서 미디어 파일 서빙

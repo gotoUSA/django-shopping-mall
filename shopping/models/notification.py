@@ -50,6 +50,14 @@ class Notification(models.Model):
         help_text="클릭 시 이동할 URL (예: /products/123/questions/45)",
     )
 
+    # 추가 메타데이터 (JSON)
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="메타데이터",
+        help_text="알림 관련 추가 데이터 (예: return_id, order_id 등)",
+    )
+
     # 읽음 여부
     is_read = models.BooleanField(default=False, verbose_name="읽음 여부")
 

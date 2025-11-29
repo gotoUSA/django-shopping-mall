@@ -49,15 +49,18 @@ class TestOrderPaymentIntegration:
         payment = Payment.objects.get(order=order)
 
         # Act - 결제 승인 (Mock 사용 - Celery eager mode for sync execution)
-        with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
-             patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+        with (
+            patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm,
+            patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async,
+        ):
             mock_confirm.return_value = mock_payment_success(order.final_amount)
 
             # 비동기 메서드를 모킹하여 동기 버전을 직접 호출
             from shopping.services.payment_service import PaymentService
+
             mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                 PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
-                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"},
             )[1]
 
             confirm_response = authenticated_client.post(
@@ -85,15 +88,14 @@ class TestOrderPaymentIntegration:
 
         # Assert - 포인트 적립 확인
         user_with_points.refresh_from_db()
-        # 원래 5000 - 사용 2000 + 적립 (final_amount 11000 * 1%)
-        # final_amount = total_amount 10000 + shipping_fee 3000 - used_points 2000 = 11000
-        # 11000 * 1% = 110포인트
-        assert user_with_points.points == 3110  # 5000 - 2000 + 110
+        # 원래 5000 - 사용 2000 + 적립 (상품금액 10000 * 1% = 100)
+        # 배송비는 적립 대상에서 제외
+        assert user_with_points.points == 3100  # 5000 - 2000 + 100
 
         # Assert - 포인트 이력 확인
         earn_history = PointHistory.objects.filter(user=user_with_points, type="earn", order=order).first()
         assert earn_history is not None
-        assert earn_history.points == 110
+        assert earn_history.points == 100
 
     def test_full_payment_flow_without_points(
         self,
@@ -127,14 +129,17 @@ class TestOrderPaymentIntegration:
         assert payment_request_response.status_code == status.HTTP_201_CREATED
 
         # Act - 결제 승인 (Mock)
-        with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
-             patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+        with (
+            patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm,
+            patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async,
+        ):
             mock_confirm.return_value = mock_payment_success(expected_amount)
 
             from shopping.services.payment_service import PaymentService
+
             mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                 PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
-                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"},
             )[1]
 
             confirm_response = authenticated_client.post(
@@ -154,8 +159,8 @@ class TestOrderPaymentIntegration:
 
         # Assert - 포인트 적립만 발생 (사용 없음)
         user.refresh_from_db()
-        # final_amount = 10000 + 3000 = 13000 → 13000 * 1% = 130포인트
-        assert user.points == 5130  # 5000 + 130
+        # 상품금액 10000원 기준 (배송비 3000 제외) → 100포인트
+        assert user.points == 5100  # 5000 + 100
 
     def test_full_payment_flow_with_full_points(
         self,
@@ -325,14 +330,17 @@ class TestOrderPaymentIntegration:
         # Act - 결제 요청 및 승인
         authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
-        with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
-             patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+        with (
+            patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm,
+            patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async,
+        ):
             mock_confirm.return_value = mock_payment_success(order.final_amount)
 
             from shopping.services.payment_service import PaymentService
+
             mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                 PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
-                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"},
             )[1]
 
             confirm_response = authenticated_client.post(
@@ -347,8 +355,8 @@ class TestOrderPaymentIntegration:
 
         # Assert - 포인트 적립
         user.refresh_from_db()
-        # final_amount = 10000 + 3000 = 13000 → 13000 * 1% = 130포인트
-        expected_earn = 130
+        # 상품금액 10000원 기준 (배송비 제외) → 100포인트
+        expected_earn = 100
         assert user.points == initial_points + expected_earn
 
         # Assert - 적립 이력
@@ -380,14 +388,17 @@ class TestOrderPaymentIntegration:
         # Act - 결제 요청 및 승인
         authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
-        with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
-             patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+        with (
+            patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm,
+            patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async,
+        ):
             mock_confirm.return_value = mock_payment_success(order.final_amount)
 
             from shopping.services.payment_service import PaymentService
+
             mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                 PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
-                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"},
             )[1]
 
             confirm_response = authenticated_client.post(
@@ -400,18 +411,19 @@ class TestOrderPaymentIntegration:
                 format="json",
             )
 
-        # Assert - 기본 1% 적립 (final_amount 기준)
+        # Assert - 기본 1% 적립 (배송비 제외 상품금액 기준)
         user.refresh_from_db()
-        expected_earn = int(order.final_amount * Decimal("0.01"))
+        # total_amount는 이미 순수 상품금액 (배송비 미포함)
+        expected_earn = int(order.total_amount * Decimal("0.01"))
         actual_earn = user.points - 10000  # 초기 포인트 차감
         assert actual_earn == expected_earn
-        # final_amount = 10000 + 3000 = 13000 → 130포인트
-        assert actual_earn == 130
+        # product_amount = 10000 (배송비 3000 제외) → 100포인트
+        assert actual_earn == 100
 
         # Assert - 포인트 이력 확인
         earn_history = PointHistory.objects.filter(user=user, type="earn", order=order).first()
         assert earn_history is not None
-        assert earn_history.points == 130
+        assert earn_history.points == 100
 
     def test_points_earn_rate_by_membership_level(
         self,
@@ -444,14 +456,17 @@ class TestOrderPaymentIntegration:
             # Act - 결제 요청 및 승인
             authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
-            with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
-                 patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+            with (
+                patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm,
+                patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async,
+            ):
                 mock_confirm.return_value = mock_payment_success(order.final_amount)
 
                 from shopping.services.payment_service import PaymentService
+
                 mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                     PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
-                    {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+                    {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"},
                 )[1]
 
                 confirm_response = authenticated_client.post(
@@ -464,15 +479,16 @@ class TestOrderPaymentIntegration:
                     format="json",
                 )
 
-            # Assert - 등급별 적립률 검증
+            # Assert - 등급별 적립률 검증 (배송비 제외)
             user.refresh_from_db()
             expected_rate = expected_rates[level]
-            expected_earn = int(order.final_amount * Decimal(expected_rate) / Decimal("100"))
+            # total_amount는 이미 순수 상품금액 (배송비 미포함)
+            expected_earn = int(order.total_amount * Decimal(expected_rate) / Decimal("100"))
             actual_earn = user.points - 10000  # 초기 포인트 차감
 
             assert actual_earn == expected_earn, f"{level} 등급 적립률 검증 실패"
-            # final_amount = 10000 + 3000 = 13000
-            # bronze: 130, silver: 260, gold: 390, vip: 650
+            # product_amount = 10000 (배송비 제외)
+            # bronze: 100, silver: 200, gold: 300, vip: 500
 
             # Assert - 포인트 이력 확인
             earn_history = PointHistory.objects.filter(user=user, type="earn", order=order).first()
@@ -502,14 +518,17 @@ class TestOrderPaymentIntegration:
 
         authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
-        with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
-             patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+        with (
+            patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm,
+            patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async,
+        ):
             mock_confirm.return_value = mock_payment_success(order.final_amount)
 
             from shopping.services.payment_service import PaymentService
+
             mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                 PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
-                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"},
             )[1]
 
             authenticated_client.post(
@@ -572,14 +591,17 @@ class TestOrderPaymentIntegration:
 
         authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
-        with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
-             patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+        with (
+            patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm,
+            patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async,
+        ):
             mock_confirm.return_value = mock_payment_success(order.final_amount)
 
             from shopping.services.payment_service import PaymentService
+
             mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                 PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
-                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"},
             )[1]
 
             authenticated_client.post(
@@ -595,7 +617,7 @@ class TestOrderPaymentIntegration:
         # 적립 확인
         user.refresh_from_db()
         earned_points = user.points - initial_points
-        assert earned_points == 130  # (10000 + 3000) * 1% = 130
+        assert earned_points == 100  # 상품금액 10000 * 1% = 100 (배송비 제외)
 
         payment = Payment.objects.get(order=order)
 

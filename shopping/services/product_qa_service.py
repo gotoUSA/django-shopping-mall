@@ -63,6 +63,11 @@ class ProductQAService:
             title="상품 문의에 답변이 달렸습니다",
             message=f'"{question.title}" 문의에 판매자가 답변했습니다.',
             link=f"/products/{question.product.id}/questions/{question.id}",
+            metadata={
+                "product_id": question.product.id,
+                "question_id": question.id,
+                "answer_id": answer.id,
+            },
         )
 
         logger.info(

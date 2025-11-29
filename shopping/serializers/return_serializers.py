@@ -172,6 +172,7 @@ class ReturnCreateSerializer(serializers.ModelSerializer):
                     notification_type="return",
                     title=f"새로운 {return_obj.get_type_display()} 신청",
                     message=f"{return_obj.return_number} - {return_obj.get_reason_display()}",
+                    link=f"/returns/{return_obj.id}",
                     metadata={"return_id": return_obj.id, "return_number": return_obj.return_number},
                 )
 
@@ -314,12 +315,18 @@ class ReturnDetailSerializer(serializers.ModelSerializer):
 class ReturnUpdateSerializer(serializers.ModelSerializer):
     """송장번호 업데이트 Serializer (고객)"""
 
+    status = serializers.CharField(read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+
     class Meta:
         model = Return
         fields = [
             "return_shipping_company",
             "return_tracking_number",
+            "status",
+            "status_display",
         ]
+        read_only_fields = ["status", "status_display"]
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """송장번호 입력 가능 상태인지 확인"""
@@ -354,6 +361,7 @@ class ReturnUpdateSerializer(serializers.ModelSerializer):
                 notification_type="return",
                 title="반품 상품 발송",
                 message=f"{instance.return_number} - 고객이 반품 상품을 발송했습니다. 송장번호: {instance.return_tracking_number}",
+                link=f"/returns/{instance.id}",
                 metadata={
                     "return_id": instance.id,
                     "return_number": instance.return_number,

@@ -27,6 +27,7 @@ from shopping.models.user import User
 # 상수 정의
 # ==========================================
 
+
 class TestConstants:
     """테스트에서 사용하는 상수"""
 
@@ -83,7 +84,6 @@ class UserFactory(DjangoModelFactory):
         model = User
         django_get_or_create = ("username",)
         skip_postgeneration_save = True  # post_generation에서 명시적으로 save() 호출하므로 자동 저장 비활성화
-
 
     username = factory.Sequence(lambda n: f"testuser{n}")
     email = factory.LazyAttribute(lambda obj: f"{obj.username}@test.com")
@@ -265,6 +265,7 @@ class SocialAppFactory(DjangoModelFactory):
             return
 
         from django.contrib.sites.models import Site
+
         site = Site.objects.get_or_create(id=1, defaults={"domain": "testserver", "name": "testserver"})[0]
         self.sites.add(site)
 
@@ -410,7 +411,6 @@ class ProductFactory(DjangoModelFactory):
         return cls(**kwargs)
 
 
-
 class ProductImageFactory(DjangoModelFactory):
     """
     ProductImage factory
@@ -433,6 +433,37 @@ class ProductImageFactory(DjangoModelFactory):
     def primary(cls, **kwargs):
         """대표 이미지"""
         kwargs.setdefault("is_primary", True)
+        return cls(**kwargs)
+
+
+class ProductReviewFactory(DjangoModelFactory):
+    """
+    ProductReview factory
+
+    사용 예시:
+        review = ProductReviewFactory()
+        review = ProductReviewFactory(rating=3)
+        review = ProductReviewFactory.low_rating()
+    """
+
+    class Meta:
+        model = "shopping.ProductReview"
+
+    product = factory.SubFactory(ProductFactory)
+    user = factory.SubFactory(UserFactory)
+    rating = 5
+    comment = factory.Sequence(lambda n: f"테스트 리뷰 내용 {n}")
+
+    @classmethod
+    def low_rating(cls, **kwargs):
+        """낮은 평점 리뷰"""
+        kwargs.setdefault("rating", 1)
+        return cls(**kwargs)
+
+    @classmethod
+    def with_rating(cls, rating, **kwargs):
+        """특정 평점 리뷰"""
+        kwargs.setdefault("rating", rating)
         return cls(**kwargs)
 
 
@@ -462,9 +493,7 @@ class OrderFactory(DjangoModelFactory):
     status = "confirmed"
     total_amount = TestConstants.DEFAULT_PRODUCT_PRICE
     shipping_fee = TestConstants.DEFAULT_SHIPPING_FEE
-    final_amount = factory.LazyAttribute(
-        lambda obj: obj.total_amount + obj.shipping_fee - obj.used_points
-    )
+    final_amount = factory.LazyAttribute(lambda obj: obj.total_amount + obj.shipping_fee - obj.used_points)
     used_points = 0
     earned_points = 0
     payment_method = ""
@@ -477,9 +506,7 @@ class OrderFactory(DjangoModelFactory):
     shipping_address_detail = TestConstants.DEFAULT_SHIPPING_ADDRESS_DETAIL
 
     # 주문 번호 자동 생성
-    order_number = factory.Sequence(
-        lambda n: f"{timezone.now().strftime('%Y%m%d')}{n:06d}"
-    )
+    order_number = factory.Sequence(lambda n: f"{timezone.now().strftime('%Y%m%d')}{n:06d}")
 
     @classmethod
     def pending(cls, **kwargs):
@@ -784,9 +811,7 @@ class PaidOrderFactory(OrderFactory):
 
     status = "paid"
     payment_method = "card"
-    earned_points = factory.LazyAttribute(
-        lambda obj: int(obj.total_amount * Decimal("0.01"))  # 1% 적립
-    )
+    earned_points = factory.LazyAttribute(lambda obj: int(obj.total_amount * Decimal("0.01")))  # 1% 적립
 
 
 class CompletedPaymentFactory(PaymentFactory):
@@ -931,13 +956,7 @@ class WebhookDataBuilder:
     """
 
     @staticmethod
-    def payment_done(
-        order_id,
-        payment_key="test_payment_key_123",
-        amount=10000,
-        method="카드",
-        **kwargs
-    ):
+    def payment_done(order_id, payment_key="test_payment_key_123", amount=10000, method="카드", **kwargs):
         """PAYMENT.DONE 이벤트"""
         data = {
             "eventType": "PAYMENT.DONE",
@@ -964,12 +983,7 @@ class WebhookDataBuilder:
         return data
 
     @staticmethod
-    def payment_canceled(
-        order_id,
-        payment_key="test_payment_key_123",
-        cancel_reason="사용자 요청",
-        **kwargs
-    ):
+    def payment_canceled(order_id, payment_key="test_payment_key_123", cancel_reason="사용자 요청", **kwargs):
         """PAYMENT.CANCELED 이벤트"""
         data = {
             "eventType": "PAYMENT.CANCELED",
@@ -985,11 +999,7 @@ class WebhookDataBuilder:
         return data
 
     @staticmethod
-    def payment_failed(
-        order_id,
-        fail_reason="카드 한도 초과",
-        **kwargs
-    ):
+    def payment_failed(order_id, fail_reason="카드 한도 초과", **kwargs):
         """PAYMENT.FAILED 이벤트"""
         data = {
             "eventType": "PAYMENT.FAILED",
@@ -1197,9 +1207,7 @@ class ReturnFactory(DjangoModelFactory):
 
     order = factory.SubFactory(OrderFactory, status="delivered")
     user = factory.LazyAttribute(lambda obj: obj.order.user)
-    return_number = factory.Sequence(
-        lambda n: f"RET{timezone.now().strftime('%Y%m%d')}{n:03d}"
-    )
+    return_number = factory.Sequence(lambda n: f"RET{timezone.now().strftime('%Y%m%d')}{n:03d}")
     type = "refund"
     status = "requested"
     reason = "change_of_mind"
@@ -1310,9 +1318,7 @@ class ReturnItemFactory(DjangoModelFactory):
         model = "shopping.ReturnItem"
 
     return_request = factory.SubFactory(ReturnFactory)
-    order_item = factory.LazyAttribute(
-        lambda obj: OrderItemFactory(order=obj.return_request.order)
-    )
+    order_item = factory.LazyAttribute(lambda obj: OrderItemFactory(order=obj.return_request.order))
     quantity = 1
     product_name = factory.LazyAttribute(lambda obj: obj.order_item.product_name)
     product_price = factory.LazyAttribute(lambda obj: obj.order_item.price)

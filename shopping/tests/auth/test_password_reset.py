@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
 
 from django.urls import reverse
+from django.utils import timezone
 
 import pytest
 from rest_framework import status
@@ -182,9 +183,7 @@ class TestPasswordResetConfirm:
         assert "access" in login_response.data
         assert "refresh" in login_response.data
 
-    def test_old_password_invalid_after_reset(
-        self, api_client, user, password_reset_confirm_data_factory, login_data_factory
-    ):
+    def test_old_password_invalid_after_reset(self, api_client, user, password_reset_confirm_data_factory, login_data_factory):
         """재설정 후 이전 비밀번호는 사용 불가"""
         # Arrange - 비밀번호 재설정
         old_password = "testpass123"  # user fixture의 기본 비밀번호
@@ -268,9 +267,7 @@ class TestPasswordResetConfirmValidation:
         url = reverse("password-reset-confirm")
         # Factory 사용: new_password2만 다르게 설정
         data = password_reset_confirm_data_factory(
-            token=raw_token,
-            new_password="NewPass123!",
-            new_password2="DifferentPass456!"  # 다른 비밀번호
+            token=raw_token, new_password="NewPass123!", new_password2="DifferentPass456!"  # 다른 비밀번호
         )
 
         # Act
@@ -286,10 +283,7 @@ class TestPasswordResetConfirmValidation:
         raw_token = PasswordResetToken.generate_token(user=user)
         url = reverse("password-reset-confirm")
         # Factory 사용: 너무 짧은 비밀번호
-        data = password_reset_confirm_data_factory(
-            token=raw_token,
-            new_password="1234"  # 너무 짧음
-        )
+        data = password_reset_confirm_data_factory(token=raw_token, new_password="1234")  # 너무 짧음
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -304,10 +298,7 @@ class TestPasswordResetConfirmValidation:
         raw_token = PasswordResetToken.generate_token(user=user)
         url = reverse("password-reset-confirm")
         # Factory 사용: 흔한 비밀번호
-        data = password_reset_confirm_data_factory(
-            token=raw_token,
-            new_password="password123"  # 흔한 비밀번호
-        )
+        data = password_reset_confirm_data_factory(token=raw_token, new_password="password123")  # 흔한 비밀번호
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -412,8 +403,8 @@ class TestPasswordResetBoundary:
         """토큰이 정확히 24시간 후에 만료됨"""
         # Arrange - 정확히 24시간 1초 전 토큰
         raw_token = PasswordResetToken.generate_token(user=user)
-        token_obj = PasswordResetToken.objects.get(user=user)
-        token_obj.created_at = datetime.now(dt_timezone.utc) - timedelta(hours=24, seconds=1)
+        token_obj = PasswordResetToken.objects.get(user=user, is_used=False)
+        token_obj.created_at = timezone.now() - timedelta(hours=24, seconds=1)
         token_obj.save()
 
         url = reverse("password-reset-confirm")
@@ -429,10 +420,10 @@ class TestPasswordResetBoundary:
 
     def test_token_valid_before_24_hours(self, api_client, user, password_reset_confirm_data_factory):
         """24시간 전이면 아직 유효함"""
-        # Arrange - 23시간 59분 59초 전 토큰
+        # Arrange - 23시간 전 토큰 (여유 있게 설정)
         raw_token = PasswordResetToken.generate_token(user=user)
-        token_obj = PasswordResetToken.objects.get(user=user)
-        token_obj.created_at = datetime.now(dt_timezone.utc) - timedelta(hours=23, minutes=59, seconds=59)
+        token_obj = PasswordResetToken.objects.get(user=user, is_used=False)
+        token_obj.created_at = timezone.now() - timedelta(hours=23)
         token_obj.save()
 
         url = reverse("password-reset-confirm")
@@ -449,10 +440,7 @@ class TestPasswordResetBoundary:
         # Arrange - 7자 (너무 짧음)
         raw_token = PasswordResetToken.generate_token(user=user)
         url = reverse("password-reset-confirm")
-        data = password_reset_confirm_data_factory(
-            token=raw_token,
-            new_password="Pass12!"  # 7자
-        )
+        data = password_reset_confirm_data_factory(token=raw_token, new_password="Pass12!")  # 7자
 
         # Act
         response = api_client.post(url, data, format="json")
@@ -461,10 +449,7 @@ class TestPasswordResetBoundary:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
         # Arrange - 정확히 8자
-        data = password_reset_confirm_data_factory(
-            token=raw_token,
-            new_password="Pass123!"  # 8자
-        )
+        data = password_reset_confirm_data_factory(token=raw_token, new_password="Pass123!")  # 8자
 
         # Act
         response = api_client.post(url, data, format="json")

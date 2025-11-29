@@ -332,11 +332,7 @@ class PointService:
         if type == "cancel_deduct":
             query = query.filter(expires_at__gt=now)
 
-        available_points = (
-            query
-            .exclude(metadata__contains={"expired": True})
-            .order_by("expires_at", "created_at")
-        )
+        available_points = query.exclude(metadata__contains={"expired": True}).order_by("expires_at", "created_at")
 
         used_details = []
         remaining_to_use = amount
@@ -357,18 +353,18 @@ class PointService:
             # 메타데이터 업데이트
             # JSONField는 in-place 수정이 save()에서 감지되지 않을 수 있으므로
             # 전체 dict를 복사하고 재할당해야 함
-            metadata = point_history.metadata.copy() if point_history.metadata else {}
+            earn_metadata = point_history.metadata.copy() if point_history.metadata else {}
 
             # used_amount 업데이트
-            metadata["used_amount"] = metadata.get("used_amount", 0) + use_from_this
+            earn_metadata["used_amount"] = earn_metadata.get("used_amount", 0) + use_from_this
 
             # usage_history 업데이트
-            if "usage_history" not in metadata:
-                metadata["usage_history"] = []
-            metadata["usage_history"].append({"amount": use_from_this, "used_at": timezone.now().isoformat()})
+            if "usage_history" not in earn_metadata:
+                earn_metadata["usage_history"] = []
+            earn_metadata["usage_history"].append({"amount": use_from_this, "used_at": timezone.now().isoformat()})
 
             # 전체 metadata 재할당 (Django가 변경 감지하도록)
-            point_history.metadata = metadata
+            point_history.metadata = earn_metadata
             point_history.save(update_fields=["metadata"])
 
             used_details.append(

@@ -15,6 +15,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from drf_spectacular.utils import extend_schema
+
 from ..models.cart import Cart
 from ..models.payment import Payment, PaymentLog
 from ..models.product import Product
@@ -26,6 +28,27 @@ from ..utils.toss_payment import TossPaymentClient
 logger = logging.getLogger(__name__)
 
 
+@extend_schema(
+    request=None,
+    responses={
+        200: {"type": "object", "properties": {"message": {"type": "string"}}},
+        400: {"type": "object", "properties": {"error": {"type": "string"}}},
+        401: {"type": "object", "properties": {"error": {"type": "string"}}},
+    },
+    summary="토스페이먼츠 결제 웹훅",
+    description="""
+토스페이먼츠에서 결제 상태가 변경되면 이 엔드포인트로 알림을 보냅니다.
+
+**웹훅 이벤트 타입:**
+- PAYMENT.DONE: 결제 완료
+- PAYMENT.CANCELED: 결제 취소
+- PAYMENT.FAILED: 결제 실패
+
+**보안:**
+- 웹훅 서명 검증으로 토스페이먼츠에서 보낸 요청인지 확인
+    """,
+    tags=["Webhooks"],
+)
 @csrf_exempt  # 외부 서비스 호출이므로 CSRF 검증 제외
 @api_view(["POST"])
 @permission_classes([AllowAny])  # 토스페이먼츠 서버에서 호출하므로 인증 불필요

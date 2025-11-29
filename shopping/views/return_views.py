@@ -58,33 +58,33 @@ class ReturnErrorResponseSerializer(drf_serializers.Serializer):
         responses={200: ReturnListSerializer(many=True)},
         summary="내 교환/환불 목록 조회",
         description="로그인한 사용자의 교환/환불 목록을 조회합니다. 판매자는 본인 상품에 대한 교환/환불 목록을 조회합니다.",
-        tags=["교환/환불"],
+        tags=["Returns"],
     ),
     retrieve=extend_schema(
         responses={200: ReturnDetailSerializer, 404: ReturnErrorResponseSerializer},
         summary="교환/환불 상세 조회",
         description="특정 교환/환불의 상세 정보를 조회합니다.",
-        tags=["교환/환불"],
+        tags=["Returns"],
     ),
     create=extend_schema(
         request=ReturnCreateSerializer,
         responses={201: ReturnCreateResponseSerializer, 400: ReturnErrorResponseSerializer},
         summary="교환/환불 신청",
         description="주문 상품에 대해 교환 또는 환불을 신청합니다.",
-        tags=["교환/환불"],
+        tags=["Returns"],
     ),
     partial_update=extend_schema(
         request=ReturnUpdateSerializer,
         responses={200: ReturnDetailSerializer, 400: ReturnErrorResponseSerializer},
         summary="교환/환불 정보 수정",
         description="교환/환불 정보(송장번호 등)를 수정합니다.",
-        tags=["교환/환불"],
+        tags=["Returns"],
     ),
     destroy=extend_schema(
         responses={200: ReturnMessageResponseSerializer, 400: ReturnErrorResponseSerializer, 403: ReturnErrorResponseSerializer},
         summary="교환/환불 신청 취소",
         description="신청(requested) 상태의 교환/환불을 취소합니다.",
-        tags=["교환/환불"],
+        tags=["Returns"],
     ),
 )
 class ReturnViewSet(viewsets.ModelViewSet):

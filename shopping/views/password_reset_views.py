@@ -77,7 +77,7 @@ class PasswordResetRequestView(APIView):
 - 이전 미사용 토큰은 자동으로 무효화됩니다.
 - 토큰은 24시간 동안 유효합니다.
         """,
-        tags=["비밀번호"],
+        tags=["Auth"],
     )
     def post(self, request: Request) -> Response:
         """
@@ -198,7 +198,7 @@ class PasswordResetConfirmView(APIView):
 - 이메일과 토큰을 함께 검증합니다.
 - 토큰은 해시로 저장되어 DB 유출 시에도 안전합니다.
         """,
-        tags=["비밀번호"],
+        tags=["Auth"],
     )
     def post(self, request: Request) -> Response:
         """

@@ -9,6 +9,7 @@ from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 
 # social login
 from dj_rest_auth.registration.views import SocialLoginView
+from drf_spectacular.utils import extend_schema
 from rest_framework.routers import DefaultRouter
 
 # notification
@@ -77,6 +78,11 @@ from shopping.views.user_views import (
 
 
 # 소셜 로그인 뷰 정의
+@extend_schema(
+    summary="구글 소셜 로그인",
+    description="구글 OAuth2를 통한 소셜 로그인",
+    tags=["Social Auth"],
+)
 class GoogleLogin(SocialLoginView):
     """구글 소셜 로그인"""
 
@@ -85,6 +91,11 @@ class GoogleLogin(SocialLoginView):
     callback_url = settings.SOCIAL_LOGIN_REDIRECT_URI
 
 
+@extend_schema(
+    summary="카카오 소셜 로그인",
+    description="카카오 OAuth2를 통한 소셜 로그인",
+    tags=["Social Auth"],
+)
 class KakaoLogin(SocialLoginView):
     """카카오 소셜 로그인"""
 
@@ -93,6 +104,11 @@ class KakaoLogin(SocialLoginView):
     callback_url = settings.SOCIAL_LOGIN_REDIRECT_URI
 
 
+@extend_schema(
+    summary="네이버 소셜 로그인",
+    description="네이버 OAuth2를 통한 소셜 로그인",
+    tags=["Social Auth"],
+)
 class NaverLogin(SocialLoginView):
     """네이버 소셜 로그인"""
 

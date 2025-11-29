@@ -44,7 +44,7 @@ class WithdrawRequestSerializer(drf_serializers.Serializer):
 
 
 @extend_schema(
-    tags=["사용자"],
+    tags=["Users"],
 )
 class ProfileView(generics.RetrieveUpdateAPIView):
     """
@@ -98,7 +98,7 @@ class ProfileView(generics.RetrieveUpdateAPIView):
 
 
 @extend_schema(
-    tags=["사용자"],
+    tags=["Users"],
 )
 class PasswordChangeView(APIView):
     """
@@ -144,7 +144,7 @@ class PasswordChangeView(APIView):
 - 모든 JWT 토큰 무효화 (보안 강화)
 - 포인트 및 주문 내역은 보존
     """,
-    tags=["사용자"],
+    tags=["Users"],
 )
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])

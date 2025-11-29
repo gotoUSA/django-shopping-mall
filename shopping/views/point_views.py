@@ -135,7 +135,7 @@ class PointCancelSuccessResponseSerializer(drf_serializers.Serializer):
     data = PointCancelDataSerializer()
 
 
-@extend_schema(tags=["포인트"])
+@extend_schema(tags=["Points"])
 class MyPointView(APIView):
     """내 포인트 정보 조회 API"""
 
@@ -163,7 +163,7 @@ class MyPointView(APIView):
         return Response({"point_info": serializer.data, "recent_histories": recent_serializer.data})
 
 
-@extend_schema(tags=["포인트"])
+@extend_schema(tags=["Points"])
 class PointHistoryListView(APIView):
     """포인트 이력 목록 조회"""
 
@@ -224,7 +224,7 @@ class PointHistoryListView(APIView):
         )
 
 
-@extend_schema(tags=["포인트"])
+@extend_schema(tags=["Points"])
 class PointCheckView(APIView):
     """포인트 사용 가능 여부 확인"""
 
@@ -255,7 +255,7 @@ class PointCheckView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@extend_schema(tags=["포인트"])
+@extend_schema(tags=["Points"])
 class ExpiringPointsView(APIView):
     """만료 예정 포인트 조회"""
 
@@ -312,7 +312,7 @@ class ExpiringPointsView(APIView):
 - all_time: 전체 적립/사용 통계
 - by_type: 유형별 통계
     """,
-    tags=["포인트"],
+    tags=["Points"],
 )
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
@@ -332,7 +332,7 @@ def point_statistics(request: Request) -> Response:
     )
 
 
-@extend_schema(tags=["포인트"])
+@extend_schema(tags=["Points"])
 class PointUseView(APIView):
     """포인트 사용 API"""
 
@@ -460,7 +460,7 @@ class PointUseView(APIView):
         return "POINT_USE_FAILED"
 
 
-@extend_schema(tags=["포인트"])
+@extend_schema(tags=["Points"])
 class PointCancelView(APIView):
     """취소/환불 포인트 처리 API"""
 

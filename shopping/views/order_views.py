@@ -73,12 +73,12 @@ class OrderPagination(PageNumberPagination):
 - `page`: 페이지 번호
 - `page_size`: 페이지당 항목 수 (기본: 10, 최대: 100)
         """,
-        tags=["주문"],
+        tags=["Orders"],
     ),
     retrieve=extend_schema(
         summary="주문 상세 조회",
         description="주문 상세 정보를 조회합니다. 본인 주문 또는 관리자만 조회 가능합니다.",
-        tags=["주문"],
+        tags=["Orders"],
     ),
 )
 class OrderViewSet(viewsets.ModelViewSet):
@@ -174,7 +174,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 - 주문은 비동기로 처리되며, 202 Accepted 응답을 반환합니다.
 - `status_url`을 통해 주문 상태를 확인할 수 있습니다.
         """,
-        tags=["주문"],
+        tags=["Orders"],
     )
     def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """주문 생성 (이메일 인증 필요)"""
@@ -247,7 +247,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 - 사용한 포인트 환불
 - 재고 복구
         """,
-        tags=["주문"],
+        tags=["Orders"],
     )
     @action(detail=True, methods=["post"])
     def cancel(self, request: Request, pk: int | None = None) -> Response:

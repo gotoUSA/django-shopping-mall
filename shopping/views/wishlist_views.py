@@ -126,6 +126,7 @@ class WishlistViewSet(GenericViewSet):
         responses={200: WishlistListResponseSerializer},
         summary="찜 목록 조회",
         description="현재 사용자의 찜 목록을 조회합니다.",
+        tags=["Wishlist"],
     )
     @action(detail=False, methods=["get"])
     def list(self, request: Request) -> Response:
@@ -161,6 +162,7 @@ class WishlistViewSet(GenericViewSet):
         },
         summary="찜하기 토글",
         description="찜하기를 토글합니다. 하트 버튼 구현에 최적화되어 있습니다.",
+        tags=["Wishlist"],
     )
     @action(detail=False, methods=["post"])
     def toggle(self, request: Request) -> Response:
@@ -204,6 +206,7 @@ class WishlistViewSet(GenericViewSet):
         },
         summary="찜 목록에 추가",
         description="찜 목록에 상품을 추가합니다. 이미 찜한 상품이면 에러 없이 무시됩니다.",
+        tags=["Wishlist"],
     )
     @action(detail=False, methods=["post"])
     def add(self, request: Request) -> Response:
@@ -250,6 +253,7 @@ class WishlistViewSet(GenericViewSet):
         },
         summary="찜 목록에서 제거",
         description="찜 목록에서 상품을 제거합니다.",
+        tags=["Wishlist"],
     )
     @action(detail=False, methods=["delete"])
     def remove(self, request: Request) -> Response:
@@ -286,6 +290,7 @@ class WishlistViewSet(GenericViewSet):
         },
         summary="여러 상품 일괄 찜하기",
         description="여러 상품을 한 번에 찜 목록에 추가합니다. 중복은 자동 제외됩니다.",
+        tags=["Wishlist"],
     )
     @action(detail=False, methods=["post"])
     def bulk_add(self, request: Request) -> Response:
@@ -339,6 +344,7 @@ class WishlistViewSet(GenericViewSet):
         },
         summary="찜 목록 전체 삭제",
         description="찜 목록을 전체 삭제합니다. 실수 방지를 위해 confirm=true 파라미터가 필수입니다.",
+        tags=["Wishlist"],
     )
     @action(detail=False, methods=["delete"])
     def clear(self, request: Request) -> Response:
@@ -369,6 +375,7 @@ class WishlistViewSet(GenericViewSet):
         },
         summary="찜 상태 확인",
         description="특정 상품의 찜 상태를 확인합니다. 하트 버튼 초기 상태 표시에 사용합니다.",
+        tags=["Wishlist"],
     )
     @action(detail=False, methods=["get"])
     def check(self, request: Request) -> Response:
@@ -401,6 +408,7 @@ class WishlistViewSet(GenericViewSet):
 - 세일 중인 상품 수
 - 가격 합계 및 할인 금액
         """,
+        tags=["Wishlist"],
     )
     @action(detail=False, methods=["get"])
     def stats(self, request: Request) -> Response:
@@ -460,6 +468,7 @@ class WishlistViewSet(GenericViewSet):
 - 이미 장바구니에 있으면 건너뜀
 - remove_from_wishlist=true 시 찜 목록에서 제거
         """,
+        tags=["Wishlist"],
     )
     @action(detail=False, methods=["post"])
     def move_to_cart(self, request: Request) -> Response:

@@ -85,7 +85,7 @@ class CartStockCheckResponseSerializer(drf_serializers.Serializer):
     retrieve=extend_schema(
         summary="장바구니 조회",
         description="현재 사용자의 장바구니 전체 정보를 조회합니다.",
-        tags=["장바구니"],
+        tags=["Cart"],
     ),
 )
 class CartViewSet(viewsets.GenericViewSet):
@@ -166,7 +166,7 @@ class CartViewSet(viewsets.GenericViewSet):
         responses={200: CartSerializer},
         summary="장바구니 조회",
         description="현재 사용자의 장바구니 전체 정보를 조회합니다.",
-        tags=["장바구니"],
+        tags=["Cart"],
     )
     def retrieve(self, request: Request) -> Response:
         """장바구니 전체 정보 조회"""
@@ -178,7 +178,7 @@ class CartViewSet(viewsets.GenericViewSet):
         responses={200: SimpleCartSerializer},
         summary="장바구니 요약",
         description="헤더/사이드바용 간단한 장바구니 정보를 반환합니다.",
-        tags=["장바구니"],
+        tags=["Cart"],
     )
     @action(detail=False, methods=["get"])
     def summary(self, request: Request) -> Response:
@@ -209,7 +209,7 @@ class CartViewSet(viewsets.GenericViewSet):
 - 이미 담긴 상품이면 수량만 증가
 - 회원/비회원 모두 사용 가능
         """,
-        tags=["장바구니"],
+        tags=["Cart"],
     )
     @action(detail=False, methods=["post"])
     def add_item(self, request: Request) -> Response:
@@ -239,7 +239,7 @@ class CartViewSet(viewsets.GenericViewSet):
         responses={200: CartItemSerializer(many=True)},
         summary="장바구니 아이템 목록",
         description="장바구니의 아이템만 별도로 조회합니다.",
-        tags=["장바구니"],
+        tags=["Cart"],
     )
     @action(detail=False, methods=["get"])
     def items(self, request: Request) -> Response:
@@ -271,7 +271,7 @@ class CartViewSet(viewsets.GenericViewSet):
 **특징:**
 - quantity가 0이면 아이템 삭제
         """,
-        tags=["장바구니"],
+        tags=["Cart"],
     )
     @action(detail=True, methods=["patch"], url_path="items")
     def update_item(self, request: Request, pk: int | None = None) -> Response:
@@ -314,7 +314,7 @@ class CartViewSet(viewsets.GenericViewSet):
         },
         summary="장바구니 아이템 삭제",
         description="장바구니에서 특정 상품을 완전히 제거합니다.",
-        tags=["장바구니"],
+        tags=["Cart"],
     )
     @action(detail=True, methods=["delete"], url_path="items")
     def delete_item(self, request: Request, pk: int | None = None) -> Response:
@@ -355,7 +355,7 @@ class CartViewSet(viewsets.GenericViewSet):
 **주의:**
 - 실수 방지를 위해 confirm=true 필수
         """,
-        tags=["장바구니"],
+        tags=["Cart"],
     )
     @action(detail=False, methods=["post"])
     def clear(self, request: Request) -> Response:
@@ -411,7 +411,7 @@ class CartViewSet(viewsets.GenericViewSet):
 - 201: 전체 성공
 - 207: 일부 성공 (Multi-Status)
         """,
-        tags=["장바구니"],
+        tags=["Cart"],
     )
     @action(detail=False, methods=["post"])
     def bulk_add(self, request: Request) -> Response:
@@ -528,7 +528,7 @@ class CartViewSet(viewsets.GenericViewSet):
 - has_issues: 재고 문제 여부
 - issues: 재고 문제가 있는 상품 목록 (판매 중단, 품절, 재고 부족)
         """,
-        tags=["장바구니"],
+        tags=["Cart"],
     )
     @action(detail=True, methods=["get"])
     def check_stock(self, request: Request) -> Response:
@@ -621,7 +621,7 @@ class CartItemUpdateResponseSerializer(drf_serializers.Serializer):
         responses={200: CartItemListResponseSerializer(many=True)},
         summary="장바구니 아이템 목록",
         description="현재 사용자/세션의 장바구니 아이템 목록을 조회합니다.",
-        tags=["장바구니"],
+        tags=["Cart"],
     ),
     create=extend_schema(
         request=CartItemCreateSerializer,
@@ -631,7 +631,7 @@ class CartItemUpdateResponseSerializer(drf_serializers.Serializer):
         },
         summary="장바구니에 아이템 추가",
         description="장바구니에 상품을 추가합니다. 회원/비회원 모두 사용 가능합니다.",
-        tags=["장바구니"],
+        tags=["Cart"],
     ),
     update=extend_schema(
         request=CartItemUpdateSerializer,
@@ -643,7 +643,7 @@ class CartItemUpdateResponseSerializer(drf_serializers.Serializer):
         },
         summary="아이템 수량 변경",
         description="장바구니 아이템의 수량을 변경합니다. 수량을 0으로 설정하면 삭제됩니다.",
-        tags=["장바구니"],
+        tags=["Cart"],
     ),
     destroy=extend_schema(
         responses={
@@ -652,7 +652,7 @@ class CartItemUpdateResponseSerializer(drf_serializers.Serializer):
         },
         summary="아이템 삭제",
         description="장바구니에서 아이템을 삭제합니다.",
-        tags=["장바구니"],
+        tags=["Cart"],
     ),
 )
 class CartItemViewSet(viewsets.GenericViewSet):

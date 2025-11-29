@@ -133,7 +133,7 @@ class PaymentRequestView(EmailVerificationRequiredMixin, APIView):
 - `success_url`, `fail_url`: 결제 완료/실패 시 리다이렉트 URL
 - `amount`: 결제 금액
         """,
-        tags=["결제"],
+        tags=["Payments"],
     )
     def post(self, request):
         """결제 요청 생성"""
@@ -221,7 +221,7 @@ class PaymentConfirmView(EmailVerificationRequiredMixin, APIView):
 - 결제 승인은 비동기로 처리됩니다 (202 Accepted)
 - `status_url`을 통해 결제 상태를 폴링할 수 있습니다
         """,
-        tags=["결제"],
+        tags=["Payments"],
     )
     def post(self, request):
         """결제 승인 처리 (비동기)"""
@@ -345,7 +345,7 @@ class PaymentCancelView(APIView):
 - 사용한 포인트 환불
 - 적립된 포인트 차감
         """,
-        tags=["결제"],
+        tags=["Payments"],
     )
     def post(self, request):
         """결제 취소 처리"""
@@ -422,7 +422,7 @@ class PaymentStatusView(APIView):
 - 결제 승인 후 `status_url`로 폴링하여 결제 완료 여부 확인
 - `is_paid`가 true가 되면 결제 완료
         """,
-        tags=["결제"],
+        tags=["Payments"],
     )
     def get(self, request, payment_id):
         """결제 상태 조회"""
@@ -477,7 +477,7 @@ class PaymentFailView(APIView):
 - Payment 상태를 'aborted'로 변경
 - 실패 로그 기록
         """,
-        tags=["결제"],
+        tags=["Payments"],
     )
     def post(self, request):
         """결제 실패 처리"""
@@ -561,7 +561,7 @@ class PaymentDetailView(APIView):
         },
         summary="결제 상세 조회",
         description="결제 상세 정보를 조회합니다. 본인의 결제만 조회 가능합니다.",
-        tags=["결제"],
+        tags=["Payments"],
     )
     def get(self, request, payment_id):
         """결제 정보 조회"""
@@ -604,7 +604,7 @@ class PaymentListView(APIView):
 - `page`: 페이지 번호
 - `page_size`: 페이지당 항목 수 (최대 100)
         """,
-        tags=["결제"],
+        tags=["Payments"],
     )
     def get(self, request):
         """내 결제 목록 조회"""

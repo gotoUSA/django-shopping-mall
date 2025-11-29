@@ -124,6 +124,7 @@ class RegisterView(CreateAPIView):
         responses={201: RegisterResponseSerializer},
         summary="회원가입",
         description="새 사용자를 생성하고 JWT 토큰을 발급합니다.",
+        tags=["Auth"],
     )
     def post(self, request: Request, *args, **kwargs) -> Response:
         return super().post(request, *args, **kwargs)
@@ -224,7 +225,7 @@ class LoginView(APIView):
 **비회원 장바구니:**
 - 로그인 전 비회원 장바구니가 있으면 회원 장바구니로 자동 병합됩니다.
         """,
-        tags=["인증"],
+        tags=["Auth"],
     )
     def post(self, request: Request) -> Response:
         serializer = LoginSerializer(data=request.data, context={"request": request})
@@ -334,7 +335,7 @@ Refresh Token을 사용하여 새로운 Access Token을 발급합니다.
 - 새로운 Access Token이 body에 반환됩니다.
 - 새로운 Refresh Token은 HTTP Only Cookie로 자동 갱신됩니다.
         """,
-        tags=["인증"],
+        tags=["Auth"],
     )
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         from django.conf import settings
@@ -429,7 +430,7 @@ class LogoutView(APIView):
 - Request body가 필요 없습니다.
 - Cookie의 refresh_token이 자동으로 처리됩니다.
         """,
-        tags=["인증"],
+        tags=["Auth"],
     )
     def post(self, request: Request) -> Response:
         try:
@@ -471,7 +472,7 @@ class LogoutView(APIView):
     responses={200: CheckTokenResponseSerializer},
     summary="토큰 유효성 확인",
     description="현재 Access Token이 유효한지 확인합니다.",
-    tags=["인증"],
+    tags=["Auth"],
 )
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])

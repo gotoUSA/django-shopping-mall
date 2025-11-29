@@ -67,7 +67,7 @@ class SendVerificationEmailView(APIView):
 - 1분 내 재발송 불가
 - 이메일은 비동기(Celery)로 발송됩니다.
         """,
-        tags=["이메일 인증"],
+        tags=["Auth"],
     )
     def post(self, request: Request) -> Response:
         serializer = SendVerificationEmailSerializer(data=request.data, context={"request": request})
@@ -126,7 +126,7 @@ class VerifyEmailView(APIView):
 - 이메일의 인증 링크를 클릭하면 자동으로 호출됩니다.
 - `?token=UUID값` 형식으로 요청합니다.
         """,
-        tags=["이메일 인증"],
+        tags=["Auth"],
     )
     def get(self, request: Request) -> Response:
         """UUID 토큰으로 인증 (GET 요청)"""
@@ -173,7 +173,7 @@ class VerifyEmailView(APIView):
 - 코드는 대소문자 구분 없음 (자동으로 대문자 변환)
 - 코드 만료 시간: 24시간
         """,
-        tags=["이메일 인증"],
+        tags=["Auth"],
     )
     def post(self, request: Request) -> Response:
         """6자리 코드로 인증 (POST 요청)"""
@@ -225,7 +225,7 @@ class ResendVerificationEmailView(APIView):
 - 1분 내 재발송 불가
 - 이전 토큰은 자동 무효화됩니다.
         """,
-        tags=["이메일 인증"],
+        tags=["Auth"],
     )
     def post(self, request: Request) -> Response:
         serializer = ResendVerificationEmailSerializer(data=request.data, context={"request": request})
@@ -271,7 +271,7 @@ class ResendVerificationEmailView(APIView):
 - `token_expired`: 토큰 만료 여부 (미인증 시만)
 - `can_resend`: 재발송 가능 여부 (미인증 시만)
     """,
-    tags=["이메일 인증"],
+    tags=["Auth"],
 )
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])

@@ -90,12 +90,12 @@ class ProductPagination(PageNumberPagination):
 - in_stock: 재고 여부
 - seller: 판매자 ID
         """,
-        tags=["상품"],
+        tags=["Products"],
     ),
     retrieve=extend_schema(
         summary="상품 상세 조회",
         description="상품의 상세 정보를 조회합니다.",
-        tags=["상품"],
+        tags=["Products"],
     ),
     create=extend_schema(
         summary="상품 등록",
@@ -107,22 +107,22 @@ class ProductPagination(PageNumberPagination):
 - seller: 현재 로그인한 사용자로 설정
 - slug: 상품명으로 자동 생성
         """,
-        tags=["상품"],
+        tags=["Products"],
     ),
     update=extend_schema(
         summary="상품 전체 수정",
         description="상품 정보를 전체 수정합니다. 판매자만 가능합니다.",
-        tags=["상품"],
+        tags=["Products"],
     ),
     partial_update=extend_schema(
         summary="상품 부분 수정",
         description="상품 정보를 부분 수정합니다. 판매자만 가능합니다.",
-        tags=["상품"],
+        tags=["Products"],
     ),
     destroy=extend_schema(
         summary="상품 삭제",
         description="상품을 삭제합니다. 판매자만 가능합니다.",
-        tags=["상품"],
+        tags=["Products"],
     ),
 )
 class ProductViewSet(viewsets.ModelViewSet):
@@ -320,7 +320,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 - rating: 평점 낮은순
 - -rating: 평점 높은순
         """,
-        tags=["상품"],
+        tags=["Products"],
     )
     @action(detail=True, methods=["get"])
     def reviews(self, request: Request, pk: int | None = None) -> Response:
@@ -354,7 +354,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 **권한:** 인증 필요
 **제약:** 상품당 1개 리뷰만 작성 가능
         """,
-        tags=["상품"],
+        tags=["Products"],
     )
     @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
     def add_review(self, request: Request, pk: int | None = None) -> Response:
@@ -384,7 +384,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 **정렬:** 리뷰 많은 순
 **개수:** 최대 12개
         """,
-        tags=["상품"],
+        tags=["Products"],
     )
     @action(detail=False, methods=["get"])
     def popular(self, request: Request) -> Response:
@@ -408,7 +408,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 **정렬:** 평균 평점 높은 순
 **개수:** 최대 12개
         """,
-        tags=["상품"],
+        tags=["Products"],
     )
     @action(detail=False, methods=["get"])
     def best_rating(self, request: Request) -> Response:
@@ -436,7 +436,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 **정렬:** 재고 적은 순
 **권한:** 판매자만 (본인 상품만 조회)
         """,
-        tags=["상품"],
+        tags=["Products"],
     )
     @action(detail=False, methods=["get"])
     def low_stock(self, request: Request) -> Response:
@@ -462,12 +462,12 @@ class ProductViewSet(viewsets.ModelViewSet):
     list=extend_schema(
         summary="카테고리 목록 조회",
         description="활성화된 카테고리 목록을 조회합니다.",
-        tags=["카테고리"],
+        tags=["Categories"],
     ),
     retrieve=extend_schema(
         summary="카테고리 상세 조회",
         description="카테고리의 상세 정보를 조회합니다.",
-        tags=["카테고리"],
+        tags=["Categories"],
     ),
 )
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -512,7 +512,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 - 신호 기반 캐시 무효화
 - MPTT의 cache_tree_children 활용
         """,
-        tags=["카테고리"],
+        tags=["Categories"],
     )
     @action(detail=False, methods=["get"])
     def tree(self, request: Request) -> Response:
@@ -567,7 +567,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 - 페이지네이션 적용
 - 활성 상품만 표시
         """,
-        tags=["카테고리"],
+        tags=["Categories"],
     )
     @action(detail=True, methods=["get"])
     def products(self, request: Request, pk: int | None = None) -> Response:

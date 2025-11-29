@@ -58,12 +58,12 @@ class ProductQuestionPagination(PageNumberPagination):
 - 비밀글 아님: 모두 조회
 - 비밀글: 작성자, 판매자, 관리자만 조회
         """,
-        tags=["상품 문의"],
+        tags=["Product Q&A"],
     ),
     retrieve=extend_schema(
         summary="문의 상세 조회",
         description="문의의 상세 정보와 답변을 조회합니다.",
-        tags=["상품 문의"],
+        tags=["Product Q&A"],
     ),
     create=extend_schema(
         summary="문의 작성",
@@ -72,7 +72,7 @@ class ProductQuestionPagination(PageNumberPagination):
 
 **권한:** 인증 필요
         """,
-        tags=["상품 문의"],
+        tags=["Product Q&A"],
     ),
     update=extend_schema(
         summary="문의 수정",
@@ -82,7 +82,7 @@ class ProductQuestionPagination(PageNumberPagination):
 **권한:** 작성자만
 **제약:** 답변이 달린 문의는 수정 불가
         """,
-        tags=["상품 문의"],
+        tags=["Product Q&A"],
     ),
     partial_update=extend_schema(
         summary="문의 부분 수정",
@@ -92,7 +92,7 @@ class ProductQuestionPagination(PageNumberPagination):
 **권한:** 작성자만
 **제약:** 답변이 달린 문의는 수정 불가
         """,
-        tags=["상품 문의"],
+        tags=["Product Q&A"],
     ),
     destroy=extend_schema(
         summary="문의 삭제",
@@ -102,7 +102,7 @@ class ProductQuestionPagination(PageNumberPagination):
 **권한:** 작성자 또는 관리자
 **제약:** 답변이 달린 문의는 삭제 불가
         """,
-        tags=["상품 문의"],
+        tags=["Product Q&A"],
     ),
 )
 class ProductQuestionViewSet(viewsets.ModelViewSet):
@@ -231,7 +231,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
 **권한:** 판매자만 (본인 상품의 문의에만)
 **제약:** 이미 답변이 있는 문의는 답변 불가
         """,
-        tags=["상품 문의"],
+        tags=["Product Q&A"],
     )
     @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
     def answer(self, request: Request, pk: int | None = None, product_pk: int | None = None) -> Response:
@@ -271,7 +271,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
 
 **권한:** 판매자 또는 관리자
         """,
-        tags=["상품 문의"],
+        tags=["Product Q&A"],
     )
     @action(detail=True, methods=["patch"], permission_classes=[permissions.IsAuthenticated])
     def update_answer(self, request: Request, pk: int | None = None, product_pk: int | None = None) -> Response:
@@ -306,7 +306,7 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
 
 **권한:** 판매자 또는 관리자
         """,
-        tags=["상품 문의"],
+        tags=["Product Q&A"],
     )
     @action(
         detail=True,
@@ -340,12 +340,12 @@ class ProductQuestionViewSet(viewsets.ModelViewSet):
     list=extend_schema(
         summary="내가 작성한 문의 목록",
         description="현재 사용자가 작성한 문의 목록을 조회합니다.",
-        tags=["상품 문의"],
+        tags=["Product Q&A"],
     ),
     retrieve=extend_schema(
         summary="내 문의 상세 조회",
         description="내가 작성한 문의의 상세 정보를 조회합니다.",
-        tags=["상품 문의"],
+        tags=["Product Q&A"],
     ),
 )
 class MyQuestionViewSet(viewsets.ReadOnlyModelViewSet):

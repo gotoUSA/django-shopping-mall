@@ -54,7 +54,7 @@ class TestPaymentCanceledWebhook:
         earned_points = int(self.order.total_amount * Decimal("0.01"))
         self.user.points = initial_points + earned_points
         self.user.save()
-        
+
         # order.earned_points도 설정 (회수 시 이 값 사용)
         self.order.earned_points = earned_points
         self.order.save()
@@ -127,7 +127,7 @@ class TestPaymentCanceledWebhook:
         earned_points = int(self.order.total_amount * Decimal("0.01"))
         self.user.points = initial_points + earned_points
         self.user.save()
-        
+
         # order.earned_points도 설정 (회수 시 이 값 사용)
         self.order.earned_points = earned_points
         self.order.save()
@@ -375,7 +375,7 @@ class TestPaymentCanceledWebhook:
         earned_points = int(self.order.total_amount * Decimal("0.01"))
         self.user.points = initial_points + earned_points
         self.user.save()
-        
+
         # order.earned_points도 설정 (회수 시 이 값 사용)
         self.order.earned_points = earned_points
         self.order.save()
@@ -506,7 +506,7 @@ class TestPaymentCanceledWebhook:
         earned_points = int(self.order.total_amount * Decimal("0.01"))
         self.user.points = earned_points - 50  # 부족한 상태
         self.user.save()
-        
+
         # order.earned_points도 설정 (회수 시 이 값 사용)
         self.order.earned_points = earned_points
         self.order.save()

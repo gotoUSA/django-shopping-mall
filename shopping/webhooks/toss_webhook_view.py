@@ -172,7 +172,7 @@ def handle_payment_done(event_data: dict[str, Any]) -> None:
         earn_rate = order.user.get_earn_rate()
         product_amount = order.total_amount  # 순수 상품 금액 (배송비 미포함)
         points_to_add = int(product_amount * Decimal(earn_rate) / Decimal("100"))
-        
+
         if points_to_add > 0:
             PointService.add_points(
                 user=order.user,

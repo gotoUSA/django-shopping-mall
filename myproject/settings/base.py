@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
+    "drf_spectacular_sidecar",  # Swagger UI 정적 파일 (CORB 문제 해결)
     "django_celery_beat",
     # Social login (allauth)
     "django.contrib.sites",
@@ -161,6 +162,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",
     ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 # drf-spectacular 설정
@@ -168,9 +170,18 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "Django 쇼핑몰 API",
     "DESCRIPTION": "쇼핑몰 프로젝트 API 문서",
     "VERSION": "1.0.0",
+    # Swagger UI 정적 파일 → sidecar 패키지 사용 (CORB 문제 해결)
+    "SWAGGER_UI_DIST": "SIDECAR",
+    "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+    "REDOC_DIST": "SIDECAR",
+    "SWAGGER_UI_SETTINGS": {
+        "deepLinking": True,
+        "persistAuthorization": True,
+        "displayOperationId": True,
+    },
     "SERVE_INCLUDE_SCHEMA": False,
-    "COMPONENT_SPLIT_REQUEST": True,
 }
+
 
 # ==========================================================================
 # JWT Settings

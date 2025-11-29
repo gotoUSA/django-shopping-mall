@@ -180,10 +180,7 @@ def add_points_after_payment(user_id: int, order_id: int) -> dict[str, Any]:
                 "order_id": order_id,
             }
 
-        logger.info(
-            f"포인트 적립: user_id={user.id}, order_id={order.id}, "
-            f"points={points_to_add}, earn_rate={earn_rate}%"
-        )
+        logger.info(f"포인트 적립: user_id={user.id}, order_id={order.id}, " f"points={points_to_add}, earn_rate={earn_rate}%")
 
         # 포인트 적립
         PointService.add_points(
@@ -209,7 +206,7 @@ def add_points_after_payment(user_id: int, order_id: int) -> dict[str, Any]:
 
         # 포인트 적립 로그
         # Order와 Payment는 OneToOne 관계이므로 .payment로 접근
-        if hasattr(order, 'payment'):
+        if hasattr(order, "payment"):
             PaymentLog.objects.create(
                 payment=order.payment,
                 log_type="approve",
@@ -241,4 +238,3 @@ def add_points_after_payment(user_id: int, order_id: int) -> dict[str, Any]:
 
         # 재시도
         raise add_points_after_payment.retry(exc=e)
-

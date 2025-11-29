@@ -49,15 +49,18 @@ class TestOrderPaymentIntegration:
         payment = Payment.objects.get(order=order)
 
         # Act - 결제 승인 (Mock 사용 - Celery eager mode for sync execution)
-        with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
-             patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+        with (
+            patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm,
+            patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async,
+        ):
             mock_confirm.return_value = mock_payment_success(order.final_amount)
 
             # 비동기 메서드를 모킹하여 동기 버전을 직접 호출
             from shopping.services.payment_service import PaymentService
+
             mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                 PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
-                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"},
             )[1]
 
             confirm_response = authenticated_client.post(
@@ -126,14 +129,17 @@ class TestOrderPaymentIntegration:
         assert payment_request_response.status_code == status.HTTP_201_CREATED
 
         # Act - 결제 승인 (Mock)
-        with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
-             patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+        with (
+            patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm,
+            patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async,
+        ):
             mock_confirm.return_value = mock_payment_success(expected_amount)
 
             from shopping.services.payment_service import PaymentService
+
             mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                 PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
-                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"},
             )[1]
 
             confirm_response = authenticated_client.post(
@@ -324,14 +330,17 @@ class TestOrderPaymentIntegration:
         # Act - 결제 요청 및 승인
         authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
-        with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
-             patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+        with (
+            patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm,
+            patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async,
+        ):
             mock_confirm.return_value = mock_payment_success(order.final_amount)
 
             from shopping.services.payment_service import PaymentService
+
             mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                 PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
-                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"},
             )[1]
 
             confirm_response = authenticated_client.post(
@@ -379,14 +388,17 @@ class TestOrderPaymentIntegration:
         # Act - 결제 요청 및 승인
         authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
-        with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
-             patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+        with (
+            patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm,
+            patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async,
+        ):
             mock_confirm.return_value = mock_payment_success(order.final_amount)
 
             from shopping.services.payment_service import PaymentService
+
             mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                 PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
-                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"},
             )[1]
 
             confirm_response = authenticated_client.post(
@@ -444,14 +456,17 @@ class TestOrderPaymentIntegration:
             # Act - 결제 요청 및 승인
             authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
-            with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
-                 patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+            with (
+                patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm,
+                patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async,
+            ):
                 mock_confirm.return_value = mock_payment_success(order.final_amount)
 
                 from shopping.services.payment_service import PaymentService
+
                 mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                     PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
-                    {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+                    {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"},
                 )[1]
 
                 confirm_response = authenticated_client.post(
@@ -503,14 +518,17 @@ class TestOrderPaymentIntegration:
 
         authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
-        with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
-             patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+        with (
+            patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm,
+            patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async,
+        ):
             mock_confirm.return_value = mock_payment_success(order.final_amount)
 
             from shopping.services.payment_service import PaymentService
+
             mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                 PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
-                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"},
             )[1]
 
             authenticated_client.post(
@@ -573,14 +591,17 @@ class TestOrderPaymentIntegration:
 
         authenticated_client.post("/api/payments/request/", {"order_id": order.id}, format="json")
 
-        with patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm, \
-             patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async:
+        with (
+            patch("shopping.utils.toss_payment.TossPaymentClient.confirm_payment") as mock_confirm,
+            patch("shopping.services.payment_service.PaymentService.confirm_payment_async") as mock_async,
+        ):
             mock_confirm.return_value = mock_payment_success(order.final_amount)
 
             from shopping.services.payment_service import PaymentService
+
             mock_async.side_effect = lambda payment, payment_key, order_id, amount, user: (
                 PaymentService.confirm_payment_sync(payment, payment_key, order_id, amount, user),
-                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"}
+                {"status": "processing", "payment_id": payment.id, "task_id": "test", "message": "test"},
             )[1]
 
             authenticated_client.post(

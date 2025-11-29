@@ -1,9 +1,17 @@
+"""장바구니 뷰
+
+장바구니 관련 API 엔드포인트를 제공합니다.
+비즈니스 로직은 CartService로 위임합니다.
+
+현업 표준 패턴:
+1. 뷰는 HTTP 요청/응답 처리에만 집중
+2. 비즈니스 로직은 서비스 레이어에 위임
+3. Serializer는 입력 검증 및 출력 직렬화 담당
+"""
+
 from __future__ import annotations
 
 from typing import Any
-
-from django.db import transaction
-from django.db.models import F, Prefetch
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import permissions, serializers as drf_serializers, status, viewsets
@@ -14,7 +22,6 @@ from rest_framework.response import Response
 from rest_framework.serializers import BaseSerializer
 
 from shopping.models.cart import Cart, CartItem
-from shopping.models.product import Product
 from shopping.serializers import (
     CartClearSerializer,
     CartItemCreateSerializer,
@@ -23,6 +30,7 @@ from shopping.serializers import (
     CartSerializer,
     SimpleCartSerializer,
 )
+from shopping.services.cart_service import CartService, CartServiceError
 
 
 # ===== Swagger 문서화용 응답 Serializers =====
@@ -53,6 +61,7 @@ class CartErrorResponseSerializer(drf_serializers.Serializer):
 
     error = drf_serializers.CharField(required=False)
     message = drf_serializers.CharField(required=False)
+    code = drf_serializers.CharField(required=False)
     product_id = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
     quantity = drf_serializers.ListField(child=drf_serializers.CharField(), required=False)
 
@@ -120,55 +129,24 @@ class CartViewSet(viewsets.GenericViewSet):
     queryset = Cart.objects.none()
 
     def get_serializer_class(self) -> type[BaseSerializer]:
-        """
-        액션에 따라 적절한 Serializer 반환
-        """
-        if self.action == "retrieve":
-            return CartSerializer
-        elif self.action == "summary":
-            return SimpleCartSerializer
-        elif self.action == "add_item":
-            return CartItemCreateSerializer
-        elif self.action == "update_item":
-            return CartItemUpdateSerializer
-        elif self.action == "clear":
-            return CartClearSerializer
-        else:
-            return CartSerializer
+        """액션에 따라 적절한 Serializer 반환"""
+        action_serializer_map = {
+            "retrieve": CartSerializer,
+            "summary": SimpleCartSerializer,
+            "add_item": CartItemCreateSerializer,
+            "update_item": CartItemUpdateSerializer,
+            "clear": CartClearSerializer,
+        }
+        return action_serializer_map.get(self.action, CartSerializer)
 
-    def get_cart(self) -> Cart:
+    def _get_cart(self) -> Cart:
         """
         현재 사용자/세션의 활성 장바구니를 가져오거나 생성
 
-        회원: user 기반 장바구니
-        비회원: session_key 기반 장바구니
-
-        Returns:
-            cart: 활성 장바구니
+        서비스 레이어에 위임합니다.
         """
-        # 회원/비회원 구분
-        if self.request.user.is_authenticated:
-            # 회원 장바구니
-            cart, created = Cart.get_or_create_active_cart(user=self.request.user)
-        else:
-            # 비회원 장바구니: 세션 키 사용
-            session_key = self.request.session.session_key
-            if not session_key:
-                # 세션이 없으면 생성
-                self.request.session.create()
-                session_key = self.request.session.session_key
-            cart, created = Cart.get_or_create_active_cart(session_key=session_key)
-
-        # 성능 최적화: 관련 데이터 미리 로드
-        # prefetch_related: 1:N 관계 (items와 각 item의 product)
-        cart = Cart.objects.prefetch_related(
-            Prefetch(
-                "items",
-                queryset=CartItem.objects.select_related("product").order_by("-added_at"),  # 최근 추가된 순서로
-            )
-        ).get(pk=cart.pk)
-
-        return cart
+        user = self.request.user if self.request.user.is_authenticated else None
+        return CartService.get_or_create_cart(user=user, request=self.request)
 
     @extend_schema(
         responses={200: CartSerializer},
@@ -180,7 +158,7 @@ class CartViewSet(viewsets.GenericViewSet):
     )
     def retrieve(self, request: Request) -> Response:
         """장바구니 전체 정보 조회"""
-        cart = self.get_cart()
+        cart = self._get_cart()
         serializer = self.get_serializer(cart)
         return Response(serializer.data)
 
@@ -195,7 +173,7 @@ class CartViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=["get"])
     def summary(self, request: Request) -> Response:
         """장바구니 요약 정보 조회"""
-        cart = self.get_cart()
+        cart = self._get_cart()
         serializer = self.get_serializer(cart)
         return Response(serializer.data)
 
@@ -215,17 +193,25 @@ class CartViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=["post"])
     def add_item(self, request: Request) -> Response:
         """장바구니에 상품 추가"""
-        cart = self.get_cart()
+        cart = self._get_cart()
 
-        # Serializer에 cart 정보를 context로 전달
-        serializer = self.get_serializer(data=request.data, context={"request": request, "cart": cart})
+        # Serializer로 입력 검증
+        serializer = self.get_serializer(
+            data=request.data,
+            context={"request": request, "cart": cart},
+        )
+        serializer.is_valid(raise_exception=True)
 
-        if serializer.is_valid():
-            # 트랜잭션으로 처리 (동시성 문제 방지)
-            with transaction.atomic():
-                cart_item = serializer.save()
+        # 서비스 레이어에 비즈니스 로직 위임
+        product_id = serializer.validated_data["product_id"]
+        quantity = serializer.validated_data.get("quantity", 1)
 
-            # 성공 메시지와 함께 추가된 아이템 정보 반환
+        try:
+            cart_item = CartService.add_item(
+                cart=cart,
+                product_id=product_id,
+                quantity=quantity,
+            )
             return Response(
                 {
                     "message": "장바구니에 추가되었습니다.",
@@ -233,8 +219,11 @@ class CartViewSet(viewsets.GenericViewSet):
                 },
                 status=status.HTTP_201_CREATED,
             )
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except CartServiceError as e:
+            return Response(
+                {"error": e.message, "code": e.code},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     @extend_schema(
         responses={200: CartItemSerializer(many=True)},
@@ -247,7 +236,7 @@ class CartViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=["get"])
     def items(self, request: Request) -> Response:
         """장바구니 아이템 목록 조회"""
-        cart = self.get_cart()
+        cart = self._get_cart()
         items = cart.items.select_related("product").order_by("-added_at")
         serializer = CartItemSerializer(items, many=True)
         return Response(serializer.data)
@@ -269,36 +258,41 @@ class CartViewSet(viewsets.GenericViewSet):
     @action(detail=True, methods=["patch"], url_path="items")
     def update_item(self, request: Request, pk: int | None = None) -> Response:
         """장바구니 아이템 수량 변경"""
-        cart = self.get_cart()
+        cart = self._get_cart()
 
-        # 해당 아이템이 현재 사용자의 장바구니에 있는지 확인
+        # 입력 검증
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        quantity = serializer.validated_data.get("quantity")
+
         try:
-            cart_item = cart.items.get(pk=pk)
-        except CartItem.DoesNotExist:
-            raise NotFound("장바구니에 해당 상품이 없습니다.")
+            cart_item = CartService.update_item_quantity(
+                cart=cart,
+                item_id=pk,
+                quantity=quantity,
+            )
 
-        serializer = self.get_serializer(cart_item, data=request.data, partial=True)  # PATCH 요청이므로 부분 업데이트
-
-        if serializer.is_valid():
-            # 수량이 0이면 삭제됨
-            quantity = serializer.validated_data.get("quantity")
-
-            if quantity == 0:
-                cart_item.delete()
+            if cart_item is None:
+                # 수량이 0이면 삭제됨
                 return Response(
                     {"message": "장바구니에서 삭제되었습니다."},
                     status=status.HTTP_204_NO_CONTENT,
                 )
-            else:
-                cart_item = serializer.save()
-                return Response(
-                    {
-                        "message": "수량이 변경되었습니다.",
-                        "item": CartItemSerializer(cart_item).data,
-                    }
-                )
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {
+                    "message": "수량이 변경되었습니다.",
+                    "item": CartItemSerializer(cart_item).data,
+                }
+            )
+        except CartServiceError as e:
+            if e.code == "ITEM_NOT_FOUND":
+                raise NotFound(e.message)
+            return Response(
+                {"error": e.message, "code": e.code},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     @extend_schema(
         responses={
@@ -313,21 +307,21 @@ class CartViewSet(viewsets.GenericViewSet):
     @action(detail=True, methods=["delete"], url_path="items")
     def delete_item(self, request: Request, pk: int | None = None) -> Response:
         """장바구니 아이템 삭제"""
-        cart = self.get_cart()
+        cart = self._get_cart()
 
         try:
-            cart_item = cart.items.get(pk=pk)
-        except CartItem.DoesNotExist:
-            raise NotFound("장바구니에 해당 상품이 없습니다.")
-
-        # 삭제 전 상품명 저장 (응답 메시지용)
-        product_name = cart_item.product.name
-        cart_item.delete()
-
-        return Response(
-            {"message": f"{product_name}이(가) 장바구니에서 삭제되었습니다."},
-            status=status.HTTP_204_NO_CONTENT,
-        )
+            product_name = CartService.remove_item(cart=cart, item_id=pk)
+            return Response(
+                {"message": f"{product_name}이(가) 장바구니에서 삭제되었습니다."},
+                status=status.HTTP_204_NO_CONTENT,
+            )
+        except CartServiceError as e:
+            if e.code == "ITEM_NOT_FOUND":
+                raise NotFound(e.message)
+            return Response(
+                {"error": e.message, "code": e.code},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     @extend_schema(
         request=CartClearSerializer,
@@ -344,28 +338,23 @@ class CartViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=["post"])
     def clear(self, request: Request) -> Response:
         """장바구니 비우기"""
-        cart = self.get_cart()
+        cart = self._get_cart()
 
-        # 빈 장바구니인지 확인
-        if not cart.items.exists():
-            return Response(
-                {"message": "장바구니가 이미 비어있습니다."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        # 확인 검증
         serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        if serializer.is_valid():
-            # 장바구니 비우기
-            item_count = cart.items.count()
-            cart.clear()
-
+        try:
+            item_count = CartService.clear_cart(cart=cart)
             return Response(
                 {"message": f"{item_count}개의 상품이 장바구니에서 삭제되었습니다."},
                 status=status.HTTP_200_OK,
             )
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except CartServiceError as e:
+            return Response(
+                {"error": e.message, "code": e.code},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     @extend_schema(
         request=CartBulkAddRequestSerializer,
@@ -383,103 +372,30 @@ class CartViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"])
     def bulk_add(self, request: Request) -> Response:
-        """여러 상품을 한 번에 장바구니에 추가 (N+1 쿼리 최적화)"""
-        cart = self.get_cart()
+        """여러 상품을 한 번에 장바구니에 추가"""
+        cart = self._get_cart()
         items_data = request.data.get("items", [])
 
-        if not items_data:
+        try:
+            result = CartService.bulk_add_items(cart=cart, items_data=items_data)
+
+            response_data = {
+                "message": f"{result.success_count}개의 상품이 추가되었습니다.",
+                "added_items": CartItemSerializer(result.added_items, many=True).data,
+            }
+
+            if result.errors:
+                response_data["errors"] = result.errors
+                response_data["error_count"] = result.error_count
+                return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
+
+            return Response(response_data, status=status.HTTP_201_CREATED)
+
+        except CartServiceError as e:
             return Response(
-                {"error": "추가할 상품 정보가 없습니다."},
+                {"error": e.message, "code": e.code},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        # N+1 쿼리 방지: 사전에 모든 product_id 수집 후 bulk 조회
-        product_ids = [item.get("product_id") for item in items_data if "product_id" in item]
-        products = {p.id: p for p in Product.objects.filter(id__in=product_ids, is_active=True)}
-
-        added_items = []
-        errors = []
-
-        # 트랜잭션으로 전체 처리
-        with transaction.atomic():
-            # Cart 잠금 (동시성 제어)
-            cart = Cart.objects.select_for_update().get(pk=cart.pk)
-
-            for idx, item_data in enumerate(items_data):
-                product_id = item_data.get("product_id")
-                quantity = item_data.get("quantity", 1)
-
-                # 유효성 검증
-                if not product_id:
-                    errors.append({"index": idx, "product_id": None, "errors": {"product_id": "상품 ID가 필요합니다."}})
-                    continue
-
-                # 사전 조회한 products dict 활용
-                if product_id not in products:
-                    errors.append(
-                        {
-                            "index": idx,
-                            "product_id": product_id,
-                            "errors": {"product_id": "상품을 찾을 수 없거나 판매 중단되었습니다."},
-                        }
-                    )
-                    continue
-
-                product = products[product_id]
-
-                # 수량 검증
-                if not isinstance(quantity, int) or quantity < 1:
-                    errors.append(
-                        {"index": idx, "product_id": product_id, "errors": {"quantity": "수량은 1 이상이어야 합니다."}}
-                    )
-                    continue
-
-                if quantity > 999:
-                    errors.append(
-                        {"index": idx, "product_id": product_id, "errors": {"quantity": "수량은 999 이하여야 합니다."}}
-                    )
-                    continue
-
-                # 재고 검증
-                if product.stock < quantity:
-                    errors.append(
-                        {
-                            "index": idx,
-                            "product_id": product_id,
-                            "errors": {"quantity": f"재고 부족. 현재 재고: {product.stock}개"},
-                        }
-                    )
-                    continue
-
-                # CartItem 생성/업데이트 (F() 사용하여 atomic update)
-                try:
-                    # select_for_update()와 get_or_create()를 분리하여 cart_id null 문제 방지
-                    cart_item = cart.items.filter(product_id=product_id).select_for_update().first()
-
-                    if cart_item:
-                        # 이미 있으면 수량 증가
-                        CartItem.objects.filter(pk=cart_item.pk).update(quantity=F("quantity") + quantity)
-                        cart_item.refresh_from_db()
-                    else:
-                        # 새로 생성 - cart FK를 명시적으로 설정
-                        cart_item = CartItem.objects.create(cart=cart, product_id=product_id, quantity=quantity)
-
-                    added_items.append(cart_item)
-                except Exception as e:
-                    errors.append({"index": idx, "product_id": product_id, "errors": {"detail": str(e)}})
-
-        # 응답 생성
-        response_data = {
-            "message": f"{len(added_items)}개의 상품이 추가되었습니다.",
-            "added_items": CartItemSerializer(added_items, many=True).data,
-        }
-
-        if errors:
-            response_data["errors"] = errors
-            response_data["error_count"] = len(errors)
-            return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
-
-        return Response(response_data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
         responses={
@@ -492,56 +408,30 @@ class CartViewSet(viewsets.GenericViewSet):
 - 주문 직전 재고 확인 시 사용한다.""",
         tags=["Cart"],
     )
-    @action(detail=True, methods=["get"])
+    @action(detail=False, methods=["get"])
     def check_stock(self, request: Request) -> Response:
         """장바구니 상품들의 재고 확인"""
-        cart = self.get_cart()
+        cart = self._get_cart()
 
-        # 재고 부족 상품 찾기
-        stock_issues = []
+        issues = CartService.check_stock(cart=cart)
 
-        for item in cart.items.select_related("product"):
-            product = item.product
-
-            if not product.is_active:
-                stock_issues.append(
-                    {
-                        "item_id": item.id,
-                        "product_id": product.id,
-                        "product_name": product.name,
-                        "issue": "판매 중단",
-                        "requested": item.quantity,
-                        "available": 0,
-                    }
-                )
-            elif product.stock == 0:
-                stock_issues.append(
-                    {
-                        "item_id": item.id,
-                        "product_id": product.id,
-                        "product_name": product.name,
-                        "issue": "품절",
-                        "requested": item.quantity,
-                        "available": 0,
-                    }
-                )
-            elif product.stock < item.quantity:
-                stock_issues.append(
-                    {
-                        "item_id": item.id,
-                        "product_id": product.id,
-                        "product_name": product.name,
-                        "issue": "재고 부족",
-                        "requested": item.quantity,
-                        "available": product.stock,
-                    }
-                )
-
-        if stock_issues:
+        if issues:
+            # StockIssue dataclass를 dict로 변환
+            issues_data = [
+                {
+                    "item_id": issue.item_id,
+                    "product_id": issue.product_id,
+                    "product_name": issue.product_name,
+                    "issue": CartService.get_stock_issue_message(issue.issue_type),
+                    "requested": issue.requested,
+                    "available": issue.available,
+                }
+                for issue in issues
+            ]
             return Response(
                 {
                     "has_issues": True,
-                    "issues": stock_issues,
+                    "issues": issues_data,
                     "message": "일부 상품의 재고가 부족합니다.",
                 },
                 status=status.HTTP_200_OK,
@@ -559,7 +449,7 @@ class CartViewSet(viewsets.GenericViewSet):
 class CartItemListResponseSerializer(drf_serializers.Serializer):
     """장바구니 아이템 목록 응답"""
 
-    # CartItemSerializer와 동일한 구조의 리스트
+    pass  # CartItemSerializer(many=True)와 동일
 
 
 class CartItemCreateResponseSerializer(drf_serializers.Serializer):
@@ -632,8 +522,13 @@ class CartItemViewSet(viewsets.GenericViewSet):
     회원/비회원 모두 사용 가능합니다.
     """
 
-    permission_classes = [permissions.AllowAny]  # 회원/비회원 모두 허용
+    permission_classes = [permissions.AllowAny]
     serializer_class = CartItemSerializer
+
+    def _get_cart(self) -> Cart:
+        """현재 사용자/세션의 활성 장바구니를 가져오거나 생성"""
+        user = self.request.user if self.request.user.is_authenticated else None
+        return CartService.get_or_create_cart(user=user, request=self.request)
 
     def get_queryset(self) -> Any:
         """
@@ -665,50 +560,72 @@ class CartItemViewSet(viewsets.GenericViewSet):
 
     def create(self, request: Request) -> Response:
         """장바구니에 아이템 추가"""
-        # 회원/비회원 구분하여 장바구니 가져오기
-        if request.user.is_authenticated:
-            cart, created = Cart.get_or_create_active_cart(user=request.user)
-        else:
-            session_key = request.session.session_key
-            if not session_key:
-                request.session.create()
-                session_key = request.session.session_key
-            cart, created = Cart.get_or_create_active_cart(session_key=session_key)
+        cart = self._get_cart()
 
-        serializer = CartItemCreateSerializer(data=request.data, context={"request": request, "cart": cart})
+        serializer = CartItemCreateSerializer(
+            data=request.data,
+            context={"request": request, "cart": cart},
+        )
+        serializer.is_valid(raise_exception=True)
 
-        if serializer.is_valid():
-            cart_item = serializer.save()
-            return Response(CartItemSerializer(cart_item).data, status=status.HTTP_201_CREATED)
+        product_id = serializer.validated_data["product_id"]
+        quantity = serializer.validated_data.get("quantity", 1)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            cart_item = CartService.add_item(
+                cart=cart,
+                product_id=product_id,
+                quantity=quantity,
+            )
+            return Response(
+                CartItemSerializer(cart_item).data,
+                status=status.HTTP_201_CREATED,
+            )
+        except CartServiceError as e:
+            return Response(
+                {"error": e.message, "code": e.code},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     def update(self, request: Request, pk: int | None = None) -> Response:
         """아이템 수량 변경"""
+        cart = self._get_cart()
+
+        serializer = CartItemUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        quantity = serializer.validated_data.get("quantity", 1)
+
         try:
-            cart_item = self.get_queryset().get(pk=pk)
-        except CartItem.DoesNotExist:
-            raise NotFound("장바구니 아이템을 찾을 수 없습니다.")
+            cart_item = CartService.update_item_quantity(
+                cart=cart,
+                item_id=pk,
+                quantity=quantity,
+            )
 
-        serializer = CartItemUpdateSerializer(cart_item, data=request.data, partial=True)
-
-        if serializer.is_valid():
-            # quantity가 0이면 삭제됨
-            if serializer.validated_data.get("quantity") == 0:
-                cart_item.delete()
+            if cart_item is None:
                 return Response(status=status.HTTP_204_NO_CONTENT)
 
-            cart_item = serializer.save()
             return Response(CartItemSerializer(cart_item).data)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except CartServiceError as e:
+            if e.code == "ITEM_NOT_FOUND":
+                raise NotFound(e.message)
+            return Response(
+                {"error": e.message, "code": e.code},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     def destroy(self, request: Request, pk: int | None = None) -> Response:
         """아이템 삭제"""
-        try:
-            cart_item = self.get_queryset().get(pk=pk)
-        except CartItem.DoesNotExist:
-            raise NotFound("장바구니 아이템을 찾을 수 없습니다.")
+        cart = self._get_cart()
 
-        cart_item.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        try:
+            CartService.remove_item(cart=cart, item_id=pk)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except CartServiceError as e:
+            if e.code == "ITEM_NOT_FOUND":
+                raise NotFound(e.message)
+            return Response(
+                {"error": e.message, "code": e.code},
+                status=status.HTTP_400_BAD_REQUEST,
+            )

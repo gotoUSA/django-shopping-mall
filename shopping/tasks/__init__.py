@@ -12,6 +12,7 @@ from .cleanup_tasks import (
 from .email_tasks import retry_failed_emails_task, send_email_task, send_verification_email_task
 from .order_tasks import process_order_heavy_tasks
 from .point_tasks import expire_points_task, send_email_notification, send_expiry_notification_task
+from .payment_tasks import call_toss_confirm_api, finalize_payment_confirm
 
 __all__ = [
     # 이메일 태스크
@@ -29,4 +30,7 @@ __all__ = [
     "send_email_notification",
     # 주문 태스크
     "process_order_heavy_tasks",
+    # 결제 태스크
+    "call_toss_confirm_api",
+    "finalize_payment_confirm",
 ]

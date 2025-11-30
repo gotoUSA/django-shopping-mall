@@ -246,7 +246,7 @@ class TestProductReview:
         api_client.force_authenticate(user=user)
 
         review_data = {"rating": 5, "comment": "훌륭한 상품입니다!"}
-        url = reverse("product-reviews", kwargs={"pk": product.id})  # product-add-review -> product-reviews
+        url = reverse("product-reviews", kwargs={"pk": product.id})
 
 
         # Act
@@ -265,7 +265,7 @@ class TestProductReview:
         api_client.force_authenticate(user=user)
 
         review_data = {"rating": 3, "comment": "두 번째 리뷰"}
-        url = reverse("product-reviews", kwargs={"pk": product.id})  # product-add-review -> product-reviews
+        url = reverse("product-reviews", kwargs={"pk": product.id})
 
 
         # Act
@@ -280,7 +280,7 @@ class TestProductReview:
         # Arrange
         product = ProductFactory()
         review_data = {"rating": 5, "comment": "좋아요"}
-        url = reverse("product-reviews", kwargs={"pk": product.id})  # product-add-review -> product-reviews
+        url = reverse("product-reviews", kwargs={"pk": product.id})
 
 
         # Act

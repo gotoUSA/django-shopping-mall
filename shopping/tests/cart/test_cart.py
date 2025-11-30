@@ -615,7 +615,7 @@ class TestCartItemViewSet:
         cart = CartFactory(user=user)
         CartItemFactory(cart=cart, product=product)
         CartItemFactory(cart=cart, product=product2)
-        list_url = reverse("cart-items")  # cart-item-list -> cart-items
+        list_url = reverse("cart-items")
 
 
         # Act
@@ -628,7 +628,7 @@ class TestCartItemViewSet:
     def test_create_cart_item(self, authenticated_client, product):
         """아이템 생성"""
         # Arrange
-        create_url = reverse("cart-add-item")  # cart-item-list -> cart-add-item
+        create_url = reverse("cart-add-item")
 
         create_data = {"product_id": product.id, "quantity": 2}
 
@@ -637,7 +637,7 @@ class TestCartItemViewSet:
 
         # Assert
         assert response.status_code == status.HTTP_201_CREATED
-        assert response.json()["item"]["quantity"] == 2  # 응답 구조에 맞게 수정
+        assert response.json()["item"]["quantity"] == 2
 
 
     def test_update_cart_item(self, authenticated_client, user, product):

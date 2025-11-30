@@ -282,9 +282,9 @@ class TestReturnViewIntegration:
 
         # Act & Assert - 1. 신청
         api_client.force_authenticate(user=buyer)
-        create_url = reverse("return-list")  # return-create -> return-list
+        create_url = reverse("return-list")
         create_data = {
-            "order_id": order.id,  # body에 order_id 추가
+            "order_id": order.id,
 
             "type": "refund",
             "reason": "change_of_mind",
@@ -341,9 +341,9 @@ class TestReturnViewIntegration:
 
         # Act & Assert - 1. 신청
         api_client.force_authenticate(user=buyer)
-        create_url = reverse("return-list")  # return-create -> return-list
+        create_url = reverse("return-list")
         create_data = {
-            "order_id": order.id,  # body에 order_id 추가
+            "order_id": order.id,
 
             "type": "exchange",
             "reason": "size_issue",

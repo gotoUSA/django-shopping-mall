@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from datetime import datetime
 import hashlib
 import hmac
 import json
@@ -54,6 +55,16 @@ class TossPaymentClient:
         Raises:
             TossPaymentError: 결제 승인 실패시
         """
+        if settings.DEBUG:
+            return {
+                "orderId": str(order_id),
+                "status": "SUCCESS",
+                "approvedAt": datetime.now().isoformat(),
+                "paymentKey": str(payment_key),
+                "amount": int(amount),
+                "totalAmount": int(amount),  # Toss 응답 형식과 비슷하게
+                "balanceAmount": 0,
+            }
         url = f"{self.base_url}/v1/payments/confirm"
 
         data = {
@@ -111,6 +122,12 @@ class TossPaymentClient:
         Raises:
             TossPaymentError: 취소 실패시
         """
+        if settings.DEBUG:
+            return {
+                "status": "CANCELED",
+                "canceledAt": datetime.now().isoformat(),
+                "cancelReason": cancel_reason,
+            }
         url = f"{self.base_url}/v1/payments/{payment_key}/cancel"
 
         data = {
@@ -155,6 +172,7 @@ class TossPaymentClient:
         Returns:
             결제 정보
         """
+
         url = f"{self.base_url}/v1/payments/{payment_key}"
 
         try:
